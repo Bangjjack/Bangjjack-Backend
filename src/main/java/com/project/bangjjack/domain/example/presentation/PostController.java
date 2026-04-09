@@ -9,7 +9,6 @@ import com.project.bangjjack.global.common.response.CommonResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,7 +21,6 @@ public class PostController {
 	private final PostUseCase postUseCase;
 
 	@PostMapping
-	@ResponseStatus(HttpStatus.CREATED)
 	public CommonResponse<PostResponse> createPost(@RequestBody @Valid CreatePostRequest request) {
 		PostResponse response = postUseCase.createPost(request);
 		return CommonResponse.success(PostResponseCode.POST_CREATED, response);

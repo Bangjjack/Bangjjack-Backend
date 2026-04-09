@@ -79,6 +79,19 @@ spring_boot:
       enum: Define in ErrorCode Enum
     interface: All codes MUST implement ResponseCodeInterface or ErrorCodeInterface
 
+  enum:
+    response_code: "@Getter + @AllArgsConstructor — MUST apply to all ResponseCode enums"
+    error_code: "@Getter + @AllArgsConstructor — MUST apply to all ErrorCode enums"
+    example: |
+      @Getter
+      @AllArgsConstructor
+      public enum PostResponseCode implements ResponseCodeInterface {
+          POST_CREATED(201, HttpStatus.CREATED, "게시글이 생성되었습니다.");
+          private final int code;
+          private final HttpStatus status;
+          private final String message;
+      }
+
   entity:
     base: All entities MUST extend BaseEntity (createdAt, updatedAt, deleted, deletedAt)
     id_strategy: Auto-Increment Long (@GeneratedValue(strategy = GenerationType.IDENTITY))

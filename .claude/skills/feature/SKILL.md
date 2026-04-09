@@ -225,6 +225,29 @@ public record {Name}Response(Long id, String field, LocalDateTime createdAt) {
         return new {Name}Response({name}.getId(), {name}.getField(), {name}.getCreatedAt());
     }
 }
+
+// ResponseCode — @Getter + @AllArgsConstructor MUST apply
+@Getter
+@AllArgsConstructor
+public enum {Name}ResponseCode implements ResponseCodeInterface {
+    {NAME}_CREATED(201, HttpStatus.CREATED, "..."),
+    {NAME}_FOUND(200, HttpStatus.OK, "...");
+
+    private final int code;
+    private final HttpStatus status;
+    private final String message;
+}
+
+// ErrorCode — @Getter + @AllArgsConstructor MUST apply
+@Getter
+@AllArgsConstructor
+public enum {Name}ErrorCode implements ErrorCodeInterface {
+    {NAME}_NOT_FOUND(40{XX}1, HttpStatus.NOT_FOUND, "...");
+
+    private final int code;
+    private final HttpStatus status;
+    private final String message;
+}
 ```
 
 **Step 3: Write Tests**
