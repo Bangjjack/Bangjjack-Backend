@@ -1,0 +1,216 @@
+# Testing Guide
+# Last Updated: 2026-04-09
+
+meta:
+  title: Testing Guide
+  type: Convention
+  scope: Testing standards and practices
+
+framework:
+  testing: JUnit 5
+  language: Korean test descriptions
+  strategy: Unit tests with mocks (Mockito)
+
+test_structure:
+  style:
+    required: JUnit 5 with @Test, @DisplayName, @Nested
+    hierarchy:
+      class: 테스트 대상 클래스 (e.g., BoothServiceTest)
+      nested: 테스트 대상 메서드 또는 기능 (@Nested)
+      method: 기대 결과 (~한다, ~를 반환한다, ~예외를 던진다)
+
+    example: |
+      @ExtendWith(MockitoExtension.class)
+      @DisplayName("BoothService")
+      class BoothServiceTest {
+
+          @Mock
+          private BoothRepository boothRepository;
+
+          @InjectMocks
+          private BoothService boothService;
+
+          @Nested
+          @DisplayName("findById")
+          class FindById {
+
+              @Test
+              @DisplayName("존재하는 Booth ID가 주어지면 Booth를 반환한다")
+              void returnsBoothWhenExists() {
+                  // given
+                  Booth booth = new Booth(1L, "테스트 부스");
+                  given(boothRepository.findById(1L)).willReturn(Optional.of(booth));
+
+                  // when
+                  Booth result = boothService.findById(1L);
+
+                  // then
+                  assertThat(result.getName()).isEqualTo("테스트 부스");
+              }
+
+              @Test
+              @DisplayName("존재하지 않는 ID가 주어지면 예외를 던진다")
+              void throwsWhenNotFound() {
+                  // given
+                  given(boothRepository.findById(99L)).willReturn(Optional.empty());
+
+                  // when & then
+                  assertThatThrownBy(() -> boothService.findById(99L))
+                      .isInstanceOf(ApplicationException.class);
+              }
+          }
+      }
+
+test_annotations:
+  unit:
+    annotation: "@ExtendWith(MockitoExtension.class)"
+    use_for: Service, UseCase layer tests
+    composition:
+      - "@ExtendWith(MockitoExtension.class)"
+      - "@Mock for dependencies"
+      - "@InjectMocks for the target class"
+
+    benefits:
+      - Fast execution (no Spring context)
+      - Isolated unit behavior
+      - Easy to control mock responses
+      - Clear single-responsibility tests
+
+coding_patterns:
+  constructor_injection:
+    do: |
+      @ExtendWith(MockitoExtension.class)
+      class SomeServiceTest {
+          @Mock
+          private SomeRepository someRepository;
+
+          @InjectMocks
+          private SomeService someService;
+      }
+    dont: |
+      @Autowired
+      private SomeRepository someRepository;
+
+  test_data:
+    pattern: |
+      @Test
+      @DisplayName("유효한 Booth 저장 요청이 주어지면 저장된 Booth를 반환한다")
+      void saveBooth() {
+          // given
+          Booth booth = new Booth(100L, "테스트 부스");
+          given(boothRepository.save(booth)).willReturn(booth);
+
+          // when
+          Booth saved = boothService.save(booth);
+
+          // then
+          assertThat(saved.getName()).isEqualTo("테스트 부스");
+      }
+    rules:
+      - Clear, descriptive variable names
+      - given/when/then structure
+      - One assertion theme per test
+
+  assertions:
+    use: AssertJ (fluent style)
+    examples:
+      - assertThat(result).isNotNull()
+      - assertThat(result.getName()).isEqualTo("멋진 축제 부스")
+      - assertThat(result.getId()).isGreaterThan(0L)
+      - assertThatThrownBy(() -> ...).isInstanceOf(ApplicationException.class)
+
+    common_assertions:
+      - isEqualTo: equality
+      - isNotNull: null check
+      - isGreaterThan: comparison
+      - isInstanceOf: type check
+      - assertThatThrownBy: exception
+
+    forbidden:
+      - assertEquals(expected, actual)  # use AssertJ instead
+      - assertNotNull(value)             # use AssertJ instead
+
+file_naming:
+  pattern: "{TargetClass}Test.java"
+  examples:
+    - BoothServiceTest.java
+    - CreateOrderUseCaseTest.java
+    - MemberRepositoryTest.java
+  rule: Class name MUST match file name
+  suffix: Use "Test" (not "Spec")
+
+directory_structure:
+  path: src/test/java/com/project/bangjjack/
+  layout: |
+    domain/
+      booth/
+        application/
+          CreateBoothUseCaseTest.java
+        domain/
+          BoothServiceTest.java
+
+  rules:
+    - Mirror main package structure
+    - Focus on UseCase and Service (Domain) tests
+    - No controller tests
+    - No integration tests (unit tests only)
+
+best_practices:
+  - rule: Unit tests only
+    description: Test each class in isolation using Mockito mocks
+    benefit: Fast, reliable, easy to maintain
+
+  - rule: Test isolation
+    description: Each test method is independent — no shared mutable state
+
+  - rule: Clear test intent
+    description: Korean @DisplayName, @Nested hierarchy
+    implementation: One scenario per @Test method
+
+  - rule: Simple test code
+    description: Keep test methods concise, one assertion theme per test
+    implementation: Avoid complex logic in tests — if setup is complex, extract helper
+
+  - rule: AAA pattern
+    description: Always structure as given / when / then
+
+forbidden:
+  - "Integration tests (unit tests only)"
+  - "English test names (use Korean @DisplayName)"
+  - "JUnit 4 (use JUnit 5)"
+  - "Field injection in tests (use @Mock / @InjectMocks)"
+  - "Controller layer tests"
+  - "H2 or TestContainers (no DB tests — mock the repository)"
+
+example_unit_test: |
+  @ExtendWith(MockitoExtension.class)
+  @DisplayName("BoothService")
+  class BoothServiceTest {
+
+      @Mock
+      private BoothRepository boothRepository;
+
+      @InjectMocks
+      private BoothService boothService;
+
+      @Nested
+      @DisplayName("save")
+      class Save {
+
+          @Test
+          @DisplayName("유효한 Booth가 주어지면 저장하고 반환한다")
+          void savesAndReturnsBooth() {
+              // given
+              Booth booth = new Booth(100L, "멋진 축제 부스");
+              given(boothRepository.save(booth)).willReturn(booth);
+
+              // when
+              Booth saved = boothService.save(booth);
+
+              // then
+              assertThat(saved).isNotNull();
+              assertThat(saved.getName()).isEqualTo("멋진 축제 부스");
+              assertThat(saved.getFestivalId()).isEqualTo(100L);
+          }
+      }
+  }
