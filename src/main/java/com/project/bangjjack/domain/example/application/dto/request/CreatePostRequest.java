@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.post.application.dto.request;
+package com.project.bangjjack.domain.example.application.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
