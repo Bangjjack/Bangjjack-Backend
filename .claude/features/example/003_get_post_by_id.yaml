@@ -1,0 +1,100 @@
+# Feature Specification
+# Status: Draft
+# Last Updated: 2026-04-09
+
+meta:
+  id: FEAT-003
+  title: 특정 게시글 상세 조회
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    ID로 특정 게시글을 상세 조회하는 기능.
+    존재하지 않거나 삭제된 게시글 요청 시 예외 처리 흐름 예시 포함.
+  user_story: >
+    As a 팀원, I want to 게시글 상세 조회 API를 통해 단건 조회 및 예외 처리 흐름을 확인하고,
+    so that 프로젝트의 에러 핸들링 컨벤션을 파악할 수 있다.
+  goals:
+    - 단건 Read 흐름(Controller → UseCase → DomainService → Repository) 예시 제공
+    - ApplicationException 기반 예외 처리 흐름 예시 제공
+
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/posts/{id}
+      summary: 특정 게시글 상세 조회
+      auth: None (예시용 - 인증 불필요)
+      request:
+        path_variable:
+          - name: id
+            type: Long
+            required: true
+      response:
+        dto: PostResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<PostResponse>
+        fields:
+          - name: id
+            type: Long
+          - name: title
+            type: String
+          - name: content
+            type: String
+          - name: authorName
+            type: String
+          - name: createdAt
+            type: LocalDateTime
+
+  data_flow:
+    - step: 1
+      layer: Presentation (PostController)
+      action: "GetPostUseCase 호출 (PathVariable id 전달)"
+    - step: 2
+      layer: UseCase (GetPostUseCase)
+      action: "PostGetService.getPost(id) 호출 → PostResponse 반환"
+      transaction: false (readOnly = true)
+    - step: 3
+      layer: Domain (PostGetService)
+      action: "PostRepository.findByIdAndDeletedFalse(id) → 없으면 POST_NOT_FOUND 예외"
+    - step: 4
+      layer: Infrastructure (PostRepository)
+      action: "id AND deleted = false 조건으로 단건 조회"
+
+  database:
+    entities:
+      - name: Post
+        action: Read
+        table: posts
+        notes: "id AND deleted = false 조건 필수"
+
+  error_codes:
+    domain_range: "402xx (Post 도메인)"
+    codes:
+      - code: 40202
+        status: 404 Not_Found
+        message: "게시글을 찾을 수 없습니다."
+        trigger: "id에 해당하는 게시글이 없거나 삭제된 경우"
+
+  validation_rules:
+    - "삭제된 게시글(deleted = true) 조회 시 POST_NOT_FOUND 예외"
+    - "존재하지 않는 id 조회 시 POST_NOT_FOUND 예외"
+
+package_structure:
+  base: "com.project.bangjjack.domain.post"
+  domain:
+    - "domain/post/domain/repository/PostRepository.java (findByIdAndDeletedFalse 추가)"
+    - "domain/post/domain/service/PostGetService.java (getPost 메서드 추가)"
+    - "domain/post/application/exception/PostErrorCode.java (POST_NOT_FOUND 추가)"
+    - "domain/post/application/exception/PostNotFoundException.java"
+  application:
+    - "domain/post/application/usecase/GetPostUseCase.java"
+  presentation:
+    - "domain/post/presentation/PostController.java (GET /{id} 엔드포인트 추가)"
+
+testing_strategy:
+  happy_path:
+    - "존재하는 id로 조회하면 해당 게시글 정보가 반환된다"
+  error_cases:
+    - "존재하지 않는 id로 조회하면 POST_NOT_FOUND 예외가 발생한다"
+    - "삭제된 게시글 id로 조회하면 POST_NOT_FOUND 예외가 발생한다"
