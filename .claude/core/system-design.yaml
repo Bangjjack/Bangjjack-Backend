@@ -1,0 +1,72 @@
+architecture:
+  intent: "Prioritize Maintainability & Testability. Clear separation of concerns."
+  pattern: Layered DDD
+  flow: Controller -> UseCase(Tx) -> Domain(Entity/Service) -> Repository
+  flow(external/infra): Controller -> UseCase -> Domain(Interface) <- [Implements] - Infrastructure/External
+  patterns:
+    - Snapshot: Use for immutable history (Currently applied to -> Menu Domain).
+    - Factory Method: Use static `create()` method in Entity.
+    - Rich Model: Encapsulate business logic in Entity methods.
+  layers:
+    presentation:
+      role: [ HTTP handling, @Valid, UseCase 1:1 mapping ]
+      forbidden: [ Business logic, Direct Repo access ]
+    usecase:
+      role: [ Transaction boundary, DTO conversion, Orchestration ]
+      pattern: Single Facade per domain
+      naming: "{Domain}UseCase (e.g., PostUseCase) — ONE class per domain, all operations inside"
+    domain:
+      role: [ Pure business logic, State changes, Define Interfaces (Port) ]
+      rule:
+        - Entity holds logic (Rich Model, Tell Don't Ask)
+        - Service only for complex orchestration
+        - Interfaces defined here, implemented in Infra/External (DIP)
+        - separated by CRUD (default) or Feature (if complex)
+    external:
+      role: [ External APIs we cannot control (Third-party), Implement Domain Interfaces ]
+    infrastructure:
+      role: [ Systems we control but outside application boundary (Redis, etc.), Implement Domain Interfaces ]
+  rules:
+    - UseCase: Single Facade per domain, DTO conversion here
+    - Entity: Contains business logic (Tell Don't Ask)
+    - DTO Conversion: MUST use Static Factory Method (static from())
+                        - Bad: return new ResponseDto(entity.getId(), entity.getName(), ...)
+                        - Good: return ResponseDto.from(entity)
+    - Signature: Pass WHOLE OBJECTS (Entity/DTO), not loose fields.
+                   - Bad: repo.exists(schoolId, startDate, endDate)
+                   - Good: repo.exists(festival) or repo.exists(commandDto)
+  constraint:
+    - NO Layer Skipping: UseCase MUST NOT depend on Repository or Infrastructure directly.
+    - NO Horizontal Dependency: UseCase MUST NOT depend on other UseCases.
+    - NO Horizontal Dependency: Domain Service MUST NOT depend on other Domain Services.
+
+api:
+  intent: "Consistency & Predictability for clients. Standardized error handling."
+  base_url: /api/v1
+  response_wrapper: CommonResponse<T> { code, message, data }
+  error_response: { code: Int, message: String }
+  methods: { GET: 200, POST: 201, PUT/PATCH: 200, DELETE: 204 }
+  naming:
+    url: kebab-case, plural (e.g., /festivals/{id}/booths)
+    dto: { Action }{ Resource }Request, {Resource}Response
+  error_codes:
+    global: 30001~30999 (Server), 40001~40099 (Client)
+    domains:
+      user: 401xx
+
+entity:
+  intent: "Data Integrity & Encapsulation. Protect invariants within the Entity."
+  base:
+    BaseEntity (id: Auto-Increment Long, createdAt, updatedAt, deleted, deletedAt)
+  mapping:
+    - ManyToOne(Lazy)
+    - Use JPA relationships (@ManyToOne, @OneToMany, @ManyToMany) with FK constraints
+  column_rules:
+    - Enum: @Enumerated(EnumType.STRING) (ORDINAL Forbidden)
+    - Boolean: prefix 'is_' (e.g., is_active), default value required
+    - Text: @Lob or columnDefinition="TEXT"
+    - String: Must specify length
+  rules:
+    - Soft Delete required (use softDelete() method)
+    - No equals/hashCode override
+    - No toDto() inside Entity

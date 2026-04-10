@@ -1,0 +1,38 @@
+project:
+  name: bangjjack-BE
+  type: spring-boot-java
+  domain: festival-management
+  target: korean-festivals
+
+stack:
+  java: 21
+  spring_boot: 4.0.1
+  jdk: 21
+  db: mysql-8
+  cache: redis
+  test: JUnit 5 (unit tests)
+
+constraints:
+  - NO field injection (@Autowired) -> Use @RequiredArgsConstructor on ALL @Service, @RestController classes
+  - Entity MUST have @Getter, @NoArgsConstructor(access = PROTECTED), @AllArgsConstructor(access = PRIVATE) -> NO @Setter (state changes via static factory method or domain methods only)
+  - NO Hard Delete -> Use Soft Delete (deletedAt)
+  - NO Logic in Controller -> Delegate to UseCase
+  - NO Anemic Model -> Put logic in Entity (Tell Don't Ask)
+  - NO Alpha/Beta versions -> latest Stable only
+  - NO Duplicate Error Codes -> Run check_error_codes.py when adding new codes
+  - Domain Service Isolation -> Service depends ONLY on Repository (No Service-to-Service calls)
+  - UseCase MUST NOT depend on Repository directly -> Always go through Domain Service
+  - UseCase Transaction -> @Transactional(readOnly = true) on class, @Transactional on write methods
+  - Performance -> Prefer `saveAll()` over loop `save()`. Avoid N+1 queries.
+  - MUST READ `references/conventions/coding-style.yaml` before implementing API Response or Exception Handling.
+
+coding_style:
+  - Prefer final fields (immutability)
+  - Records or POJOs for DTOs
+  - Explicit null handling (Objects.requireNonNull, Optional, or @NonNull)
+  - Response DTO: Use static factory method `from(entity)` (No direct instantiation)
+
+commands:
+  build: ./gradlew build
+  test: ./gradlew test
+  run: ./gradlew bootRun
