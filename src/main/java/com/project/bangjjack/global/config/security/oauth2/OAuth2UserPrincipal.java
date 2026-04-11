@@ -2,7 +2,6 @@ package com.project.bangjjack.global.config.security.oauth2;
 
 import com.project.bangjjack.global.jwt.Role;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
