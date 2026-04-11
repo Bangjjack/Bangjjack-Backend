@@ -15,4 +15,27 @@ spring:
     hibernate:
       ddl-auto: update
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            redirect-uri: http://localhost:8080/auth/login/google
+            authorization-grant-type: authorization_code
+            scope:
+              - profile
+              - email
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: 6379
+
 server-uri: ${SERVER_URI}
+front-uri: ${FRONT_URI}
+
+jwt:
+  access:
+    secret: ${JWT_ACCESS}
+    expiration-seconds: 259200
