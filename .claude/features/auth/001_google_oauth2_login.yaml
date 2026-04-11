@@ -1,6 +1,6 @@
 # Feature Specification: Google OAuth2 소셜 로그인
 # Status: Draft
-# Last Updated: 2026-04-11
+# Last Updated: 2026-04-12
 
 meta:
   id: FEAT-002
@@ -17,6 +17,7 @@ overview:
     so that 별도 회원가입 없이 서비스를 안전하게 이용할 수 있다.
   goals:
     - Google OAuth2를 통한 소셜 로그인 (자동 회원 가입 포함)
+    - 가천대학교 이메일(@gachon.ac.kr) 소유자만 로그인 허용
     - 일회성 Authorization Code (Redis TTL 5분) 경유로 JWT 노출 방지
     - Stateless JWT Access Token 기반 인증 체계 구축
 
@@ -89,9 +90,12 @@ technical_spec:
         layer: Infrastructure (CustomOAuth2UserService)
         action: "DefaultOAuth2UserService.loadUser() → Google attributes에서 providerId(sub), name, email, picture 추출"
       - step: 2
+        layer: Infrastructure (CustomOAuth2UserService)
+        action: "email이 @gachon.ac.kr로 끝나는지 검증 → 아닌 경우 OAuth2AuthenticationException(unauthorized_email_domain) 발생 → CustomOAuth2FailureHandler가 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
+      - step: 3
         layer: Domain (UserService)
         action: "providerId로 User 조회 → 없으면 User.create()로 자동 가입"
-      - step: 3
+      - step: 4
         layer: Infrastructure (CustomOAuth2SuccessHandler)
         action: "RedisService.createAuthorizationCode(userId) → auth:code:{uuid}=userId (TTL 5분) → 프론트 리다이렉트"
 
@@ -150,6 +154,12 @@ technical_spec:
         status: 401 UNAUTHORIZED
         message: "유효하지 않거나 만료된 인증 코드입니다."
         trigger: "Redis에서 code가 존재하지 않거나 TTL 만료된 경우"
+    oauth2_errors:
+      - code: unauthorized_email_domain
+        status: "302 리다이렉트 → {front-uri}/login?error=unauthorized_email_domain"
+        message: "가천대학교 이메일(@gachon.ac.kr)로만 로그인 가능합니다."
+        trigger: "Google 계정 이메일이 @gachon.ac.kr로 끝나지 않는 경우"
+        handler: CustomOAuth2FailureHandler
     jwt_entry_point_errors:
       - code: TOKEN_EXPIRED
         status: 401
@@ -169,6 +179,7 @@ technical_spec:
         exception: "(default)"
 
   validation_rules:
+    - "email 도메인: @gachon.ac.kr로 끝나는 계정만 로그인 허용. 위반 시 OAuth2AuthenticationException 발생"
     - "code: @NotBlank, Redis TTL 5분 내 1회만 사용 가능"
     - "자동 가입 시 Google email이 이미 다른 providerId와 연결된 경우 처리 정의 필요"
     - "providerId(sub) 기준으로 동일 Google 계정은 중복 가입되지 않는다"
@@ -213,13 +224,15 @@ package_structure:
 testing_strategy:
   happy_path:
     - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username이 반환된다"
-    - "신규 Google 사용자 로그인 시 User가 자동 생성된다"
-    - "기존 Google 사용자 로그인 시 기존 User가 조회된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 신규 Google 사용자 로그인 시 User가 자동 생성된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 기존 Google 사용자 로그인 시 기존 User가 조회된다"
   edge_cases:
     - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE 반환"
     - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE 반환 (1회용)"
     - "code 파라미터가 blank인 경우 400 Bad Request 반환"
+    - "타 학교 이메일(.ac.kr이지만 gachon이 아닌)로 로그인 시 unauthorized_email_domain 리다이렉트"
   error_cases:
+    - "가천대학교 이메일이 아닌 계정 로그인 시 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
     - "만료된 JWT로 인증 필요 API 접근 시 401 TOKEN_EXPIRED 반환"
     - "위조된 서명의 JWT 접근 시 401 INVALID_SIGNATURE 반환"
     - "OAuth2 인증 실패 시 {front-uri}/login?error=oauth2_failed 리다이렉트"
