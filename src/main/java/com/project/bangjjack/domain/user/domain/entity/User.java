@@ -15,28 +15,30 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class User extends BaseEntity {
 
-	@Column(nullable = false, unique = true, length = 50)
-	private String username;
+    @Column(nullable = false, unique = true, length = 255)
+    private String providerId;
 
-	@Column(nullable = false, unique = true, length = 255)
-	private String email;
+    @Column(nullable = false, unique = true, length = 50)
+    private String username;
 
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 10)
-	private Gender gender;
+    @Column(nullable = false, unique = true, length = 255)
+    private String email;
 
-	@Column(nullable = false)
-	private int age;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private Gender gender;
 
-	@Column(length = 512)
-	private String profileImage;
+    private Integer age;
 
-	public static User create(String username, String email, Gender gender, int age, String profileImage) {
-		return new User(username, email, gender, age, profileImage);
-	}
+    @Column(length = 512)
+    private String profileImage;
 
-	public void updateProfile(String username, String profileImage) {
-		this.username = username;
-		this.profileImage = profileImage;
-	}
+    public static User create(String providerId, String username, String email, String profileImage) {
+        return new User(providerId, username, email, null, null, profileImage);
+    }
+
+    public void updateProfile(String username, String profileImage) {
+        this.username = username;
+        this.profileImage = profileImage;
+    }
 }
