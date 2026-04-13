@@ -15,7 +15,7 @@ public class UserGetService {
     private final UserRepository userRepository;
 
     public Optional<User> findByProviderId(String providerId) {
-        return userRepository.findByProviderId(providerId);
+        return userRepository.findByProviderIdAndDeletedFalse(providerId);
     }
 
     public User getById(Long id) {
