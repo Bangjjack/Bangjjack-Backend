@@ -1,0 +1,266 @@
+# Feature Specification: Google OAuth2 소셜 로그인
+# Status: Implemented
+# Last Updated: 2026-04-13
+
+meta:
+  id: FEAT-002
+  title: Google OAuth2 소셜 로그인 및 JWT 토큰 발급
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    Google OAuth2 Authorization Code Flow를 통해 사용자를 인증하고,
+    Redis 임시 코드 교환 패턴을 거쳐 JWT Access Token을 발급하는 인증 시스템.
+  user_story: >
+    As a 사용자, I want to Google 계정으로 로그인하고 JWT를 발급받아,
+    so that 별도 회원가입 없이 서비스를 안전하게 이용할 수 있다.
+  goals:
+    - Google OAuth2를 통한 소셜 로그인 (자동 회원 가입 포함)
+    - 가천대학교 이메일(@gachon.ac.kr) 소유자만 로그인 허용
+    - 일회성 Authorization Code (Redis TTL 5분) 경유로 JWT 노출 방지
+    - Stateless JWT Access Token 기반 인증 체계 구축
+
+# ============================================================
+# 인증 플로우 전체 요약
+# ============================================================
+auth_flow:
+  steps:
+    - step: 1
+      actor: 프론트엔드
+      action: "GET /oauth2/authorization/google 요청 → Spring Security가 Google 로그인 페이지로 리다이렉트"
+    - step: 2
+      actor: Spring Security (자동 처리)
+      action: "Google 로그인 → consent → /login/oauth2/code/google 콜백"
+    - step: 3
+      actor: CustomOAuth2UserService
+      action: "Google 사용자 정보 조회 → DB에서 providerId로 회원 조회 or 자동 가입"
+    - step: 4
+      actor: CustomOAuth2SuccessHandler
+      action: "Redis에 auth:code:{uuid} = userId 저장 (TTL 5분) → 프론트로 {front-uri}?code={uuid} 리다이렉트"
+    - step: 5
+      actor: 프론트엔드
+      action: "URL에서 code 파라미터 추출 → POST /api/v1/auth/token { code } 호출"
+    - step: 6
+      actor: AuthUseCase
+      action: "Redis에서 원자적 code 검증+삭제 → userId로 회원 조회 → JWT 발급 → TokenExchangeResponse 반환"
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /oauth2/authorization/google
+      summary: Google OAuth2 소셜 로그인 시작
+      auth: public
+      note: "Spring Security OAuth2 Client 자동 처리. 별도 Controller 불필요."
+      response:
+        description: "Google 로그인 페이지로 302 리다이렉트"
+
+    - method: POST
+      path: /api/v1/auth/token
+      summary: Authorization Code → JWT Access Token 교환
+      auth: public
+      request:
+        dto: TokenExchangeRequest
+        fields:
+          - name: code
+            type: String
+            required: true
+            validation: "@NotBlank"
+      response:
+        dto: TokenExchangeResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<TokenExchangeResponse>
+        fields:
+          - name: accessToken
+            type: String
+            description: "JWT Access Token (유효기간 3일)"
+          - name: userId
+            type: Long
+            description: "회원 ID"
+          - name: username
+            type: String
+            description: "회원 이름"
+
+  data_flow:
+    oauth2_login:
+      - step: 1
+        layer: Infrastructure (CustomOAuth2UserService)
+        action: "DefaultOAuth2UserService.loadUser() → Google attributes에서 providerId(sub), name, email, picture 추출"
+      - step: 2
+        layer: Infrastructure (CustomOAuth2UserService)
+        action: "email이 @gachon.ac.kr로 끝나는지 검증 → 아닌 경우 OAuth2AuthenticationException(unauthorized_email_domain) 발생 → CustomOAuth2FailureHandler가 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
+      - step: 3
+        layer: Domain (UserService)
+        action: "providerId로 User 조회 → 없으면 User.create()로 자동 가입"
+      - step: 4
+        layer: Infrastructure (CustomOAuth2SuccessHandler)
+        action: "RedisService.createAuthorizationCode(userId) → auth:code:{uuid}=userId (TTL 5분) → 프론트 리다이렉트"
+
+    token_exchange:
+      - step: 1
+        layer: Presentation (AuthController)
+        action: "@Valid 요청 검증 → AuthUseCase.exchangeToken(code) 호출"
+      - step: 2
+        layer: UseCase (AuthUseCase)
+        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 예외 → userId로 User 조회 → JwtProvider.createAccessToken() → TokenExchangeResponse 반환"
+        transaction: true (readOnly)
+      - step: 3
+        layer: Infrastructure (RedisService)
+        action: "Redisson bucket.getAndDelete()로 원자적 code 검증+삭제 (1회용 보장)"
+      - step: 4
+        layer: Infrastructure (JwtProvider)
+        action: "createMemberAccessToken(userId, username) → HMAC 서명 JWT 생성 (sub=userId, name=username, role=MEMBER, exp=설정값(expirationSeconds))"
+
+  database:
+    entities:
+      - name: User
+        table: users
+        action: "Read / Create (자동 가입 시)"
+        lookup_key: "providerId (Google의 sub 값)"
+        auto_register_fields:
+          - column: provider_id (VARCHAR(255), NOT NULL, UNIQUE)
+          - column: username (Google name, VARCHAR(50), NOT NULL, UNIQUE)
+          - column: email (VARCHAR(255), NOT NULL, UNIQUE)
+          - column: gender (NULLABLE → Google 미제공)
+          - column: age (NULLABLE → Google 미제공)
+          - column: profile_image (VARCHAR(512), NULLABLE)
+
+  redis:
+    key_pattern: "auth:code:{uuid}"
+    value: "userId (String)"
+    ttl: 5분
+    operations:
+      - createAuthorizationCode(userId): "UUID 생성 → bucket 저장 → uuid 반환"
+      - validateAndConsumeAuthorizationCode(code): "getAndDelete() 원자적 조회+삭제 → userId 반환 or null"
+
+  jwt:
+    algorithm: HMAC (Base64 디코딩된 SecretKey)
+    library: "io.jsonwebtoken (jjwt) 0.13.0"
+    method: "JwtProvider.createMemberAccessToken(Long memberId, String memberName)"
+    claims:
+      sub: userId (Long → String)
+      name: username
+      role: MEMBER
+      iat: 발급 시간
+      exp: "발급 시간 + jwt.access.expiration-seconds (application.yml 설정값)"
+
+  error_codes:
+    domain_range: "408xx (Auth 도메인)"
+    codes:
+      - code: 40801
+        name: INVALID_AUTHORIZATION_CODE
+        status: 401 UNAUTHORIZED
+        message: "유효하지 않거나 만료된 인증 코드입니다."
+        trigger: "Redis에서 code가 존재하지 않거나 TTL 만료된 경우"
+    oauth2_errors:
+      - code: unauthorized_email_domain
+        status: "302 리다이렉트 → {front-uri}/login?error=unauthorized_email_domain"
+        message: "가천대학교 이메일(@gachon.ac.kr)로만 로그인 가능합니다."
+        trigger: "Google 계정 이메일이 @gachon.ac.kr로 끝나지 않는 경우"
+        handler: CustomOAuth2FailureHandler
+    jwt_entry_point_errors:
+      - code: TOKEN_EXPIRED
+        status: 401
+        message: "액세스 토큰이 만료되었습니다."
+        exception: ExpiredJwtException
+      - code: INVALID_TOKEN
+        status: 401
+        message: "유효하지 않은 토큰 형식입니다."
+        exception: MalformedJwtException
+      - code: INVALID_SIGNATURE
+        status: 401
+        message: "토큰 서명이 유효하지 않습니다."
+        exception: SignatureException
+      - code: UNAUTHORIZED
+        status: 401
+        message: "인증이 필요합니다."
+        exception: "(default)"
+
+  validation_rules:
+    - "email 도메인: @gachon.ac.kr로 끝나는 계정만 로그인 허용. 위반 시 OAuth2AuthenticationException 발생"
+    - "code: @NotBlank, Redis TTL 5분 내 1회만 사용 가능"
+    - "자동 가입 시 Google email이 이미 다른 providerId와 연결된 경우 처리 정의 필요"
+    - "providerId(sub) 기준으로 동일 Google 계정은 중복 가입되지 않는다"
+
+# ============================================================
+# 패키지 구조
+# ============================================================
+package_structure:
+  base: "com.project.bangjjack"
+  domain_auth:
+    presentation:
+      - "domain/auth/presentation/AuthController.java"
+      - "domain/auth/presentation/response/AuthResponseCode.java"
+    application:
+      - "domain/auth/application/usecase/AuthUseCase.java"
+      - "domain/auth/application/dto/request/TokenExchangeRequest.java"
+      - "domain/auth/application/dto/response/TokenExchangeResponse.java"
+      - "domain/auth/application/exception/AuthErrorCode.java"
+      - "domain/auth/application/exception/InvalidAuthorizationCodeException.java"
+  global_security:
+    config:
+      - "global/config/security/SecurityConfig.java"
+      - "global/config/security/PermitUrlConfig.java"
+      - "global/config/security/JwtAuthenticationEntryPoint.java"
+    oauth2:
+      - "global/config/security/oauth2/CustomOAuth2UserService.java"
+      - "global/config/security/oauth2/CustomOAuth2SuccessHandler.java"
+      - "global/config/security/oauth2/CustomOAuth2FailureHandler.java"
+      - "global/config/security/oauth2/OAuth2UserPrincipal.java"
+    jwt:
+      - "global/jwt/JwtProvider.java"
+      - "global/jwt/JwtAuthenticator.java"
+      - "global/jwt/JwtAuthenticationFilter.java"
+      - "global/jwt/Role.java"
+      - "global/jwt/principal/MemberPrincipal.java"
+  infrastructure:
+    - "global/infrastructure/redis/RedisService.java"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username이 반환된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 신규 Google 사용자 로그인 시 User가 자동 생성된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 기존 Google 사용자 로그인 시 기존 User가 조회된다"
+  edge_cases:
+    - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE 반환"
+    - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE 반환 (1회용)"
+    - "code 파라미터가 blank인 경우 400 Bad Request 반환"
+    - "타 학교 이메일(.ac.kr이지만 gachon이 아닌)로 로그인 시 unauthorized_email_domain 리다이렉트"
+  error_cases:
+    - "가천대학교 이메일이 아닌 계정 로그인 시 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
+    - "만료된 JWT로 인증 필요 API 접근 시 401 TOKEN_EXPIRED 반환"
+    - "위조된 서명의 JWT 접근 시 401 INVALID_SIGNATURE 반환"
+    - "OAuth2 인증 실패 시 {front-uri}/login?error=oauth2_failed 리다이렉트"
+
+# ============================================================
+# 주의사항 및 선결 과제
+# ============================================================
+notes:
+  entity_changes:
+    - field: provider_id
+      entity: User
+      action: 추가 (완료)
+      type: "VARCHAR(255), NOT NULL, UNIQUE"
+      detail: "Google의 고유 사용자 ID(sub)로 회원 식별. 자동 가입 및 재로그인 시 providerId 기준으로 조회."
+
+    - field: gender
+      entity: User
+      action: "NOT NULL → NULLABLE 변경 (완료)"
+      detail: "Google OAuth2 기본 scope에서 제공하지 않음. 자동 가입 시 null 허용."
+
+    - field: age
+      entity: User
+      action: "NOT NULL → NULLABLE 변경 (완료)"
+      detail: "Google OAuth2 기본 scope에서 제공하지 않음. 자동 가입 시 null 허용."
+
+  conventions:
+    - "Lombok: @Getter, @RequiredArgsConstructor(access = PRIVATE) 사용"
+    - "정적 팩토리: of() 또는 from() 메서드로 Principal/DTO 생성"
+    - "UseCase Transaction: @Transactional(readOnly = true) on class, @Transactional on write methods"
+    - "Soft Delete: deletedAt이 null인 User만 조회"

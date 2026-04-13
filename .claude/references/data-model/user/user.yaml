@@ -1,0 +1,65 @@
+# User Entity
+# Last Updated: 2026-04-13
+
+entity: USER
+description: 서비스 사용자 정보를 관리합니다
+table: users
+domain: User
+
+columns:
+  - id:
+      type: BIGINT
+      nullable: false
+      pk: true
+      description: PK (Auto-Increment) — BaseEntity 상속
+  - provider_id:
+      type: VARCHAR(255)
+      nullable: false
+      unique: true
+      description: Google OAuth2 고유 사용자 ID (sub 값). 회원 식별 및 중복 가입 방지에 사용.
+  - username:
+      type: VARCHAR(50)
+      nullable: false
+      description: 사용자 닉네임 (Google name 기반 자동 설정)
+  - email:
+      type: VARCHAR(255)
+      nullable: false
+      unique: true
+      description: 사용자 이메일 주소 (@gachon.ac.kr 도메인만 허용)
+  - gender:
+      type: VARCHAR(10)
+      nullable: true
+      enum: Gender
+      description: 사용자 성별 (MALE, FEMALE, OTHER). Google OAuth2 기본 scope 미제공으로 null 허용.
+  - age:
+      type: INT
+      nullable: true
+      description: 사용자 나이. Google OAuth2 기본 scope 미제공으로 null 허용.
+  - profile_image:
+      type: VARCHAR(512)
+      nullable: true
+      description: 프로필 이미지 URL (Google picture 값)
+  - deleted:
+      type: BOOLEAN
+      nullable: false
+      default: false
+      description: 소프트 삭제 여부 — BaseEntity 상속
+  - created_at:
+      type: DATETIME
+      nullable: false
+      description: 생성 일시 — BaseEntity 상속
+  - updated_at:
+      type: DATETIME
+      nullable: false
+      description: 최종 수정 일시 — BaseEntity 상속
+  - deleted_at:
+      type: DATETIME
+      nullable: true
+      description: 소프트 삭제 일시 — BaseEntity 상속
+
+relationships: []
+
+business_logic:
+  - "create(providerId, username, email, profileImage): 신규 사용자 생성 (정적 팩토리 메서드). gender/age는 null로 초기화."
+  - "updateProfile(username, profileImage): 프로필 정보 수정"
+  - "softDelete(): 소프트 삭제 처리 (deleted = true, deletedAt = now) — BaseEntity 상속"
