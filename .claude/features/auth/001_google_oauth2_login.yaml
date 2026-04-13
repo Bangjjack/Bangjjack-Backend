@@ -1,6 +1,6 @@
 # Feature Specification: Google OAuth2 소셜 로그인
-# Status: Draft
-# Last Updated: 2026-04-12
+# Status: Implemented
+# Last Updated: 2026-04-13
 
 meta:
   id: FEAT-002
@@ -112,7 +112,7 @@ technical_spec:
         action: "Redisson bucket.getAndDelete()로 원자적 code 검증+삭제 (1회용 보장)"
       - step: 4
         layer: Infrastructure (JwtProvider)
-        action: "HMAC 서명 JWT 생성 (sub=userId, name=username, role=MEMBER, exp=3일)"
+        action: "createMemberAccessToken(userId, username) → HMAC 서명 JWT 생성 (sub=userId, name=username, role=MEMBER, exp=설정값(expirationSeconds))"
 
   database:
     entities:
@@ -139,12 +139,13 @@ technical_spec:
   jwt:
     algorithm: HMAC (Base64 디코딩된 SecretKey)
     library: "io.jsonwebtoken (jjwt) 0.13.0"
+    method: "JwtProvider.createMemberAccessToken(Long memberId, String memberName)"
     claims:
       sub: userId (Long → String)
       name: username
       role: MEMBER
       iat: 발급 시간
-      exp: "발급 시간 + 259200초 (3일)"
+      exp: "발급 시간 + jwt.access.expiration-seconds (application.yml 설정값)"
 
   error_codes:
     domain_range: "408xx (Auth 도메인)"
@@ -244,18 +245,18 @@ notes:
   entity_changes:
     - field: provider_id
       entity: User
-      action: 추가
+      action: 추가 (완료)
       type: "VARCHAR(255), NOT NULL, UNIQUE"
       detail: "Google의 고유 사용자 ID(sub)로 회원 식별. 자동 가입 및 재로그인 시 providerId 기준으로 조회."
 
     - field: gender
       entity: User
-      action: "NOT NULL → NULLABLE 변경"
+      action: "NOT NULL → NULLABLE 변경 (완료)"
       detail: "Google OAuth2 기본 scope에서 제공하지 않음. 자동 가입 시 null 허용."
 
     - field: age
       entity: User
-      action: "NOT NULL → NULLABLE 변경"
+      action: "NOT NULL → NULLABLE 변경 (완료)"
       detail: "Google OAuth2 기본 scope에서 제공하지 않음. 자동 가입 시 null 허용."
 
   conventions:
