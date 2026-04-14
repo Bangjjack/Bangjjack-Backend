@@ -52,7 +52,9 @@ api:
   error_codes:
     global: 30001~30999 (Server), 40001~40099 (Client)
     domains:
-      user: 401xx
+      auth: 401xx
+      user: 402xx
+      department: 403xx
 
 entity:
   intent: "Data Integrity & Encapsulation. Protect invariants within the Entity."

@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum DepartmentErrorCode implements ErrorCodeInterface {
 
-    DEPARTMENT_NOT_FOUND(40104, HttpStatus.NOT_FOUND, "존재하지 않는 학과입니다.");
+    INVALID_CAMPUS(40301, HttpStatus.BAD_REQUEST, "유효하지 않은 캠퍼스 값입니다."),
+    DEPARTMENT_NOT_FOUND(40302, HttpStatus.NOT_FOUND, "존재하지 않는 학과입니다.");
 
     private final int code;
     private final HttpStatus status;
