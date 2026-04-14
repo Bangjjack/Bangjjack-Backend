@@ -1,0 +1,213 @@
+# Feature Specification: 사용자 온보딩
+# Status: Draft
+# Last Updated: 2026-04-14
+
+meta:
+  id: FEAT-003
+  title: 사용자 온보딩 (프로필 초기 설정)
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    Google OAuth2 로그인 이후, 사용자가 서비스 이용에 필요한 개인 정보를
+    (출생년도/성별/학년/캠퍼스/학과/학기/기숙사) 2-Step UI로 입력하고 저장하는 온보딩 플로우.
+  user_story: >
+    As a 신규 가입 사용자, I want to 나의 학교 정보와 기본 정보를 입력하여,
+    so that 서비스가 나에게 맞는 방 정보를 제공할 수 있다.
+  goals:
+    - 로그인 직후 온보딩 미완료 사용자를 온보딩 페이지로 유도
+    - 2-Step (나이/성별, 학교 정보)으로 분리된 UX 지원
+    - 온보딩 데이터를 User 엔티티에 저장 및 is_onboarded 플래그 설정
+
+# ============================================================
+# 온보딩 플로우
+# ============================================================
+onboarding_flow:
+  trigger: "JWT 발급 이후, isOnboarded = false인 사용자는 프론트엔드가 온보딩 페이지로 리다이렉트"
+  steps:
+    - step: 1
+      name: "나이/성별"
+      fields: [ birthYear, grade, gender ]
+    - step: 2
+      name: "학교 정보"
+      fields: [ campus, department, semester, dormitory ]
+    - step: 3
+      action: "PATCH /api/v1/users/me/onboarding 호출 → is_onboarded = true"
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: PATCH
+      path: /api/v1/users/onboarding
+      summary: 온보딩 정보 저장 (최초 1회)
+      auth: MEMBER (JWT)
+      request:
+        dto: UserOnboardingRequest
+        fields:
+          - name: birthYear
+            type: Int
+            required: true
+            validation: "@NotNull, 1900 ~ 현재연도"
+          - name: grade
+            type: Int
+            required: true
+            validation: "@NotNull, @Min(1), @Max(4)"
+          - name: gender
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, MALE | FEMALE"
+          - name: campus
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, GLOBAL_CAMPUS | MEDICAL_CAMPUS"
+          - name: departmentId
+            type: Long
+            required: true
+            validation: "@NotNull, departments.id 참조"
+          - name: semester
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, SIXTEEN_WEEKS | TWENTY_FIVE_WEEKS"
+          - name: dormitory
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, DORM_1 | DORM_2 | DORM_3"
+      response:
+        dto: Void
+        http_status: 200 OK
+        wrapper: CommonResponse<Void>
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (UserController)
+      action: MemberPrincipal로 JWT에서 userId 추출, @Valid로 요청 검증 후 UserUseCase.completeOnboarding(userId, request) 호출
+    - step: 2
+      layer: UseCase (UserUseCase)
+      action: UserGetService로 userId 기준 User 조회, DepartmentGetService로 departmentId 기준 Department 조회
+    - step: 3
+      layer: UseCase (UserUseCase)
+      action: isOnboarded = true 여부 확인 → true면 AlreadyOnboardedException 발생
+    - step: 4
+      layer: Domain (User Entity)
+      action: user.completeOnboarding() 호출 — birthYear, grade, gender, campus, department, semester, dormitory 설정 + isOnboarded = true
+    - step: 5
+      layer: Infrastructure (UserRepository)
+      action: Dirty Checking으로 UPDATE (별도 save() 불필요)
+    - step: 6
+      layer: Response
+      action: 반환값 없음 (void). 200 OK만 응답.
+
+  database:
+    entities:
+      - name: User
+        table: users
+        action: Update
+        fields: "birth_year, grade, gender, campus, department_id (FK), semester, dormitory, is_onboarded"
+
+  enums:
+    - name: Gender
+      values: [ MALE, FEMALE ]
+      note: "기존 OTHER 제거 → 온보딩 UI 기준(남성/여성)으로 단순화"
+    - name: Campus
+      values: [ GLOBAL_CAMPUS, MEDICAL_CAMPUS ]
+      note: "글로벌 캠퍼스 / 메디컬 캠퍼스"
+    - name: Semester
+      values: [ SIXTEEN_WEEKS, TWENTY_FIVE_WEEKS ]
+      note: "16주 학기 / 25주 학기"
+    - name: Dormitory
+      values: [ DORM_1, DORM_2, DORM_3 ]
+      note: "1기숙사 / 2기숙사 / 3기숙사"
+
+  error_codes:
+    domain_range: "401xx (User 도메인)"
+    codes:
+      - code: 40101
+        name: ALREADY_ONBOARDED
+        status: 409 CONFLICT
+        message: "이미 온보딩이 완료된 사용자입니다."
+        trigger: "isOnboarded = true인 사용자가 PATCH 온보딩 재요청 시"
+      - code: 40102
+        name: INVALID_BIRTH_YEAR
+        status: 400 BAD_REQUEST
+        message: "유효하지 않은 출생년도입니다."
+        trigger: "birthYear가 1900 미만이거나 현재 연도를 초과하는 경우"
+      - code: 40103
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+      - code: 40104
+        name: DEPARTMENT_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "존재하지 않는 학과입니다."
+        trigger: "departmentId로 Department 조회 실패 시"
+
+  validation_rules:
+    - "온보딩은 최초 1회만 가능. isOnboarded = true면 409 ALREADY_ONBOARDED"
+    - "birthYear: 1900 이상 현재 연도(2026) 이하"
+    - "grade: 1 ~ 4 정수값만 허용"
+    - "gender: MALE | FEMALE (UI 기준 남성/여성)"
+    - "campus: GLOBAL_CAMPUS | MEDICAL_CAMPUS"
+    - "semester: SIXTEEN_WEEKS | TWENTY_FIVE_WEEKS"
+    - "dormitory: DORM_1 | DORM_2 | DORM_3"
+    - "departmentId: departments 테이블에 존재하는 ID여야 함. 없으면 404 반환"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "온보딩 미완료 사용자가 유효한 요청으로 PATCH 호출 시 200 OK 반환 (body 없음)"
+  edge_cases:
+    - "이미 온보딩 완료된 사용자가 재요청 시 409 ALREADY_ONBOARDED 반환"
+    - "birthYear = 1899 → 400 INVALID_BIRTH_YEAR"
+    - "birthYear = 2027 (미래) → 400 INVALID_BIRTH_YEAR"
+    - "grade = 0 또는 5 → 400 Bad Request (@Min/@Max 검증 실패)"
+    - "campus = 'INVALID' (허용되지 않는 enum) → 400 Bad Request"
+    - "존재하지 않는 departmentId → 404 DEPARTMENT_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  entity_changes:
+    - field: age
+      entity: User
+      action: "제거 → birth_year로 대체"
+      detail: "OAuth2 자동 가입 시 null이었으므로 마이그레이션 영향 없음"
+    - field: birth_year
+      entity: User
+      action: "신규 추가 (INT, nullable)"
+      detail: "출생년도. 온보딩 완료 시 설정."
+    - field: grade
+      entity: User
+      action: "신규 추가 (INT, nullable)"
+      detail: "학년 (1~4). 온보딩 완료 시 설정."
+    - field: campus
+      entity: User
+      action: "신규 추가 (VARCHAR(30), ENUM, nullable)"
+      detail: "GLOBAL_CAMPUS / MEDICAL_CAMPUS"
+    - field: department_id
+      entity: User
+      action: "신규 추가 (BIGINT, nullable, FK → departments.id)"
+      detail: "학과 FK. 온보딩 완료 시 설정. departments 테이블 별도 관리."
+    - field: semester
+      entity: User
+      action: "신규 추가 (VARCHAR(20), ENUM, nullable)"
+      detail: "SIXTEEN_WEEKS / TWENTY_FIVE_WEEKS"
+    - field: dormitory
+      entity: User
+      action: "신규 추가 (VARCHAR(10), ENUM, nullable)"
+      detail: "DORM_1 / DORM_2 / DORM_3"
+    - field: is_onboarded
+      entity: User
+      action: "신규 추가 (BOOLEAN, default: false)"
+      detail: "온보딩 완료 여부. 완료 시 true로 변경."
+    - field: gender
+      entity: User
+      action: "Enum 변경: OTHER 제거 → MALE, FEMALE만 허용"
+      detail: "온보딩 UI 기준(남성/여성) 맞춤. DB 컬럼 변경 없음."
