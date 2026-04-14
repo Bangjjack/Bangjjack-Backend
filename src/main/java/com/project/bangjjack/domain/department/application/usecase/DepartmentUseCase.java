@@ -21,7 +21,7 @@ public class DepartmentUseCase {
         Campus campus;
         try {
             campus = Campus.valueOf(campusStr);
-        } catch (InvalidCampusException e) {
+        } catch (IllegalArgumentException e) {
             throw new InvalidCampusException();
         }
 
