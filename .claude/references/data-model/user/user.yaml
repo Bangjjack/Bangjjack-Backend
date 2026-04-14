@@ -1,17 +1,13 @@
 # User Entity
-# Last Updated: 2026-04-13
+# Last Updated: 2026-04-14
 
 entity: USER
 description: 서비스 사용자 정보를 관리합니다
 table: users
 domain: User
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
 
 columns:
-  - id:
-      type: BIGINT
-      nullable: false
-      pk: true
-      description: PK (Auto-Increment) — BaseEntity 상속
   - provider_id:
       type: VARCHAR(255)
       nullable: false
@@ -30,36 +26,79 @@ columns:
       type: VARCHAR(10)
       nullable: true
       enum: Gender
-      description: 사용자 성별 (MALE, FEMALE, OTHER). Google OAuth2 기본 scope 미제공으로 null 허용.
-  - age:
+      enum_values: [ MALE, FEMALE ]
+      description: 사용자 성별. 온보딩 시 설정. OTHER 제거 (UI 기준 남성/여성).
+  - birth_year:
       type: INT
       nullable: true
-      description: 사용자 나이. Google OAuth2 기본 scope 미제공으로 null 허용.
+      description: 출생년도 (e.g. 2000). 온보딩 시 설정. 기존 age 컬럼 대체.
+  - grade:
+      type: INT
+      nullable: true
+      description: 학년 (1 ~ 4). 온보딩 시 설정.
+  - campus:
+      type: VARCHAR(30)
+      nullable: true
+      enum: Campus
+      enum_values: [ GLOBAL_CAMPUS, MEDICAL_CAMPUS ]
+      description: 캠퍼스 (글로벌 캠퍼스 / 메디컬 캠퍼스). 온보딩 시 설정.
+  - department_id:
+      type: BIGINT
+      nullable: true
+      fk: departments.id
+      description: 학과 FK. 온보딩 시 설정. (departments 테이블 참조)
+  - semester:
+      type: VARCHAR(20)
+      nullable: true
+      enum: Semester
+      enum_values: [ SIXTEEN_WEEKS, TWENTY_FIVE_WEEKS ]
+      description: 학기 유형 (16주 / 25주). 온보딩 시 설정.
+  - dormitory:
+      type: VARCHAR(10)
+      nullable: true
+      enum: Dormitory
+      enum_values: [ DORM_1, DORM_2, DORM_3 ]
+      description: 기숙사 (1기숙사 / 2기숙사 / 3기숙사). 온보딩 시 설정.
+  - is_onboarded:
+      type: BOOLEAN
+      nullable: false
+      default: false
+      description: 온보딩 완료 여부. 온보딩 API 호출 완료 시 true로 변경.
   - profile_image:
       type: VARCHAR(512)
       nullable: true
       description: 프로필 이미지 URL (Google picture 값)
-  - deleted:
-      type: BOOLEAN
-      nullable: false
-      default: false
-      description: 소프트 삭제 여부 — BaseEntity 상속
-  - created_at:
-      type: DATETIME
-      nullable: false
-      description: 생성 일시 — BaseEntity 상속
-  - updated_at:
-      type: DATETIME
-      nullable: false
-      description: 최종 수정 일시 — BaseEntity 상속
-  - deleted_at:
-      type: DATETIME
-      nullable: true
-      description: 소프트 삭제 일시 — BaseEntity 상속
 
-relationships: []
+removed_columns:
+  - age:
+      reason: "birth_year로 대체. Google OAuth2 미제공으로 항상 null이었으므로 마이그레이션 영향 없음."
+  - department (VARCHAR):
+      reason: "별도 departments 테이블로 관리. department_id FK로 대체."
+
+relationships:
+  - type: ManyToOne
+    target: Department
+    fk: department_id
+    fetch: LAZY
+    nullable: true
+    description: "사용자 소속 학과. 온보딩 시 설정."
 
 business_logic:
-  - "create(providerId, username, email, profileImage): 신규 사용자 생성 (정적 팩토리 메서드). gender/age는 null로 초기화."
+  - "create(providerId, username, email, profileImage): 신규 사용자 생성 (정적 팩토리 메서드). gender/birth_year/grade/campus/department/semester/dormitory는 null로 초기화. isOnboarded = false."
+  - "completeOnboarding(birthYear, grade, gender, campus, department, semester, dormitory): 온보딩 정보 일괄 설정 + isOnboarded = true. isOnboarded = true이면 AlreadyOnboardedException 발생."
   - "updateProfile(username, profileImage): 프로필 정보 수정"
-  - "softDelete(): 소프트 삭제 처리 (deleted = true, deletedAt = now) — BaseEntity 상속"
+  - "softDelete(): → BaseEntity 위임"
+
+enums:
+  Gender:
+    values: [ MALE, FEMALE ]
+    note: "기존 OTHER 제거. 온보딩 UI 기준(남성/여성)으로 단순화."
+  Campus:
+    values: [ GLOBAL_CAMPUS, MEDICAL_CAMPUS ]
+    display: { GLOBAL_CAMPUS: "글로벌 캠퍼스", MEDICAL_CAMPUS: "메디컬 캠퍼스" }
+  Semester:
+    values: [ SIXTEEN_WEEKS, TWENTY_FIVE_WEEKS ]
+    display: { SIXTEEN_WEEKS: "16주", TWENTY_FIVE_WEEKS: "25주" }
+  Dormitory:
+    values: [ DORM_1, DORM_2, DORM_3 ]
+    display: { DORM_1: "1기숙사", DORM_2: "2기숙사", DORM_3: "3기숙사" }
