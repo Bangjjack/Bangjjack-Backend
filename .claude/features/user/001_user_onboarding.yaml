@@ -123,28 +123,29 @@ technical_spec:
       note: "1기숙사 / 2기숙사 / 3기숙사"
 
   error_codes:
-    domain_range: "401xx (User 도메인)"
+    domain_range: "402xx (User 도메인)"
     codes:
-      - code: 40101
+      - code: 40201
         name: ALREADY_ONBOARDED
         status: 409 CONFLICT
         message: "이미 온보딩이 완료된 사용자입니다."
         trigger: "isOnboarded = true인 사용자가 PATCH 온보딩 재요청 시"
-      - code: 40102
+      - code: 40202
         name: INVALID_BIRTH_YEAR
         status: 400 BAD_REQUEST
         message: "유효하지 않은 출생년도입니다."
         trigger: "birthYear가 1900 미만이거나 현재 연도를 초과하는 경우"
-      - code: 40103
+      - code: 40203
         name: USER_NOT_FOUND
         status: 404 NOT_FOUND
         message: "사용자를 찾을 수 없습니다."
         trigger: "JWT userId로 User 조회 실패 시"
-      - code: 40104
+      - code: 40302
         name: DEPARTMENT_NOT_FOUND
         status: 404 NOT_FOUND
         message: "존재하지 않는 학과입니다."
         trigger: "departmentId로 Department 조회 실패 시"
+        note: "Department 도메인(403xx) 코드 사용"
 
   validation_rules:
     - "온보딩은 최초 1회만 가능. isOnboarded = true면 409 ALREADY_ONBOARDED"
