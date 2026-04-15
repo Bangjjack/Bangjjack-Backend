@@ -123,6 +123,7 @@ error_handling:
     auth:     "401xx — 40101: INVALID_AUTHORIZATION_CODE"
     user:     "402xx — 40201: ALREADY_ONBOARDED | 40202: INVALID_BIRTH_YEAR | 40203: USER_NOT_FOUND"
     department: "403xx — 40301: INVALID_CAMPUS | 40302: DEPARTMENT_NOT_FOUND"
+    checklist: "405xx — 40501: ALREADY_CHECKLIST_REGISTERED | 40502: CHECKLIST_NOT_FOUND"
   rule: "새 에러코드 추가 시 이 목록과 system-design.yaml domains 섹션을 반드시 업데이트할 것"
 
 testing:

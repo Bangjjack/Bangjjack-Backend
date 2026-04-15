@@ -55,6 +55,7 @@ api:
       auth: 401xx
       user: 402xx
       department: 403xx
+      checklist: 405xx
 
 entity:
   intent: "Data Integrity & Encapsulation. Protect invariants within the Entity."
