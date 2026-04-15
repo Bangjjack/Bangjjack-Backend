@@ -51,11 +51,14 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private boolean isOnboarded = false;
 
+    @Column(nullable = false)
+    private boolean isChecklistRegistered = false;
+
     @Column(length = 512)
     private String profileImage;
 
     public static User create(String providerId, String username, String email, String profileImage) {
-        return new User(providerId, username, email, null, null, null, null, null, null, null, false, profileImage);
+        return new User(providerId, username, email, null, null, null, null, null, null, null, false, false, profileImage);
     }
 
     public void completeOnboarding(Integer birthYear, Integer grade, Gender gender,
@@ -69,6 +72,10 @@ public class User extends BaseEntity {
         this.semester = semester;
         this.dormitory = dormitory;
         this.isOnboarded = true;
+    }
+
+    public void completeChecklistRegistration() {
+        this.isChecklistRegistered = true;
     }
 
     public void updateProfile(String username, String profileImage) {
