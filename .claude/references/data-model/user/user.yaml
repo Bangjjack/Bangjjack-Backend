@@ -64,6 +64,11 @@ columns:
       nullable: false
       default: false
       description: 온보딩 완료 여부. 온보딩 API 호출 완료 시 true로 변경.
+  - is_checklist_registered:
+      type: BOOLEAN
+      nullable: false
+      default: false
+      description: 생활습관 체크리스트 등록 완료 여부. 체크리스트 등록 API 호출 완료 시 true로 변경.
   - profile_image:
       type: VARCHAR(512)
       nullable: true
@@ -86,6 +91,7 @@ relationships:
 business_logic:
   - "create(providerId, username, email, profileImage): 신규 사용자 생성 (정적 팩토리 메서드). gender/birth_year/grade/campus/department/semester/dormitory는 null로 초기화. isOnboarded = false."
   - "completeOnboarding(birthYear, grade, gender, campus, department, semester, dormitory): 온보딩 정보 일괄 설정 + isOnboarded = true. isOnboarded = true이면 AlreadyOnboardedException 발생."
+  - "completeChecklistRegistration(): 체크리스트 등록 완료 플래그 설정 + isChecklistRegistered = true. isChecklistRegistered = true이면 AlreadyChecklistRegisteredException 발생."
   - "updateProfile(username, profileImage): 프로필 정보 수정"
   - "softDelete(): → BaseEntity 위임"
 

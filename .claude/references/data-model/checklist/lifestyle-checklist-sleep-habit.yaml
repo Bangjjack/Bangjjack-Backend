@@ -1,0 +1,35 @@
+# LifestyleChecklistSleepHabit Entity
+# Last Updated: 2026-04-15
+
+entity: LIFESTYLE_CHECKLIST_SLEEP_HABIT
+description: 생활습관 체크리스트의 잠버릇 항목을 관리합니다. 잠버릇은 복수 선택이 가능하므로 별도 엔티티로 분리합니다.
+table: lifestyle_checklist_sleep_habits
+domain: Checklist
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - checklist_id:
+      type: BIGINT
+      nullable: false
+      fk: lifestyle_checklists.id
+      description: "체크리스트 FK"
+  - sleep_habit:
+      type: VARCHAR(25)
+      nullable: false
+      enum: SleepHabit
+      enum_values: [ NONE, TOSS_AND_TURN, SNORING, TEETH_GRINDING, FREQUENT_WAKING ]
+      description: 잠버릇 항목 (단일 값 — 행 단위로 저장)
+
+relationships:
+  - type: ManyToOne
+    target: LifestyleChecklist
+    fk: checklist_id
+    fetch: LAZY
+    description: "소속 체크리스트"
+
+business_logic:
+  - "create(checklist, sleepHabit): 정적 팩토리 메서드. checklist 저장(ID 확정) 후 생성."
+
+note:
+  - "@ElementCollection 대신 @Entity로 분리. 개별 PK 보유로 향후 수정/삭제 API 확장 용이."
+  - "ChecklistUseCase에서 checklist INSERT 후 stream().map().toList()로 생성, saveAll() 일괄 저장."
