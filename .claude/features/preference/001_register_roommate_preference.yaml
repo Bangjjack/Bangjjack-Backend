@@ -1,0 +1,217 @@
+# Feature Specification: 룸메이트 우선순위 선호도 등록
+# Status: In Progress
+# Last Updated: 2026-04-15
+
+meta:
+  id: FEAT-006
+  title: 룸메이트 우선순위 선호도 등록
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    사용자가 룸메이트 선택 시 가장 중요하게 생각하는 생활 요소 3가지를 우선순위 순서대로 등록한다.
+    체크리스트 등록 이후 이어지는 온보딩 마지막 단계.
+  user_story: >
+    As a 체크리스트 등록 완료 사용자, I want to 룸메이트 선택 시 중요하게 생각하는 요소 3가지를
+    순서대로 선택하고, so that 나의 우선순위에 맞는 룸메이트를 매칭받을 수 있다.
+  goals:
+    - 10가지 생활 요소 중 중요한 순서대로 3가지 선택 (1~3순위)
+    - 중복 선택 불가, 선택 순서가 우선순위를 의미
+    - 등록 완료 시 User.isRoommatePreferenceRegistered = true 플래그 설정
+    - 중복 등록 방지 (최초 1회)
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: POST
+      path: /api/v1/users/onboarding/preference
+      summary: 룸메이트 우선순위 선호도 등록 (최초 1회)
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        dto: RoommatePreferenceRequest
+        fields:
+          - name: preferences
+            type: List<String (Enum)>
+            required: true
+            validation: "@NotNull, @Size(min=3, max=3), 중복 불가, 순서대로 1~3순위를 의미"
+            note: "index 0 = 1순위, index 1 = 2순위, index 2 = 3순위"
+            enum_values: >
+              BEDTIME | WAKE_UP_TIME | SLEEP_HABIT | DORM_STAY_TIME |
+              CLEANING_HABIT | INDOOR_TEMPERATURE | NOISE_SENSITIVITY |
+              ITEM_SHARING | SMOKING | CALL_HABIT
+      response:
+        dto: Void
+        http_status: 201 CREATED
+        wrapper: CommonResponse<Void>
+        response_code: ChecklistResponseCode.PREFERENCE_REGISTERED
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (PreferenceController)
+      action: MemberPrincipal로 JWT에서 userId 추출, @Valid로 요청 검증 후 PreferenceUseCase.registerPreference(userId, request) 호출
+    - step: 2
+      layer: UseCase (PreferenceUseCase)
+      action: UserGetService로 userId 기준 User 조회
+    - step: 3
+      layer: UseCase (PreferenceUseCase)
+      action: isRoommatePreferenceRegistered = true 여부 확인 → true면 AlreadyPreferenceRegisteredException 발생
+    - step: 4
+      layer: UseCase (PreferenceUseCase)
+      action: preferences 리스트 내 중복 값 존재 여부 검증 → 중복 시 DuplicatePreferenceFactorException 발생
+    - step: 5
+      layer: Domain (RoommatePreference Entity)
+      action: RoommatePreference.create(user, priority1, priority2, priority3) 호출
+    - step: 6
+      layer: Domain (User Entity)
+      action: user.completeRoommatePreferenceRegistration() 호출 — isRoommatePreferenceRegistered = true
+    - step: 7
+      layer: Infrastructure (RoommatePreferenceRepository)
+      action: preferenceRepository.save(preference). Dirty Checking으로 User UPDATE (별도 save() 불필요)
+    - step: 8
+      layer: Response
+      action: 반환값 없음 (void). 201 CREATED 응답.
+
+  database:
+    entities:
+      - name: RoommatePreference
+        table: roommate_preferences
+        action: Create
+        fields: "user_id (FK, UNIQUE), priority_1, priority_2, priority_3"
+      - name: User
+        table: users
+        action: Update
+        fields: "is_roommate_preference_registered = true"
+
+  enums:
+    - name: RoommatePreferenceFactor
+      values:
+        - BEDTIME
+        - WAKE_UP_TIME
+        - SLEEP_HABIT
+        - DORM_STAY_TIME
+        - CLEANING_HABIT
+        - INDOOR_TEMPERATURE
+        - NOISE_SENSITIVITY
+        - ITEM_SHARING
+        - SMOKING
+        - CALL_HABIT
+      display:
+        BEDTIME: "취침 시간"
+        WAKE_UP_TIME: "기상 시간"
+        SLEEP_HABIT: "잠버릇"
+        DORM_STAY_TIME: "기숙사 체류시간"
+        CLEANING_HABIT: "청결 습관"
+        INDOOR_TEMPERATURE: "실내 온도"
+        NOISE_SENSITIVITY: "소음 민감도"
+        ITEM_SHARING: "물건 공유"
+        SMOKING: "흡연 여부"
+        CALL_HABIT: "통화 습관"
+
+  error_codes:
+    domain_range: "405xx (Checklist 도메인 통합) — ChecklistErrorCode에 병합"
+    codes:
+      - code: 40503
+        name: ALREADY_PREFERENCE_REGISTERED
+        enum: ChecklistErrorCode.ALREADY_PREFERENCE_REGISTERED
+        status: 409 CONFLICT
+        message: "이미 룸메이트 선호도를 등록한 사용자입니다."
+        trigger: "isRoommatePreferenceRegistered = true인 사용자가 POST 재요청 시"
+      - code: 40504
+        name: DUPLICATE_PREFERENCE_FACTOR
+        enum: ChecklistErrorCode.DUPLICATE_PREFERENCE_FACTOR
+        status: 400 BAD_REQUEST
+        message: "중복된 선호도 항목이 포함되어 있습니다."
+        trigger: "preferences 리스트 내 동일한 RoommatePreferenceFactor 값이 2개 이상인 경우"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "체크리스트 등록 완료(isChecklistRegistered = true) 사용자만 등록 가능 — 미완료 시 정책 결정 필요"
+    - "선호도는 최초 1회만 등록 가능. isRoommatePreferenceRegistered = true면 409 ALREADY_PREFERENCE_REGISTERED"
+    - "preferences 리스트는 정확히 3개 (@Size(min=3, max=3)). 초과/미만 시 400 BAD_REQUEST"
+    - "preferences 리스트 내 중복 값 불가. 중복 시 400 DUPLICATE_PREFERENCE_FACTOR"
+    - "허용되지 않는 Enum 값 입력 시 400 BAD_REQUEST"
+
+# ============================================================
+# 엔티티 설계
+# ============================================================
+entity_design:
+  RoommatePreference:
+    table: roommate_preferences
+    extends: BaseEntity
+    columns:
+      - user_id:
+          type: BIGINT
+          nullable: false
+          unique: true
+          fk: users.id
+          description: "사용자 FK. 1:1 관계 (사용자당 1개)"
+      - priority_1:
+          type: VARCHAR(30)
+          nullable: false
+          enum: RoommatePreferenceFactor
+          description: "1순위 선호 항목"
+      - priority_2:
+          type: VARCHAR(30)
+          nullable: false
+          enum: RoommatePreferenceFactor
+          description: "2순위 선호 항목"
+      - priority_3:
+          type: VARCHAR(30)
+          nullable: false
+          enum: RoommatePreferenceFactor
+          description: "3순위 선호 항목"
+    relationships:
+      - type: OneToOne
+        target: User
+        fk: user_id
+        fetch: LAZY
+    business_logic:
+      - "create(user, priority1, priority2, priority3): 정적 팩토리 메서드로 엔티티 생성"
+
+  User:
+    table: users
+    action: Update (컬럼 추가)
+    new_columns:
+      - is_roommate_preference_registered:
+          type: BOOLEAN
+          nullable: false
+          default: false
+          description: "룸메이트 선호도 등록 완료 여부"
+    new_domain_methods:
+      - "completeRoommatePreferenceRegistration(): isRoommatePreferenceRegistered = true"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 3가지 항목 순서대로 POST 호출 시 201 CREATED 반환, roommate_preferences 레코드 생성 확인"
+    - "등록 완료 후 User.isRoommatePreferenceRegistered = true로 변경 확인"
+    - "priority_1, priority_2, priority_3가 요청 순서대로 저장 확인"
+  edge_cases:
+    - "이미 선호도 등록한 사용자 재요청 → 409 ALREADY_PREFERENCE_REGISTERED"
+    - "preferences 2개만 전송 → 400 BAD_REQUEST (@Size)"
+    - "preferences 4개 전송 → 400 BAD_REQUEST (@Size)"
+    - "중복 항목 포함 (e.g. [BEDTIME, BEDTIME, SMOKING]) → 400 DUPLICATE_PREFERENCE_FACTOR"
+    - "허용되지 않는 Enum 값 → 400 BAD_REQUEST"
+    - "preferences null → 400 BAD_REQUEST (@NotNull)"
+    - "존재하지 않는 userId(JWT 변조) → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "체크리스트 미등록 사용자의 선호도 등록 허용 여부 → 프론트엔드 플로우와 사전 합의 필요"
+  - "User 엔티티에 isRoommatePreferenceRegistered 컬럼 추가 필요 → DB 마이그레이션 스크립트 작성"
+  - "User.create() 정적 팩토리 메서드에 isRoommatePreferenceRegistered = false 초기값 추가 필요"
+  - "check_error_codes.py 실행하여 406xx 코드 범위 사용 가능 여부 확인 필요"
+  - "향후 선호도 수정(PATCH) API 확장 가능성 고려. 현재는 등록(POST)만 구현."
