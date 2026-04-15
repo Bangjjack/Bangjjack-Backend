@@ -27,7 +27,7 @@ overview:
 technical_spec:
   api:
     - method: POST
-      path: /api/v1/checklist
+      path: /api/v1/users/onboarding/checklist
       summary: 생활습관 체크리스트 등록 (최초 1회)
       auth: MEMBER (Bearer Token, 필수)
       request:

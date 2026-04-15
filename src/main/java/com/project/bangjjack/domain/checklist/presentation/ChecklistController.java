@@ -14,14 +14,14 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "Checklist", description = "생활습관 체크리스트 관련 API")
 @RestController
-@RequestMapping("/api/v1/checklist")
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class ChecklistController {
 
     private final ChecklistUseCase checklistUseCase;
 
     @Operation(summary = "생활습관 체크리스트 등록", description = "사용자의 생활습관(취침/기상 시간, 잠버릇, 청소 주기 등)을 체크리스트로 등록합니다. 최초 1회만 가능합니다.")
-    @PostMapping
+    @PostMapping("/onboarding/checklist")
     @ResponseStatus(HttpStatus.CREATED)
     public CommonResponse<Void> registerChecklist(
             @CurrentMemberId Long memberId,
