@@ -190,7 +190,7 @@ notes:
     - field: grade
       entity: User
       action: "신규 추가 (INT, nullable)"
-      detail: "학년 (1~4). 온보딩 완료 시 설정."
+      detail: "학년 (1~5). 온보딩 완료 시 설정."
     - field: campus
       entity: User
       action: "신규 추가 (VARCHAR(30), ENUM, nullable)"

@@ -35,7 +35,7 @@ columns:
   - grade:
       type: INT
       nullable: true
-      description: 학년 (1 ~ 4). 온보딩 시 설정.
+      description: 학년 (1 ~ 5). 온보딩 시 설정.
   - campus:
       type: VARCHAR(30)
       nullable: true
