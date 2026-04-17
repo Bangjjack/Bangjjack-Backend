@@ -11,7 +11,7 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum AuthErrorCode implements ErrorCodeInterface {
 
-    INVALID_AUTHORIZATION_CODE(40801, HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 인증 코드입니다.");
+    INVALID_AUTHORIZATION_CODE(40101, HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 인증 코드입니다.");
 
     private final int code;
     private final HttpStatus status;
