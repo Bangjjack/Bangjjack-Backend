@@ -1,0 +1,34 @@
+# Department Entity
+# Last Updated: 2026-04-14
+
+entity: DEPARTMENT
+description: 학과 정보를 관리합니다. 캠퍼스별로 분류되며 온보딩 시 사용자가 선택합니다.
+table: departments
+domain: Department
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - name:
+      type: VARCHAR(100)
+      nullable: false
+      description: 학과명 (e.g. 소프트웨어학과, 의학과)
+  - campus:
+      type: VARCHAR(30)
+      nullable: false
+      enum: Campus
+      enum_values: [ GLOBAL_CAMPUS, MEDICAL_CAMPUS ]
+      description: 소속 캠퍼스 (글로벌 캠퍼스 / 메디컬 캠퍼스)
+
+relationships:
+  - type: OneToMany
+    target: User
+    mapped_by: department
+    description: "해당 학과에 소속된 사용자 목록 (필요 시 사용)"
+
+business_logic:
+  - "create(name, campus): 학과 생성 (정적 팩토리 메서드)"
+  - "softDelete(): → BaseEntity 위임"
+
+indexes:
+  - columns: [ campus ]
+    reason: "캠퍼스별 학과 목록 조회 시 사용"

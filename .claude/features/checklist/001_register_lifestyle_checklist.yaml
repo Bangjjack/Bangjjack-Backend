@@ -1,0 +1,313 @@
+# Feature Specification: 생활습관 체크리스트 등록
+# Status: Draft
+# Last Updated: 2026-04-14
+
+meta:
+  id: FEAT-005
+  title: 생활습관 체크리스트 등록
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    사용자가 자신의 생활습관(취침/기상 시간, 잠버릇, 청소 주기 등)을 체크리스트 형태로
+    최초 1회 등록하여 룸메이트 매칭에 활용할 수 있도록 한다.
+  user_story: >
+    As a 온보딩 완료 사용자, I want to 나의 생활습관을 체크리스트로 등록하고,
+    so that 나와 생활 패턴이 맞는 룸메이트를 찾을 수 있다.
+  goals:
+    - 9가지 생활습관 항목을 단일 API로 등록
+    - 잠버릇은 복수 선택 허용 (나머지는 단일 선택)
+    - 등록 완료 시 User.isChecklistRegistered = true 플래그 설정
+    - 중복 등록 방지 (최초 1회)
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: POST
+      path: /api/v1/users/onboarding/checklist
+      summary: 생활습관 체크리스트 등록 (최초 1회)
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        dto: LifestyleChecklistRequest
+        fields:
+          - name: bedtime
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, BEFORE_22 | BETWEEN_22_24 | BETWEEN_24_2 | AFTER_2 | IRREGULAR"
+          - name: wakeUpTime
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, BEFORE_6 | BETWEEN_6_8 | BETWEEN_8_10 | AFTER_10 | IRREGULAR"
+          - name: sleepHabits
+            type: List<String (Enum)>
+            required: true
+            validation: "@NotNull, @NotEmpty, 복수선택 가능. NONE | TOSS_AND_TURN | SNORING | TEETH_GRINDING | FREQUENT_WAKING"
+          - name: cleaningCycle
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, ALMOST_DAILY | ONCE_OR_TWICE_A_WEEK | SOMETIMES | RARELY"
+          - name: dormStayTime
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, MOSTLY_OUTSIDE | HALF_AND_HALF | MOSTLY_INSIDE"
+          - name: callHabit
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, INSIDE_OK | OUTSIDE_ONLY | WHISPER"
+          - name: indoorTemperature
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, SENSITIVE_TO_HEAT | SENSITIVE_TO_COLD | BOTH_SENSITIVE | INSENSITIVE"
+          - name: noiseSensitivity
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, VERY_INSENSITIVE | SLIGHTLY_INSENSITIVE | NORMAL | SLIGHTLY_SENSITIVE | VERY_SENSITIVE"
+          - name: smoking
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, NON_SMOKER | CIGARETTE | ELECTRONIC_CIGARETTE"
+      response:
+        dto: Void
+        http_status: 201 CREATED
+        wrapper: CommonResponse<Void>
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (ChecklistController)
+      action: MemberPrincipal로 JWT에서 userId 추출, @Valid로 요청 검증 후 ChecklistUseCase.registerChecklist(userId, request) 호출
+    - step: 2
+      layer: UseCase (ChecklistUseCase)
+      action: UserGetService로 userId 기준 User 조회
+    - step: 3
+      layer: UseCase (ChecklistUseCase)
+      action: isChecklistRegistered = true 여부 확인 → true면 AlreadyChecklistRegisteredException 발생
+    - step: 4
+      layer: Domain (LifestyleChecklist Entity)
+      action: LifestyleChecklist.create(user, request) 호출 — 9개 항목 + sleepHabits 설정
+    - step: 5
+      layer: Domain (User Entity)
+      action: user.completeChecklistRegistration() 호출 — isChecklistRegistered = true
+    - step: 6
+      layer: Infrastructure (ChecklistRepository)
+      action: checklistRepository.save(checklist) — CascadeType.ALL로 LifestyleChecklistSleepHabit 함께 저장. Dirty Checking으로 User UPDATE (별도 save() 불필요)
+    - step: 7
+      layer: Response
+      action: 반환값 없음 (void). 201 CREATED 응답.
+
+  database:
+    entities:
+      - name: LifestyleChecklist
+        table: lifestyle_checklists
+        action: Create
+        fields: "user_id (FK), bedtime, wake_up_time, cleaning_cycle, dorm_stay_time, call_habit, indoor_temperature, noise_sensitivity, smoking"
+      - name: LifestyleChecklistSleepHabit
+        table: lifestyle_checklist_sleep_habits
+        action: Create
+        fields: "id (PK), checklist_id (FK), sleep_habit, created_at, updated_at, deleted, deleted_at"
+      - name: User
+        table: users
+        action: Update
+        fields: "is_checklist_registered = true"
+
+  enums:
+    - name: Bedtime
+      values: [ BEFORE_22, BETWEEN_22_24, BETWEEN_24_2, AFTER_2, IRREGULAR ]
+      display:
+        BEFORE_22: "22시 이전"
+        BETWEEN_22_24: "22-24시"
+        BETWEEN_24_2: "24-2시"
+        AFTER_2: "2시 이후"
+        IRREGULAR: "불규칙"
+    - name: WakeUpTime
+      values: [ BEFORE_6, BETWEEN_6_8, BETWEEN_8_10, AFTER_10, IRREGULAR ]
+      display:
+        BEFORE_6: "6시 이전"
+        BETWEEN_6_8: "6-8시"
+        BETWEEN_8_10: "8-10시"
+        AFTER_10: "10시 이후"
+        IRREGULAR: "불규칙"
+    - name: SleepHabit
+      values: [ NONE, TOSS_AND_TURN, SNORING, TEETH_GRINDING, FREQUENT_WAKING ]
+      note: "복수선택 가능. @ElementCollection으로 별도 테이블 관리."
+      display:
+        NONE: "없음"
+        TOSS_AND_TURN: "뒤척임"
+        SNORING: "코골이"
+        TEETH_GRINDING: "이갈이"
+        FREQUENT_WAKING: "자주깸"
+    - name: CleaningCycle
+      values: [ ALMOST_DAILY, ONCE_OR_TWICE_A_WEEK, SOMETIMES, RARELY ]
+      display:
+        ALMOST_DAILY: "거의 매일"
+        ONCE_OR_TWICE_A_WEEK: "주 1-2회"
+        SOMETIMES: "가끔"
+        RARELY: "거의 안함"
+    - name: DormStayTime
+      values: [ MOSTLY_OUTSIDE, HALF_AND_HALF, MOSTLY_INSIDE ]
+      display:
+        MOSTLY_OUTSIDE: "대부분 밖에"
+        HALF_AND_HALF: "절반 정도"
+        MOSTLY_INSIDE: "대부분 기숙사 안에"
+    - name: CallHabit
+      values: [ INSIDE_OK, OUTSIDE_ONLY, WHISPER ]
+      display:
+        INSIDE_OK: "기숙사 내부 가능"
+        OUTSIDE_ONLY: "밖에서만"
+        WHISPER: "소곤소곤"
+    - name: IndoorTemperature
+      values: [ SENSITIVE_TO_HEAT, SENSITIVE_TO_COLD, BOTH_SENSITIVE, INSENSITIVE ]
+      display:
+        SENSITIVE_TO_HEAT: "더위 잘탐"
+        SENSITIVE_TO_COLD: "추위 잘탐"
+        BOTH_SENSITIVE: "둘다 예민"
+        INSENSITIVE: "둔감한 편"
+    - name: NoiseSensitivity
+      values: [ VERY_INSENSITIVE, SLIGHTLY_INSENSITIVE, NORMAL, SLIGHTLY_SENSITIVE, VERY_SENSITIVE ]
+      display:
+        VERY_INSENSITIVE: "둔감한 편"
+        SLIGHTLY_INSENSITIVE: "약간 둔감"
+        NORMAL: "보통"
+        SLIGHTLY_SENSITIVE: "약간 예민"
+        VERY_SENSITIVE: "예민한 편"
+    - name: Smoking
+      values: [ NON_SMOKER, CIGARETTE, ELECTRONIC_CIGARETTE ]
+      display:
+        NON_SMOKER: "비흡연"
+        CIGARETTE: "연초"
+        ELECTRONIC_CIGARETTE: "전자담배"
+
+  error_codes:
+    domain_range: "405xx (Checklist 도메인) — check_error_codes.py 실행 후 최종 코드 확정"
+    codes:
+      - code: 40501
+        name: ALREADY_CHECKLIST_REGISTERED
+        status: 409 CONFLICT
+        message: "이미 생활습관 체크리스트를 등록한 사용자입니다."
+        trigger: "isChecklistRegistered = true인 사용자가 POST 재요청 시"
+      - code: 40502
+        name: CHECKLIST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "생활습관 체크리스트를 찾을 수 없습니다."
+        trigger: "체크리스트 조회 시 존재하지 않는 경우 (향후 조회 API에서 사용)"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "온보딩 완료(isOnboarded = true) 사용자만 등록 가능 — 미완료 시 403 or 별도 정책 결정 필요"
+    - "체크리스트는 최초 1회만 등록 가능. isChecklistRegistered = true면 409 ALREADY_CHECKLIST_REGISTERED"
+    - "sleepHabits: 비어 있으면 안됨 (@NotEmpty). NONE 선택 시 단독으로만 허용할지 정책 결정 필요"
+    - "모든 Enum 필드: 허용되지 않는 값 입력 시 400 BAD_REQUEST"
+
+# ============================================================
+# 엔티티 설계
+# ============================================================
+entity_design:
+  LifestyleChecklist:
+    table: lifestyle_checklists
+    extends: BaseEntity
+    columns:
+      - user_id:
+          type: BIGINT
+          nullable: false
+          unique: true
+          fk: users.id
+          description: "사용자 FK. 1:1 관계 (사용자당 체크리스트 1개)"
+      - bedtime:
+          type: VARCHAR(20)
+          nullable: false
+          enum: Bedtime
+      - wake_up_time:
+          type: VARCHAR(20)
+          nullable: false
+          enum: WakeUpTime
+      - cleaning_cycle:
+          type: VARCHAR(30)
+          nullable: false
+          enum: CleaningCycle
+      - dorm_stay_time:
+          type: VARCHAR(20)
+          nullable: false
+          enum: DormStayTime
+      - call_habit:
+          type: VARCHAR(20)
+          nullable: false
+          enum: CallHabit
+      - indoor_temperature:
+          type: VARCHAR(20)
+          nullable: false
+          enum: IndoorTemperature
+      - noise_sensitivity:
+          type: VARCHAR(20)
+          nullable: false
+          enum: NoiseSensitivity
+      - smoking:
+          type: VARCHAR(25)
+          nullable: false
+          enum: Smoking
+    relationships:
+      - type: OneToOne
+        target: User
+        fk: user_id
+        fetch: LAZY
+      - type: OneToMany
+        target: LifestyleChecklistSleepHabit
+        mappedBy: checklist
+        cascade: ALL
+        orphanRemoval: true
+        fetch: EAGER
+        note: "잠버릇 복수선택. 별도 엔티티(@Entity)로 관리. cascade로 checklist 저장 시 함께 저장."
+    relationships_as_owner:
+      LifestyleChecklistSleepHabit:
+        table: lifestyle_checklist_sleep_habits
+        extends: BaseEntity
+        columns:
+          - checklist_id:
+              type: BIGINT
+              nullable: false
+              fk: lifestyle_checklists.id
+          - sleep_habit:
+              type: VARCHAR(25)
+              nullable: false
+              enum: SleepHabit
+        relationships:
+          - type: ManyToOne
+            target: LifestyleChecklist
+            fk: checklist_id
+            fetch: LAZY
+        business_logic:
+          - "create(checklist, sleepHabit): 정적 팩토리 메서드로 생성"
+
+    business_logic:
+      - "create(user, request): 정적 팩토리 메서드로 엔티티 생성. sleepHabits는 LifestyleChecklistSleepHabit 목록으로 생성 후 cascade 저장."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 요청으로 POST 호출 시 201 CREATED 반환, lifestyle_checklists 레코드 생성 확인"
+    - "sleepHabits 복수 선택(e.g. TOSS_AND_TURN + SNORING) → lifestyle_checklist_sleep_habits에 2건 저장 확인"
+    - "등록 완료 후 User.isChecklistRegistered = true로 변경 확인"
+  edge_cases:
+    - "이미 체크리스트 등록한 사용자 재요청 → 409 ALREADY_CHECKLIST_REGISTERED"
+    - "sleepHabits 빈 리스트([]) 전송 → 400 BAD_REQUEST (@NotEmpty)"
+    - "허용되지 않는 Enum 값(e.g. bedtime: 'WRONG') → 400 BAD_REQUEST"
+    - "모든 필드 null → 400 BAD_REQUEST (@NotNull)"
+    - "존재하지 않는 userId(JWT 변조) → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "sleepHabits에서 NONE 선택 시 다른 항목과 동시 선택 허용 여부 → 프론트엔드 정책과 사전 합의 필요"
+  - "온보딩 미완료 사용자의 체크리스트 등록 허용 여부 → 정책 결정 후 스펙 업데이트"
+  - "향후 체크리스트 수정(PATCH) API 확장 가능성 고려. 현재는 등록(POST)만 구현."
+  - "check_error_codes.py 실행하여 405xx 코드 범위 사용 가능 여부 확인 필요"

@@ -1,0 +1,81 @@
+# LifestyleChecklist Entity
+# Last Updated: 2026-04-15
+
+entity: LIFESTYLE_CHECKLIST
+description: 사용자의 생활습관 체크리스트 정보를 관리합니다. 온보딩 완료 후 최초 1회 등록하며 룸메이트 매칭에 활용됩니다.
+table: lifestyle_checklists
+domain: Checklist
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - user_id:
+      type: BIGINT
+      nullable: false
+      unique: true
+      fk: users.id
+      description: "사용자 FK. 1:1 관계 (사용자당 체크리스트 1개)"
+  - bedtime:
+      type: VARCHAR(20)
+      nullable: false
+      enum: Bedtime
+      enum_values: [ BEFORE_22, BETWEEN_22_24, BETWEEN_24_2, AFTER_2, IRREGULAR ]
+      description: 취침 시간
+  - wake_up_time:
+      type: VARCHAR(20)
+      nullable: false
+      enum: WakeUpTime
+      enum_values: [ BEFORE_6, BETWEEN_6_8, BETWEEN_8_10, AFTER_10, IRREGULAR ]
+      description: 기상 시간
+  - cleaning_cycle:
+      type: VARCHAR(30)
+      nullable: false
+      enum: CleaningCycle
+      enum_values: [ ALMOST_DAILY, ONCE_OR_TWICE_A_WEEK, SOMETIMES, RARELY ]
+      description: 청소 주기
+  - dorm_stay_time:
+      type: VARCHAR(20)
+      nullable: false
+      enum: DormStayTime
+      enum_values: [ MOSTLY_OUTSIDE, HALF_AND_HALF, MOSTLY_INSIDE ]
+      description: 기숙사 체류 시간
+  - call_habit:
+      type: VARCHAR(20)
+      nullable: false
+      enum: CallHabit
+      enum_values: [ INSIDE_OK, OUTSIDE_ONLY, WHISPER ]
+      description: 통화 습관
+  - indoor_temperature:
+      type: VARCHAR(20)
+      nullable: false
+      enum: IndoorTemperature
+      enum_values: [ SENSITIVE_TO_HEAT, SENSITIVE_TO_COLD, BOTH_SENSITIVE, INSENSITIVE ]
+      description: 실내 온도 민감도
+  - noise_sensitivity:
+      type: VARCHAR(20)
+      nullable: false
+      enum: NoiseSensitivity
+      enum_values: [ VERY_INSENSITIVE, SLIGHTLY_INSENSITIVE, NORMAL, SLIGHTLY_SENSITIVE, VERY_SENSITIVE ]
+      description: 소음 민감도
+  - smoking:
+      type: VARCHAR(25)
+      nullable: false
+      enum: Smoking
+      enum_values: [ NON_SMOKER, CIGARETTE, ELECTRONIC_CIGARETTE ]
+      description: 흡연 여부
+
+relationships:
+  - type: OneToOne
+    target: User
+    fk: user_id
+    fetch: LAZY
+    description: "체크리스트 소유 사용자"
+  - type: OneToMany (소유 없음 — ManyToOne 측 참고)
+    target: LifestyleChecklistSleepHabit
+    note: "@OneToMany 미사용. sleep habits는 LifestyleChecklistSleepHabit이 FK를 보유. ChecklistCreateService.createSleepHabits()로 별도 saveAll() 처리."
+
+business_logic:
+  - "create(user, request): 정적 팩토리 메서드. sleepHabits를 제외한 8개 항목 설정."
+
+note:
+  - "sleepHabits(잠버릇)는 복수 선택 가능 — LifestyleChecklistSleepHabit 별도 엔티티로 관리"
+  - "@OneToMany 지양 원칙에 따라 양방향 관계 미설정. UseCase에서 checklist 저장 후 sleep habits 별도 saveAll() 호출."

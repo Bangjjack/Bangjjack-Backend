@@ -148,9 +148,9 @@ technical_spec:
       exp: "발급 시간 + jwt.access.expiration-seconds (application.yml 설정값)"
 
   error_codes:
-    domain_range: "408xx (Auth 도메인)"
+    domain_range: "401xx (Auth 도메인)"
     codes:
-      - code: 40801
+      - code: 40101
         name: INVALID_AUTHORIZATION_CODE
         status: 401 UNAUTHORIZED
         message: "유효하지 않거나 만료된 인증 코드입니다."
