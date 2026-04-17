@@ -55,7 +55,7 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
-          tags: bangjjack/bangjjack:latest
+          tags: hanseunghyun0615/bangjjack:latest
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
