@@ -1,0 +1,71 @@
+# ChatRoom Entity
+# Last Updated: 2026-04-18
+
+entity: CHAT_ROOM
+description: 채팅방 메타 정보를 관리합니다. 1:1(DIRECT)과 단체(GROUP) 채팅방을 모두 지원하는 확장 가능한 구조입니다.
+table: chat_room
+domain: Chat
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - created_by:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: 채팅방 최초 생성자 ID
+  - room_type:
+      type: VARCHAR(10)
+      nullable: false
+      enum: RoomType
+      enum_values: [ DIRECT, GROUP ]
+      default: DIRECT
+      description: "DIRECT=1:1 채팅방, GROUP=단체 채팅방 (추후 확장)"
+  - status:
+      type: VARCHAR(10)
+      nullable: false
+      enum: RoomStatus
+      enum_values: [ OPEN, CLOSED ]
+      default: OPEN
+      description: "OPEN=활성, CLOSED=비활성(차단/탈퇴 등)"
+  - direct_room_key:
+      type: VARCHAR(50)
+      nullable: true
+      unique: true
+      description: "1:1 채팅방 중복 방지용 idempotency key. format: DM_{min(userId)}_{max(userId)}. GROUP 채팅방은 NULL."
+
+indexes:
+  - name: UQ_chat_room_direct_key
+    columns: [ direct_room_key ]
+    type: UNIQUE
+    note: "NULL은 UNIQUE 제외됨. GROUP 채팅방 다수 공존 가능."
+  - name: IDX_chat_room_created_by
+    columns: [ created_by ]
+    type: INDEX
+
+relationships:
+  - type: OneToMany
+    target: ChatRoomParticipant
+    mapped_by: chatRoom
+    cascade: ALL
+    orphan_removal: true
+    fetch: LAZY
+    description: "참여자 목록. addParticipant()로 관리."
+
+business_logic:
+  - "createDirect(createdBy, directRoomKey): 1:1 채팅방 생성 (정적 팩토리 메서드). roomType=DIRECT, status=OPEN."
+  - "generateDirectKey(userId1, userId2): DM_{min}_{max} 형태의 키 생성. userId 순서 무관하게 동일 키 반환."
+  - "addParticipant(participant): participants 리스트에 참여자 추가."
+  - "close(): status = CLOSED."
+  - "softDelete(): → BaseEntity 위임"
+
+enums:
+  RoomType:
+    values: [ DIRECT, GROUP ]
+    display: { DIRECT: "1:1 채팅", GROUP: "단체 채팅" }
+  RoomStatus:
+    values: [ OPEN, CLOSED ]
+
+concurrency_note: >
+  동시에 동일 두 유저가 채팅방 생성 요청 시 direct_room_key UNIQUE 제약으로 중복 INSERT가 차단됨.
+  ChatRoomCreateService는 @Transactional(REQUIRES_NEW)로 예외를 격리하고,
+  ChatRoomUseCase에서 DataIntegrityViolationException catch 후 재조회한다.
