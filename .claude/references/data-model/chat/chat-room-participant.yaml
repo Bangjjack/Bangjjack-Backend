@@ -1,0 +1,50 @@
+# ChatRoomParticipant Entity
+# Last Updated: 2026-04-18
+
+entity: CHAT_ROOM_PARTICIPANT
+description: 채팅방 참여자를 관리합니다. 1:1=2명, GROUP=N명으로 확장 가능한 참여자 기반 구조입니다.
+table: chat_room_participant
+domain: Chat
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - room_id:
+      type: BIGINT
+      nullable: false
+      fk: chat_room.id
+      description: 채팅방 FK
+  - user_id:
+      type: BIGINT
+      nullable: false
+      description: "참여자 유저 ID. User 엔티티 FK 참조 없이 Long으로 보관 (N+1 방지)."
+  - last_read_message_id:
+      type: BIGINT
+      nullable: true
+      description: "마지막 읽은 메시지 ID. 읽음 처리용 구조 확보 (기능 구현은 추후)."
+
+indexes:
+  - name: UQ_participant_room_user
+    columns: [ room_id, user_id ]
+    type: UNIQUE
+    note: 동일 채팅방에 동일 유저 중복 참여 방지
+  - name: IDX_participant_user_id
+    columns: [ user_id ]
+    type: INDEX
+    note: "특정 유저의 참여 채팅방 목록 조회 시 사용 (추후 '내 채팅방 목록' API)"
+
+relationships:
+  - type: ManyToOne
+    target: ChatRoom
+    fk: room_id
+    fetch: LAZY
+    nullable: false
+    description: 소속 채팅방
+
+business_logic:
+  - "create(chatRoom, userId): 참여자 생성 (정적 팩토리 메서드). lastReadMessageId=null."
+  - "softDelete(): → BaseEntity 위임"
+
+design_note: >
+  User 엔티티를 @ManyToOne으로 참조하지 않고 userId(Long)로만 저장한다.
+  참여자 목록 조회 시 User 정보가 불필요한 경우 불필요한 JOIN을 방지하기 위함.
+  User 정보(username, profileImage 등)가 필요한 경우 UseCase에서 UserGetService를 통해 별도 조회한다.
