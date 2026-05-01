@@ -18,7 +18,7 @@ overview:
     - 1:1 채팅방 즉시 생성 (요청/수락 절차 없음)
     - 동일 두 유저 간 중복 채팅방 방지 (idempotent)
     - 단체 채팅 확장을 고려한 참여자 기반 구조 설계
-    - 동시성 안전 보장 (Unique Key + Exception Catch 전략)
+    - 동시 생성 시 DB Unique 제약조건으로 방지 (충돌 시 409 응답)
 
 # ──────────────────────────────────────────────
 # API 설계
@@ -62,53 +62,24 @@ technical_spec:
 
   data_flow:
     - step: 1
-      layer: Presentation
-      component: ChatRoomController
-      action: >
-        @PostMapping("/chat-rooms"),
-        @Valid CreateChatRoomRequest 수신,
-        currentUserId(@AuthUser) 추출 → ChatRoomUseCase.createDirectRoom() 호출
+      layer: Presentation (ChatRoomController)
+      action: JWT에서 userId 추출, @Valid 요청 검증 후 ChatRoomUseCase.createDirectRoom(userId, request) 호출
 
     - step: 2
-      layer: UseCase
-      component: ChatRoomUseCase
-      transaction: "@Transactional (write override)"
-      action: |
-        1. targetUser 존재 확인 (UserService.getById)
-        2. directRoomKey = ChatRoom.generateDirectKey(currentUserId, targetUserId)
-        3. ChatRoomService.findByDirectRoomKey(directRoomKey) → 존재하면 return (isNewRoom=false)
-        4. 없으면 ChatRoomService.createDirectRoom(currentUser, targetUser) → INSERT
-        5. DataIntegrityViolationException catch → 재조회 후 return (isNewRoom=false)
-        6. ChatRoomResponse.from(room, isNewRoom) 반환
+      layer: UseCase (ChatRoomUseCase)
+      action: targetUser 존재 확인, directRoomKey 생성 → 기존 방 존재 시 참여자 조회 후 반환 (isNewRoom=false)
 
     - step: 3
-      layer: Domain
-      component: ChatRoom (Entity)
-      action: |
-        - ChatRoom.createDirect(createdBy, directRoomKey): static factory method
-        - ChatRoom.generateDirectKey(userId1, userId2): static utility
-          → "DM_" + min(id1,id2) + "_" + max(id1,id2)
-        - ChatRoomParticipant.create(room, user): static factory method
+      layer: UseCase (ChatRoomUseCase)
+      action: 기존 방 없으면 ChatRoomCreateService.createDirectRoom() 호출 → 참여자 조회 후 ChatRoomResponse 반환 (isNewRoom=true)
 
     - step: 4
-      layer: Domain
-      component: ChatRoomService
-      action: |
-        - findByDirectRoomKey(key): Optional<ChatRoom>
-        - createDirectRoom(creator, target):
-            chatRoom = ChatRoom.createDirect(creator, key)
-            participants = [ChatRoomParticipant.create(room, creator),
-                            ChatRoomParticipant.create(room, target)]
-            chatRoomRepository.save(chatRoom)
-            chatRoomParticipantRepository.saveAll(participants)
+      layer: Domain Service (ChatRoomCreateService)
+      action: ChatRoom 저장 후 ChatRoomParticipant 2건 saveAll
 
     - step: 5
-      layer: Infrastructure
-      component: ChatRoomRepository, ChatRoomParticipantRepository
-      action: |
-        - findByDirectRoomKey: JPQL with JOIN FETCH participants
-          (N+1 방지)
-        - save(chatRoom), saveAll(participants)
+      layer: Response
+      action: CommonResponse<ChatRoomResponse> 반환 — 신규 201 / 기존 200
 
   validation_rules:
     - "targetUserId는 NotNull이어야 한다"
@@ -141,7 +112,7 @@ testing_strategy:
   edge_cases:
     - "targetUserId = currentUserId → 40601 CANNOT_CHAT_WITH_SELF"
     - "targetUserId 미존재 → 40301 USER_NOT_FOUND (user 도메인 에러)"
-    - "동시 요청 시뮬레이션 → DataIntegrityViolationException catch 후 기존 방 반환"
+    - "동시 요청으로 unique 충돌 → 409 DUPLICATE_RESOURCE 응답"
 
   unit_test_targets:
     - "ChatRoom.generateDirectKey: id 순서 무관하게 동일 key 생성 검증"
