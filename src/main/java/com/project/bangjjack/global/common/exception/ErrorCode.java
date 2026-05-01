@@ -6,6 +6,7 @@ public enum ErrorCode implements ErrorCodeInterface {
     // 30000번대: 서버 에러
     INTERNAL_SERVER_ERROR(30001, HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류입니다."),
     JSON_PROCESSING(30002, HttpStatus.INTERNAL_SERVER_ERROR, "JSON 처리 중 문제가 발생했습니다."),
+    DATA_INTEGRITY_ERROR(30003, HttpStatus.INTERNAL_SERVER_ERROR, "데이터 무결성 오류가 발생했습니다."),
 
     // 40000번대: 클라이언트 요청 에러
     INVALID_ARGUMENT(40001, HttpStatus.BAD_REQUEST, "잘못된 인자입니다."),
