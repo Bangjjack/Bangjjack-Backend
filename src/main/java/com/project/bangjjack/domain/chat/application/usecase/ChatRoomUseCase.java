@@ -3,14 +3,12 @@ package com.project.bangjjack.domain.chat.application.usecase;
 import com.project.bangjjack.domain.chat.application.dto.request.CreateChatRoomRequest;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomResponse;
 import com.project.bangjjack.domain.chat.application.exception.CannotChatWithSelfException;
-import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,16 +40,8 @@ public class ChatRoomUseCase {
             return ChatRoomResponse.from(chatRoom, participants, false);
         }
 
-        try {
-            ChatRoom chatRoom = chatRoomCreateService.createDirectRoom(currentUserId, request.targetUserId(), directRoomKey);
-            List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
-            return ChatRoomResponse.from(chatRoom, participants, true);
-        } catch (DataIntegrityViolationException e) {
-            // 동시 요청으로 먼저 생성된 방이 있는 경우 재조회
-            ChatRoom chatRoom = chatRoomGetService.findByDirectRoomKey(directRoomKey)
-                    .orElseThrow(ChatRoomNotFoundException::new);
-            List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
-            return ChatRoomResponse.from(chatRoom, participants, false);
-        }
+        ChatRoom chatRoom = chatRoomCreateService.createDirectRoom(currentUserId, request.targetUserId(), directRoomKey);
+        List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
+        return ChatRoomResponse.from(chatRoom, participants, true);
     }
 }

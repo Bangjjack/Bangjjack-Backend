@@ -12,6 +12,7 @@ public enum ErrorCode implements ErrorCodeInterface {
     JSON_PARSE_ERROR(40002, HttpStatus.BAD_REQUEST, "잘못된 JSON 형식의 요청입니다."),
     RESOURCE_NOT_FOUND(40003, HttpStatus.NOT_FOUND, "요청하신 리소스를 찾을 수 없습니다."),
     METHOD_NOT_ALLOWED(40004, HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 HTTP 메서드입니다."),
+    DUPLICATE_RESOURCE(40006, HttpStatus.CONFLICT, "이미 존재하는 리소스입니다."),
 
     // 인증 오류
     UNAUTHORIZED(40005, HttpStatus.UNAUTHORIZED, "인증되지 않았습니다.");

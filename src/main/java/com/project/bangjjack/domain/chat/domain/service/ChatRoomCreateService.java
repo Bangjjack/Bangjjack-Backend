@@ -7,7 +7,6 @@ import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -21,8 +20,7 @@ public class ChatRoomCreateService {
         return ChatRoom.generateDirectKey(userId1, userId2);
     }
 
-    // REQUIRES_NEW isolates this TX so DataIntegrityViolationException doesn't poison the caller's TX
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public ChatRoom createDirectRoom(Long creatorId, Long targetId, String directRoomKey) {
         ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(creatorId, directRoomKey));
         List<ChatRoomParticipant> participants = List.of(
