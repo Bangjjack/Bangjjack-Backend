@@ -59,7 +59,7 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<CommonResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
+    public ResponseEntity<CommonResponse<Void>> handleIllegalArgument() {
         ErrorCode errorCode = ErrorCode.INVALID_ARGUMENT;
         CommonResponse<Void> body = CommonResponse.error(errorCode);
 

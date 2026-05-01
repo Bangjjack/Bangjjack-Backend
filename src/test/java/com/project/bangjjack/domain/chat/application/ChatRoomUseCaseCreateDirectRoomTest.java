@@ -62,6 +62,7 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             );
 
             given(userGetService.getById(targetUserId)).willReturn(null);
+            given(chatRoomCreateService.createDirectKey(currentUserId, targetUserId)).willReturn("DM_1_2");
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.empty());
             given(chatRoomCreateService.createDirectRoom(anyLong(), anyLong(), anyString())).willReturn(chatRoom);
             given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
@@ -90,6 +91,7 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             );
 
             given(userGetService.getById(targetUserId)).willReturn(null);
+            given(chatRoomCreateService.createDirectKey(currentUserId, targetUserId)).willReturn("DM_1_2");
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(existingRoom));
             given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
 
@@ -117,6 +119,7 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             // B→A 방향으로 요청
             CreateChatRoomRequest request = new CreateChatRoomRequest(userA);
             given(userGetService.getById(userA)).willReturn(null);
+            given(chatRoomCreateService.createDirectKey(userB, userA)).willReturn("DM_1_2");
             given(chatRoomGetService.findByDirectRoomKey("DM_1_2")).willReturn(Optional.of(existingRoom));
             given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
 
