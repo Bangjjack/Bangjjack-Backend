@@ -58,8 +58,7 @@ technical_spec:
           type: List<ParticipantResponse>
           note: "참여자 목록 (userId, profileImage)"
         - name: createdAt
-          type: String
-          note: ISO-8601
+          type: LocalDateTime
 
   data_flow:
     - step: 1

@@ -3,6 +3,7 @@ package com.project.bangjjack.domain.chat.application.dto.response;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ChatRoomResponse(
@@ -10,7 +11,7 @@ public record ChatRoomResponse(
         String roomType,
         boolean isNewRoom,
         List<ParticipantResponse> participants,
-        String createdAt
+        LocalDateTime createdAt
 ) {
     public static ChatRoomResponse from(ChatRoom chatRoom, List<ChatRoomParticipant> participants, boolean isNewRoom) {
         return new ChatRoomResponse(
@@ -18,7 +19,7 @@ public record ChatRoomResponse(
                 chatRoom.getRoomType().name(),
                 isNewRoom,
                 participants.stream().map(ParticipantResponse::from).toList(),
-                chatRoom.getCreatedAt() != null ? chatRoom.getCreatedAt().toString() : null
+                chatRoom.getCreatedAt()
         );
     }
 }
