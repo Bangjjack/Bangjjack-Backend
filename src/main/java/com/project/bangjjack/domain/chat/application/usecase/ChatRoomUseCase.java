@@ -33,7 +33,7 @@ public class ChatRoomUseCase {
         }
         userGetService.getById(request.targetUserId());
 
-        String directRoomKey = ChatRoom.generateDirectKey(currentUserId, request.targetUserId());
+        String directRoomKey = chatRoomCreateService.createDirectKey(currentUserId, request.targetUserId());
 
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {

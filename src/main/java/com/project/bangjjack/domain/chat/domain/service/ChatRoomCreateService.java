@@ -17,6 +17,10 @@ public class ChatRoomCreateService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomParticipantRepository chatRoomParticipantRepository;
 
+    public String createDirectKey(Long userId1, Long userId2) {
+        return ChatRoom.generateDirectKey(userId1, userId2);
+    }
+
     // REQUIRES_NEW isolates this TX so DataIntegrityViolationException doesn't poison the caller's TX
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatRoom createDirectRoom(Long creatorId, Long targetId, String directRoomKey) {
