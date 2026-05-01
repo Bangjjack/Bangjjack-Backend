@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,12 +56,15 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             CreateChatRoomRequest request = new CreateChatRoomRequest(targetUserId);
 
             ChatRoom chatRoom = ChatRoom.createDirect(currentUserId, "DM_1_2");
-            chatRoom.addParticipant(ChatRoomParticipant.create(chatRoom, currentUserId));
-            chatRoom.addParticipant(ChatRoomParticipant.create(chatRoom, targetUserId));
+            List<ChatRoomParticipant> participants = List.of(
+                    ChatRoomParticipant.create(chatRoom, currentUserId),
+                    ChatRoomParticipant.create(chatRoom, targetUserId)
+            );
 
             given(userGetService.getById(targetUserId)).willReturn(null);
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.empty());
             given(chatRoomCreateService.createDirectRoom(anyLong(), anyLong(), anyString())).willReturn(chatRoom);
+            given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
 
             // when
             ChatRoomResponse response = chatRoomUseCase.createDirectRoom(currentUserId, request);
@@ -80,11 +84,14 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             CreateChatRoomRequest request = new CreateChatRoomRequest(targetUserId);
 
             ChatRoom existingRoom = ChatRoom.createDirect(currentUserId, "DM_1_2");
-            existingRoom.addParticipant(ChatRoomParticipant.create(existingRoom, currentUserId));
-            existingRoom.addParticipant(ChatRoomParticipant.create(existingRoom, targetUserId));
+            List<ChatRoomParticipant> participants = List.of(
+                    ChatRoomParticipant.create(existingRoom, currentUserId),
+                    ChatRoomParticipant.create(existingRoom, targetUserId)
+            );
 
             given(userGetService.getById(targetUserId)).willReturn(null);
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(existingRoom));
+            given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
 
             // when
             ChatRoomResponse response = chatRoomUseCase.createDirectRoom(currentUserId, request);
@@ -102,13 +109,16 @@ class ChatRoomUseCaseCreateDirectRoomTest {
             Long userB = 2L;
             // A→B로 이미 생성된 방이 있다고 가정
             ChatRoom existingRoom = ChatRoom.createDirect(userA, "DM_1_2");
-            existingRoom.addParticipant(ChatRoomParticipant.create(existingRoom, userA));
-            existingRoom.addParticipant(ChatRoomParticipant.create(existingRoom, userB));
+            List<ChatRoomParticipant> participants = List.of(
+                    ChatRoomParticipant.create(existingRoom, userA),
+                    ChatRoomParticipant.create(existingRoom, userB)
+            );
 
             // B→A 방향으로 요청
             CreateChatRoomRequest request = new CreateChatRoomRequest(userA);
             given(userGetService.getById(userA)).willReturn(null);
             given(chatRoomGetService.findByDirectRoomKey("DM_1_2")).willReturn(Optional.of(existingRoom));
+            given(chatRoomGetService.findParticipantsByRoomId(any())).willReturn(participants);
 
             // when
             ChatRoomResponse response = chatRoomUseCase.createDirectRoom(userB, request);

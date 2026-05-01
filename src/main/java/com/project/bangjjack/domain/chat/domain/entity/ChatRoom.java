@@ -7,9 +7,6 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Entity
 @Table(
     name = "chat_room",
@@ -34,19 +31,12 @@ public class ChatRoom extends BaseEntity {
     @Column(name = "direct_room_key", length = 50)
     private String directRoomKey;
 
-    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ChatRoomParticipant> participants = new ArrayList<>();
-
     public static ChatRoom createDirect(Long createdBy, String directRoomKey) {
-        return new ChatRoom(createdBy, RoomType.DIRECT, RoomStatus.OPEN, directRoomKey, new ArrayList<>());
+        return new ChatRoom(createdBy, RoomType.DIRECT, RoomStatus.OPEN, directRoomKey);
     }
 
     public static String generateDirectKey(Long userId1, Long userId2) {
         return "DM_" + Math.min(userId1, userId2) + "_" + Math.max(userId1, userId2);
-    }
-
-    public void addParticipant(ChatRoomParticipant participant) {
-        participants.add(participant);
     }
 
     public void close() {

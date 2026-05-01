@@ -2,7 +2,9 @@ package com.project.bangjjack.domain.chat.domain.service;
 
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
+import com.project.bangjjack.domain.chat.domain.repository.ChatRoomParticipantRepository;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -13,13 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChatRoomCreateService {
 
     private final ChatRoomRepository chatRoomRepository;
+    private final ChatRoomParticipantRepository chatRoomParticipantRepository;
 
     // REQUIRES_NEW isolates this TX so DataIntegrityViolationException doesn't poison the caller's TX
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatRoom createDirectRoom(Long creatorId, Long targetId, String directRoomKey) {
-        ChatRoom chatRoom = ChatRoom.createDirect(creatorId, directRoomKey);
-        chatRoom.addParticipant(ChatRoomParticipant.create(chatRoom, creatorId));
-        chatRoom.addParticipant(ChatRoomParticipant.create(chatRoom, targetId));
-        return chatRoomRepository.save(chatRoom);
+        ChatRoom chatRoom = chatRoomRepository.save(ChatRoom.createDirect(creatorId, directRoomKey));
+        List<ChatRoomParticipant> participants = List.of(
+                ChatRoomParticipant.create(chatRoom, creatorId),
+                ChatRoomParticipant.create(chatRoom, targetId)
+        );
+        chatRoomParticipantRepository.saveAll(participants);
+        return chatRoom;
     }
 }

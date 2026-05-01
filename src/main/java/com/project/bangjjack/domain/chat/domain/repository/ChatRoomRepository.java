@@ -9,6 +9,6 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
-    @Query("SELECT cr FROM ChatRoom cr LEFT JOIN FETCH cr.participants WHERE cr.directRoomKey = :directRoomKey AND cr.deleted = false")
-    Optional<ChatRoom> findByDirectRoomKeyWithParticipants(@Param("directRoomKey") String directRoomKey);
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.directRoomKey = :directRoomKey AND cr.deleted = false")
+    Optional<ChatRoom> findByDirectRoomKey(@Param("directRoomKey") String directRoomKey);
 }
