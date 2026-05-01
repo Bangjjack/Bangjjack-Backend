@@ -131,37 +131,6 @@ technical_spec:
         http: 404
 
 # ──────────────────────────────────────────────
-# 엔티티 구현 스케치
-# ──────────────────────────────────────────────
-entity_sketch:
-  ChatRoom:
-    package: com.project.bangjjack.domain.chat.domain.entity
-    annotations: [ "@Entity", "@Getter", "@NoArgsConstructor(PROTECTED)", "@AllArgsConstructor(PRIVATE)", "@Table(uniqueConstraints=@UniqueConstraint(columnNames='direct_room_key'))" ]
-    fields:
-      - "Long id (BaseEntity)"
-      - "Long createdBy — @Column(nullable=false)"
-      - "RoomType roomType — @Enumerated(STRING)"
-      - "RoomStatus status — @Enumerated(STRING)"
-      - "String directRoomKey — @Column(length=50, unique=true)"
-      - "@OneToMany(mappedBy='room', cascade=ALL, orphanRemoval=true) List<ChatRoomParticipant> participants"
-    static_methods:
-      - "createDirect(Long createdBy, String directRoomKey): ChatRoom"
-      - "generateDirectKey(Long userId1, Long userId2): String"
-    domain_methods:
-      - "close(): void — status = CLOSED"
-
-  ChatRoomParticipant:
-    package: com.project.bangjjack.domain.chat.domain.entity
-    annotations: [ "@Entity", "@Getter", "@NoArgsConstructor(PROTECTED)", "@AllArgsConstructor(PRIVATE)", "@Table(uniqueConstraints=@UniqueConstraint(columnNames={'room_id','user_id'}))" ]
-    fields:
-      - "Long id (BaseEntity)"
-      - "@ManyToOne(fetch=LAZY) ChatRoom room"
-      - "Long userId — @Column(nullable=false)"
-      - "Long lastReadMessageId — @Column(nullable=true)"
-    static_methods:
-      - "create(ChatRoom room, Long userId): ChatRoomParticipant"
-
-# ──────────────────────────────────────────────
 # 테스트 전략
 # ──────────────────────────────────────────────
 testing_strategy:
