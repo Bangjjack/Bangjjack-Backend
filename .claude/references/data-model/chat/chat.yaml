@@ -1,0 +1,46 @@
+# Chat Entity
+# Last Updated: 2026-04-18
+
+entity: CHAT
+description: 채팅 메시지를 관리합니다. 현재는 구조만 확보하며, 메시지 송수신 기능은 추후 구현합니다.
+table: chat
+domain: Chat
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+status: STRUCTURE_ONLY  # 엔티티 미구현. 메시지 송수신 기능 스펙 작성 시 구현 예정.
+
+columns:
+  - sender_id:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: 메시지 발신자 ID
+  - room_id:
+      type: BIGINT
+      nullable: false
+      fk: chat_room.id
+      description: 소속 채팅방 FK
+  - content:
+      type: TEXT
+      nullable: false
+      description: 메시지 내용
+
+indexes:
+  - name: IDX_chat_room_id_created_at
+    columns: [ room_id, created_at ]
+    type: INDEX
+    note: 채팅방 메시지 페이지네이션 조회 시 사용 (추후)
+
+relationships:
+  - type: ManyToOne
+    target: ChatRoom
+    fk: room_id
+    fetch: LAZY
+  - type: ManyToOne
+    target: User
+    fk: sender_id
+    fetch: LAZY
+
+note: >
+  ChatRoomParticipant.last_read_message_id가 이 테이블의 id를 참조한다.
+  메시지 송수신/읽음 처리/알림 기능 구현 시 별도 스펙 문서 작성 필요.

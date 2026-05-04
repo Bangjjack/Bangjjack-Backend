@@ -1,0 +1,135 @@
+# Feature Specification: 1:1 채팅방 생성
+# Status: Draft
+# Last Updated: 2026-04-18
+
+meta:
+  id: FEAT-CHAT-001
+  title: 1:1 채팅방 생성
+  type: Feature
+  author: Claude
+
+overview:
+  summary: >
+    특정 유저와 즉시 1:1 채팅방을 생성하며, 동일 두 유저 간 중복 생성을 방지하고 기존 방을 재사용한다.
+  user_story: >
+    As a 로그인 유저, I want to 특정 유저와 바로 1:1 채팅방을 생성하고 싶다,
+    so that 별도 요청/수락 절차 없이 즉시 대화를 시작할 수 있다.
+  goals:
+    - 1:1 채팅방 즉시 생성 (요청/수락 절차 없음)
+    - 동일 두 유저 간 중복 채팅방 방지 (idempotent)
+    - 단체 채팅 확장을 고려한 참여자 기반 구조 설계
+    - 동시 생성 시 DB Unique 제약조건으로 방지 (충돌 시 409 응답)
+
+# ──────────────────────────────────────────────
+# API 설계
+# ──────────────────────────────────────────────
+technical_spec:
+  api:
+    method: POST
+    path: /api/v1/chat-rooms
+    summary: 1:1 채팅방 생성 (이미 존재하면 기존 방 반환)
+    auth: AUTHENTICATED (JWT)
+    http_status:
+      created: 201 (신규 생성)
+      existing: 200 (기존 방 반환)
+      note: >
+        두 케이스를 단일 엔드포인트에서 처리.
+        응답 코드로 신규/기존 구분 가능 (ChatRoomResponseCode 활용)
+    request:
+      dto: CreateChatRoomRequest
+      fields:
+        - name: targetUserId
+          type: Long
+          required: true
+          validation: "NotNull, 자기 자신 불가"
+    response:
+      dto: ChatRoomResponse
+      wrapper: CommonResponse<ChatRoomResponse>
+      fields:
+        - name: roomId
+          type: Long
+        - name: roomType
+          type: String
+          note: "DIRECT | GROUP"
+        - name: isNewRoom
+          type: boolean
+          note: 신규 생성 여부 (클라이언트가 알림/분기 처리 시 활용)
+        - name: participants
+          type: List<ParticipantResponse>
+          note: "참여자 목록 (userId, profileImage)"
+        - name: createdAt
+          type: LocalDateTime
+
+  data_flow:
+    - step: 1
+      layer: Presentation (ChatRoomController)
+      action: JWT에서 userId 추출, @Valid 요청 검증 후 ChatRoomUseCase.createDirectRoom(userId, request) 호출
+
+    - step: 2
+      layer: UseCase (ChatRoomUseCase)
+      action: targetUser 존재 확인, directRoomKey 생성 → 기존 방 존재 시 참여자 조회 후 반환 (isNewRoom=false)
+
+    - step: 3
+      layer: UseCase (ChatRoomUseCase)
+      action: 기존 방 없으면 ChatRoomCreateService.createDirectRoom() 호출 → 참여자 조회 후 ChatRoomResponse 반환 (isNewRoom=true)
+
+    - step: 4
+      layer: Domain Service (ChatRoomCreateService)
+      action: ChatRoom 저장 후 ChatRoomParticipant 2건 saveAll
+
+    - step: 5
+      layer: Response
+      action: CommonResponse<ChatRoomResponse> 반환 — 신규 201 / 기존 200
+
+  validation_rules:
+    - "targetUserId는 NotNull이어야 한다"
+    - "targetUserId는 currentUserId와 달라야 한다 (자기 자신과 채팅 불가)"
+    - "targetUser가 존재하지 않으면 예외 (USER_NOT_FOUND)"
+    - "동일 두 유저 간 1:1 채팅방은 1개만 존재한다 (direct_room_key UNIQUE)"
+
+  error_codes:
+    domain: chat
+    range: "406xx"
+    codes:
+      - code: 40601
+        name: CANNOT_CHAT_WITH_SELF
+        message: "자기 자신과 채팅방을 생성할 수 없습니다."
+        http: 400
+      - code: 40602
+        name: CHAT_ROOM_NOT_FOUND
+        message: "채팅방을 찾을 수 없습니다."
+        http: 404
+
+# ──────────────────────────────────────────────
+# 테스트 전략
+# ──────────────────────────────────────────────
+testing_strategy:
+  happy_path:
+    - "신규 1:1 채팅방 생성 성공 → 201, 채팅방 + 참여자 2명 저장 확인"
+    - "동일 두 유저 재요청 → 200, 기존 방 반환 (DB 행 추가 없음)"
+    - "A→B 생성 후 B→A 재요청 → 동일 roomId 반환 (key 대칭성 검증)"
+
+  edge_cases:
+    - "targetUserId = currentUserId → 40601 CANNOT_CHAT_WITH_SELF"
+    - "targetUserId 미존재 → 40301 USER_NOT_FOUND (user 도메인 에러)"
+    - "동시 요청으로 unique 충돌 → 409 DUPLICATE_RESOURCE 응답"
+
+  unit_test_targets:
+    - "ChatRoom.generateDirectKey: id 순서 무관하게 동일 key 생성 검증"
+    - "ChatRoomUseCase: 신규/기존 분기 로직 (Mock ChatRoomService)"
+    - "ChatRoomService.createDirectRoom: saveAll 1회 호출, 참여자 2명 생성 검증"
+
+# ──────────────────────────────────────────────
+# 확장성 노트 (단체 채팅)
+# ──────────────────────────────────────────────
+extensibility:
+  group_chat:
+    changes_needed:
+      - "room_type = GROUP, direct_room_key = NULL"
+      - "ChatRoom에 name 필드 추가 (단체방 이름)"
+      - "ChatRoomParticipant.create()는 동일 메서드 재사용"
+      - "참여자 추가: ChatRoomParticipantRepository.saveAll() 확장"
+    no_changes:
+      - "채팅방 참여자 구조 (이미 N명 지원)"
+      - "chat 테이블 구조"
+      - "ChatRoomResponse (participants 리스트 구조 그대로)"

@@ -1,6 +1,8 @@
 package com.project.bangjjack.global.common.exception;
 
 import com.project.bangjjack.global.common.response.CommonResponse;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -47,8 +49,28 @@ public class GlobalExceptionHandler {
                 .body(body);
     }
 
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<CommonResponse<Void>> handleDuplicateKey() {
+        ErrorCode errorCode = ErrorCode.DUPLICATE_RESOURCE;
+        CommonResponse<Void> body = CommonResponse.error(errorCode);
+
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(body);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<CommonResponse<Void>> handleDataIntegrityViolation() {
+        ErrorCode errorCode = ErrorCode.DATA_INTEGRITY_ERROR;
+        CommonResponse<Void> body = CommonResponse.error(errorCode);
+
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(body);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<CommonResponse<Void>> handleIllegalArgument(IllegalArgumentException e) {
+    public ResponseEntity<CommonResponse<Void>> handleIllegalArgument() {
         ErrorCode errorCode = ErrorCode.INVALID_ARGUMENT;
         CommonResponse<Void> body = CommonResponse.error(errorCode);
 

@@ -1,0 +1,25 @@
+package com.project.bangjjack.domain.chat.application.dto.response;
+
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public record ChatRoomResponse(
+        Long roomId,
+        String roomType,
+        boolean isNewRoom,
+        List<ParticipantResponse> participants,
+        LocalDateTime createdAt
+) {
+    public static ChatRoomResponse from(ChatRoom chatRoom, List<ChatRoomParticipant> participants, boolean isNewRoom) {
+        return new ChatRoomResponse(
+                chatRoom.getId(),
+                chatRoom.getRoomType().name(),
+                isNewRoom,
+                participants.stream().map(ParticipantResponse::from).toList(),
+                chatRoom.getCreatedAt()
+        );
+    }
+}
