@@ -1,8 +1,5 @@
 package com.project.bangjjack.domain.post.application;
 
-import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
-import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreferenceFactor;
-import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
@@ -33,7 +30,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -43,9 +39,6 @@ class RoommatePostUseCaseCreateTest {
 
     @Mock
     private UserGetService userGetService;
-
-    @Mock
-    private RoommatePreferenceGetService roommatePreferenceGetService;
 
     @Mock
     private RoommatePostGetService roommatePostGetService;
@@ -62,15 +55,6 @@ class RoommatePostUseCaseCreateTest {
         user.completeChecklistRegistration();
         user.completeRoommatePreferenceRegistration();
         return user;
-    }
-
-    private RoommatePreference preference(User user) {
-        return RoommatePreference.create(
-                user,
-                RoommatePreferenceFactor.BEDTIME,
-                RoommatePreferenceFactor.NOISE_SENSITIVITY,
-                RoommatePreferenceFactor.SMOKING
-        );
     }
 
     private CreateRoommatePostRequest validRequest(RoomSize roomSize, int recruitMemberCount) {
@@ -102,13 +86,12 @@ class RoommatePostUseCaseCreateTest {
             User user = fullyRegisteredUser();
             given(userGetService.getById(userId)).willReturn(user);
             given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
-            given(roommatePreferenceGetService.getByUser(user)).willReturn(preference(user));
 
             // when & then
             assertThatCode(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 1)))
                     .doesNotThrowAnyException();
 
-            then(roommatePostCreateService).should().createPost(any(), any(), any());
+            then(roommatePostCreateService).should().createPost(any(), any());
         }
 
         @Test
@@ -123,7 +106,7 @@ class RoommatePostUseCaseCreateTest {
             assertThatThrownBy(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostWritePreconditionNotMetException.class);
 
-            then(roommatePostCreateService).should(never()).createPost(any(), any(), any());
+            then(roommatePostCreateService).should(never()).createPost(any(), any());
         }
 
         @Test
@@ -168,7 +151,7 @@ class RoommatePostUseCaseCreateTest {
             assertThatThrownBy(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(AlreadyOpenPostExistsException.class);
 
-            then(roommatePostCreateService).should(never()).createPost(any(), any(), any());
+            then(roommatePostCreateService).should(never()).createPost(any(), any());
         }
 
         @Test
@@ -179,7 +162,6 @@ class RoommatePostUseCaseCreateTest {
             User user = fullyRegisteredUser();
             given(userGetService.getById(userId)).willReturn(user);
             given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
-            given(roommatePreferenceGetService.getByUser(user)).willReturn(preference(user));
 
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 2)))
@@ -194,7 +176,6 @@ class RoommatePostUseCaseCreateTest {
             User user = fullyRegisteredUser();
             given(userGetService.getById(userId)).willReturn(user);
             given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
-            given(roommatePreferenceGetService.getByUser(user)).willReturn(preference(user));
 
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.THREE_PERSON, 3)))
@@ -209,37 +190,10 @@ class RoommatePostUseCaseCreateTest {
             User user = fullyRegisteredUser();
             given(userGetService.getById(userId)).willReturn(user);
             given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
-            given(roommatePreferenceGetService.getByUser(user)).willReturn(preference(user));
 
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.FOUR_PERSON, 0)))
                     .isInstanceOf(InvalidRecruitMemberCountException.class);
-        }
-
-        @Test
-        @DisplayName("모집글 저장 시 선호도 snapshot(우선순위 1~3)이 preference 값으로 저장된다")
-        void 선호도_스냅샷이_preference_값으로_저장된다() {
-            // given
-            Long userId = 1L;
-            User user = fullyRegisteredUser();
-            RoommatePreference pref = preference(user);
-            given(userGetService.getById(userId)).willReturn(user);
-            given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
-            given(roommatePreferenceGetService.getByUser(user)).willReturn(pref);
-
-            // when & then
-            assertThatCode(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 1)))
-                    .doesNotThrowAnyException();
-
-            then(roommatePostCreateService).should().createPost(
-                    any(),
-                    argThat(priority ->
-                            priority.getFirstPriority() == RoommatePreferenceFactor.BEDTIME &&
-                            priority.getSecondPriority() == RoommatePreferenceFactor.NOISE_SENSITIVITY &&
-                            priority.getThirdPriority() == RoommatePreferenceFactor.SMOKING
-                    ),
-                    any()
-            );
         }
     }
 }
