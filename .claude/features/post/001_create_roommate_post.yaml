@@ -126,7 +126,7 @@ technical_spec:
       - code: 40701
         name: ALREADY_OPEN_POST_EXISTS
         status: 409 CONFLICT
-        message: "이미 작성 중인 룸메이트 모집글이 존재합니다."
+        message: "이미 모집 중인 룸메이트 모집글이 존재합니다."
         trigger: "OPEN 상태 모집글이 이미 존재하는 사용자가 POST 재요청 시"
       - code: 40702
         name: POST_WRITE_PRECONDITION_NOT_MET
