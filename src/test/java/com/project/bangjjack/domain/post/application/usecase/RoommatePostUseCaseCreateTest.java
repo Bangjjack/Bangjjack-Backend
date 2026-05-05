@@ -1,11 +1,10 @@
-package com.project.bangjjack.domain.post.application;
+package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
-import com.project.bangjjack.domain.post.application.usecase.RoommatePostUseCase;
 import com.project.bangjjack.domain.post.domain.entity.ItemSharing;
 import com.project.bangjjack.domain.post.domain.entity.LightsOutTime;
 import com.project.bangjjack.domain.post.domain.entity.PhoneCall;
