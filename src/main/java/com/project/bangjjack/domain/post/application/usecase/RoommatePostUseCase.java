@@ -7,7 +7,6 @@ import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMem
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
-import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -37,7 +36,9 @@ public class RoommatePostUseCase {
             throw new AlreadyOpenPostExistsException();
         }
 
-        validateRecruitMemberCount(request.roomSize(), request.recruitMemberCount());
+        if (!request.roomSize().isValidRecruitCount(request.recruitMemberCount())) {
+            throw new InvalidRecruitMemberCountException();
+        }
 
         RoommatePost post = RoommatePost.create(
                 user,
@@ -63,14 +64,4 @@ public class RoommatePostUseCase {
         roommatePostCreateService.createPost(post, sharedLifestyle);
     }
 
-    private void validateRecruitMemberCount(RoomSize roomSize, int recruitMemberCount) {
-        boolean valid = switch (roomSize) {
-            case TWO_PERSON -> recruitMemberCount == 1;
-            case THREE_PERSON -> recruitMemberCount >= 1 && recruitMemberCount <= 2;
-            case FOUR_PERSON -> recruitMemberCount >= 1 && recruitMemberCount <= 3;
-        };
-        if (!valid) {
-            throw new InvalidRecruitMemberCountException();
-        }
-    }
 }
