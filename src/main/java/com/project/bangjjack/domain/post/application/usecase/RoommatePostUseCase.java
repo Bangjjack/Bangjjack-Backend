@@ -1,13 +1,10 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
-import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
-import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
-import com.project.bangjjack.domain.post.domain.entity.PostPriority;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
@@ -25,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class RoommatePostUseCase {
 
     private final UserGetService userGetService;
-    private final RoommatePreferenceGetService roommatePreferenceGetService;
     private final RoommatePostGetService roommatePostGetService;
     private final RoommatePostCreateService roommatePostCreateService;
 
@@ -41,8 +37,6 @@ public class RoommatePostUseCase {
             throw new AlreadyOpenPostExistsException();
         }
 
-        RoommatePreference preference = roommatePreferenceGetService.getByUser(user);
-
         validateRecruitMemberCount(request.roomSize(), request.recruitMemberCount());
 
         RoommatePost post = RoommatePost.create(
@@ -53,13 +47,6 @@ public class RoommatePostUseCase {
                 request.recruitMemberCount(),
                 user.getSemester(),
                 user.getDormitory()
-        );
-
-        PostPriority priority = PostPriority.create(
-                post,
-                preference.getFirstPriority(),
-                preference.getSecondPriority(),
-                preference.getThirdPriority()
         );
 
         CreateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
@@ -73,7 +60,7 @@ public class RoommatePostUseCase {
                 lifestyle.lightsOutTime()
         );
 
-        roommatePostCreateService.createPost(post, priority, sharedLifestyle);
+        roommatePostCreateService.createPost(post, sharedLifestyle);
     }
 
     private void validateRecruitMemberCount(RoomSize roomSize, int recruitMemberCount) {
