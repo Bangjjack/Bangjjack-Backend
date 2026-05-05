@@ -24,7 +24,7 @@ public class RoommatePost extends BaseEntity {
     @Column(nullable = false, length = 40)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, length = 500)
     private String description;
 
     @Enumerated(EnumType.STRING)
