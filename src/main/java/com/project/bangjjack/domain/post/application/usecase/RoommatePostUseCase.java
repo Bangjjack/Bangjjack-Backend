@@ -10,10 +10,9 @@ import com.project.bangjjack.domain.post.application.exception.PostWritePrecondi
 import com.project.bangjjack.domain.post.domain.entity.PostPriority;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
-import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
-import com.project.bangjjack.domain.post.domain.repository.RoommatePostRepository;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,7 @@ public class RoommatePostUseCase {
 
     private final UserGetService userGetService;
     private final RoommatePreferenceGetService roommatePreferenceGetService;
-    private final RoommatePostRepository roommatePostRepository;
+    private final RoommatePostGetService roommatePostGetService;
     private final RoommatePostCreateService roommatePostCreateService;
 
     @Transactional
@@ -38,7 +37,7 @@ public class RoommatePostUseCase {
             throw new PostWritePreconditionNotMetException();
         }
 
-        if (roommatePostRepository.existsByUserAndStatusAndDeletedFalse(user, PostStatus.OPEN)) {
+        if (roommatePostGetService.existsOpenPostByUser(user)) {
             throw new AlreadyOpenPostExistsException();
         }
 
