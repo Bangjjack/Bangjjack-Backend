@@ -3,13 +3,13 @@ package com.project.bangjjack.domain.chat.presentation.websocket;
 import com.project.bangjjack.domain.chat.ChatConstants;
 import com.project.bangjjack.domain.chat.application.exception.ChatForbiddenException;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.global.common.exception.UnAuthorizedException;
 import com.project.bangjjack.global.config.websocket.UserPrincipal;
 import com.project.bangjjack.global.jwt.JwtAuthenticator;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
-import org.springframework.messaging.MessageDeliveryException;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
@@ -33,24 +33,24 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         switch (accessor.getCommand()) {
-            case CONNECT -> handleConnect(accessor, message);
-            case SUBSCRIBE -> handleSubscribe(accessor, message);
+            case CONNECT -> handleConnect(accessor);
+            case SUBSCRIBE -> handleSubscribe(accessor);
         }
 
         return message;
     }
 
-    private void handleConnect(StompHeaderAccessor accessor, Message<?> message) {
+    private void handleConnect(StompHeaderAccessor accessor) {
         String authHeader = accessor.getFirstNativeHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new MessageDeliveryException(message, "Missing or invalid Authorization header");
+            throw new UnAuthorizedException();
         }
         Claims claims = jwtAuthenticator.parseToken(authHeader.substring(7));
         Long userId = Long.parseLong(claims.getSubject());
         accessor.setUser(new UserPrincipal(userId));
     }
 
-    private void handleSubscribe(StompHeaderAccessor accessor, Message<?> message) {
+    private void handleSubscribe(StompHeaderAccessor accessor) {
         Long roomId = extractChatRoomId(accessor.getDestination());
         if (roomId == null) {
             return;
@@ -58,11 +58,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
         Principal user = accessor.getUser();
         if (user == null) {
-            throw new MessageDeliveryException(message, "Missing or invalid Authorization header");
+            throw new UnAuthorizedException();
         }
 
         Long userId = Long.parseLong(user.getName());
-        chatRoomGetService.getById(roomId); // 존재하지 않으면 ChatRoomNotFoundException
+        chatRoomGetService.getById(roomId);
         if (!chatRoomGetService.isParticipant(roomId, userId)) {
             throw new ChatForbiddenException();
         }
