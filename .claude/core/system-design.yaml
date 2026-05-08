@@ -56,6 +56,7 @@ api:
       user: 402xx
       department: 403xx
       checklist: 405xx
+      chat: "406xx
       post: 407xx
 
 entity:
