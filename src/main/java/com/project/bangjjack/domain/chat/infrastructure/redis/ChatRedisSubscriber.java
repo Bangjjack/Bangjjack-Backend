@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.chat.infrastructure.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.bangjjack.domain.chat.ChatConstants;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -22,12 +23,12 @@ public class ChatRedisSubscriber {
 
     @PostConstruct
     public void subscribe() {
-        redissonClient.getPatternTopic("chat.room.*", StringCodec.INSTANCE)
+        redissonClient.getPatternTopic(ChatConstants.CHAT_ROOM_TOPIC_PREFIX + "*", StringCodec.INSTANCE)
                 .addListener(String.class, (pattern, channel, json) -> {
                     try {
-                        String roomId = channel.toString().replace("chat.room.", "");
+                        String roomId = channel.toString().substring(ChatConstants.CHAT_ROOM_TOPIC_PREFIX.length());
                         ChatMessageResponse message = objectMapper.readValue(json, ChatMessageResponse.class);
-                        messagingTemplate.convertAndSend("/sub/chat-rooms/" + roomId, message);
+                        messagingTemplate.convertAndSend(ChatConstants.CHAT_ROOM_SUBSCRIBE_PREFIX + roomId, message);
                     } catch (JsonProcessingException e) {
                         log.error("채팅 메시지 역직렬화 실패 channel={}", channel, e);
                     }
