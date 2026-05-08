@@ -2,7 +2,7 @@
 # Last Updated: 2026-05-05
 
 entity: ROOMMATE_POST
-description: 룸메이트 모집글. 기본 태그(학기·기숙사)는 작성 시점 스냅샷으로 저장. 우선순위 3개는 PostPriority 테이블로 분리.
+description: 룸메이트 모집글. 기본 태그(학기·기숙사)는 작성 시점 스냅샷으로 저장.
 table: roommate_posts
 domain: Post
 extends: BaseEntity
