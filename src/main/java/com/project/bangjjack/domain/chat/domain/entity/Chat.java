@@ -27,7 +27,11 @@ public class Chat extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private MessageType type;
+
     public static Chat create(Long userId, ChatRoom chatRoom, String content) {
-        return new Chat(userId, chatRoom, content);
+        return new Chat(userId, chatRoom, content, MessageType.TEXT);
     }
 }

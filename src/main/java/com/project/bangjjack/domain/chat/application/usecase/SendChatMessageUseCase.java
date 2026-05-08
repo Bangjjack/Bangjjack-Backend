@@ -50,6 +50,7 @@ public class SendChatMessageUseCase {
                 sender.getUsername(),
                 sender.getProfileImage(),
                 saved.getContent(),
+                saved.getType(),
                 saved.getCreatedAt()
         ));
 
