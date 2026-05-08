@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.chat.application.usecase;
 
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageAckResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSavedEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatForbiddenException;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
@@ -27,7 +28,7 @@ public class SendChatMessageUseCase {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public void execute(Long roomId, Long currentUserId, SendChatMessageRequest request) {
+    public ChatMessageAckResponse execute(Long roomId, Long currentUserId, SendChatMessageRequest request) {
         ChatRoom chatRoom = chatRoomGetService.getById(roomId);
 
         if (chatRoom.getStatus() == RoomStatus.CLOSED) {
@@ -51,5 +52,7 @@ public class SendChatMessageUseCase {
                 saved.getContent(),
                 saved.getCreatedAt()
         ));
+
+        return new ChatMessageAckResponse(saved.getId(), request.clientTempId(), saved.getCreatedAt());
     }
 }

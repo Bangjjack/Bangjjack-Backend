@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.chat.presentation.websocket;
 
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageAckResponse;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomErrorCode;
 import com.project.bangjjack.domain.chat.application.usecase.SendChatMessageUseCase;
 import com.project.bangjjack.global.common.exception.ApplicationException;
@@ -30,7 +31,8 @@ public class ChatMessageMappingController {
             Principal principal
     ) {
         Long currentUserId = Long.parseLong(principal.getName());
-        sendChatMessageUseCase.execute(roomId, currentUserId, request);
+        ChatMessageAckResponse ack = sendChatMessageUseCase.execute(roomId, currentUserId, request);
+        messagingTemplate.convertAndSendToUser(principal.getName(), "/queue/messages/ack", ack);
     }
 
     @MessageExceptionHandler(ApplicationException.class)
