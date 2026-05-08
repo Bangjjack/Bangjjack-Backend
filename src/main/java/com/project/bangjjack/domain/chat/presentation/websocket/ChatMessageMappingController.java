@@ -7,6 +7,7 @@ import com.project.bangjjack.domain.chat.application.usecase.SendChatMessageUseC
 import com.project.bangjjack.global.common.exception.ApplicationException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Controller;
 
 import java.security.Principal;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class ChatMessageMappingController {
@@ -50,6 +52,16 @@ public class ChatMessageMappingController {
                 principal.getName(),
                 "/queue/errors",
                 ChatSocketErrorResponse.from(ChatRoomErrorCode.INVALID_CHAT_MESSAGE)
+        );
+    }
+
+    @MessageExceptionHandler(Exception.class)
+    public void handleUnexpectedException(Exception e, Principal principal) {
+        log.error("STOMP 처리 중 예상치 못한 오류 발생 userId={}", principal.getName(), e);
+        messagingTemplate.convertAndSendToUser(
+                principal.getName(),
+                "/queue/errors",
+                ChatSocketErrorResponse.from(ChatRoomErrorCode.CHAT_SERVER_ERROR)
         );
     }
 }
