@@ -116,6 +116,7 @@ technical_spec:
           - column: user_id (BIGINT, NOT NULL, FK users.id)
           - column: room_id (BIGINT, NOT NULL, FK chat_room.id)
           - column: content (TEXT, NOT NULL)
+          - column: type (VARCHAR(20), NOT NULL)
           - column: created_at
           - column: updated_at
           - column: deleted (BOOLEAN, DEFAULT false)
@@ -174,5 +175,5 @@ notes:
   - "ACK는 발신자 전용(/user/queue/messages/ack), 브로드캐스트는 전체 구독자(/sub/chat-rooms/{roomId}) 계약을 분리한다."
   - "실시간 브로드캐스트 계약은 FEAT-CHAT-003에서 정의한다."
   - "메시지 목록 조회 계약은 FEAT-CHAT-004에서 정의한다."
-  - "ChatMessageSavedEvent는 최소한 messageId, roomId, senderId, senderNickname, senderProfileImage, content, createdAt을 포함해야 한다."
+  - "ChatMessageSavedEvent는 최소한 messageId, roomId, senderId, senderNickname, senderProfileImage, content, type, createdAt을 포함해야 한다."
   - "clientTempId는 서버에서 저장하지 않으며 ACK 응답 시에만 echo된다."
