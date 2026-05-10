@@ -9,12 +9,15 @@ import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.service.ChatCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.domain.chat.infrastructure.redis.ChatIdempotencyService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,9 +28,15 @@ public class SendChatMessageUseCase {
     private final ChatCreateService chatCreateService;
     private final UserGetService userGetService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ChatIdempotencyService chatIdempotencyService;
 
     @Transactional
     public ChatMessageAckResponse execute(Long roomId, Long currentUserId, SendChatMessageRequest request) {
+        Optional<ChatMessageAckResponse> duplicate = chatIdempotencyService.findDuplicate(currentUserId, request.clientTempId());
+        if (duplicate.isPresent()) {
+            return duplicate.get();
+        }
+
         ChatRoom chatRoom = chatRoomGetService.getById(roomId);
 
         if (!chatRoomGetService.isParticipant(roomId, currentUserId)) {
@@ -49,7 +58,8 @@ public class SendChatMessageUseCase {
                 sender.getProfileImage(),
                 saved.getContent(),
                 saved.getType(),
-                saved.getCreatedAt()
+                saved.getCreatedAt(),
+                request.clientTempId()
         ));
 
         return new ChatMessageAckResponse(saved.getId(), request.clientTempId(), saved.getCreatedAt());

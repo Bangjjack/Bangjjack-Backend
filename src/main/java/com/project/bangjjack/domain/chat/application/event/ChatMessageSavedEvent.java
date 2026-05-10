@@ -12,6 +12,7 @@ public record ChatMessageSavedEvent(
         String senderProfileImage,
         String content,
         MessageType type,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String clientTempId
 ) {
 }
