@@ -8,9 +8,11 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.stereotype.Component;
 import org.springframework.web.socket.messaging.StompSubProtocolErrorHandler;
 
 @Slf4j
+@Component
 public class ChatErrorFrameHandler extends StompSubProtocolErrorHandler {
 
     @Override

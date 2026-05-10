@@ -62,7 +62,7 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         Long userId = Long.parseLong(user.getName());
-        chatRoomGetService.getById(roomId);
+        chatRoomGetService.getById(roomId); // ChatRoomNotFoundException — 방이 없으면 404
         if (!chatRoomGetService.isParticipant(roomId, userId)) {
             throw new ChatForbiddenException();
         }

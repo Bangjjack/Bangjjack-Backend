@@ -19,6 +19,7 @@ import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
 public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport {
 
     private final StompAuthChannelInterceptor stompAuthChannelInterceptor;
+    private final ChatErrorFrameHandler chatErrorFrameHandler;
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -49,7 +50,7 @@ public class WebSocketConfig extends WebSocketMessageBrokerConfigurationSupport 
                 .filter(h -> h instanceof StompSubProtocolHandler)
                 .map(h -> (StompSubProtocolHandler) h)
                 .findFirst()
-                .ifPresent(h -> h.setErrorHandler(new ChatErrorFrameHandler()));
+                .ifPresent(h -> h.setErrorHandler(chatErrorFrameHandler));
         return handler;
     }
 }
