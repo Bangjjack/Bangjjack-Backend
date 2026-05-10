@@ -4,10 +4,12 @@ import com.project.bangjjack.domain.post.application.dto.request.CreateRoommateP
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
+import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
@@ -23,6 +25,7 @@ public class RoommatePostUseCase {
     private final UserGetService userGetService;
     private final RoommatePostGetService roommatePostGetService;
     private final RoommatePostCreateService roommatePostCreateService;
+    private final RoommatePostDeleteService roommatePostDeleteService;
 
     @Transactional
     public void createPost(Long userId, CreateRoommatePostRequest request) {
@@ -64,4 +67,15 @@ public class RoommatePostUseCase {
         roommatePostCreateService.createPost(post, sharedLifestyle);
     }
 
+    @Transactional
+    public void deletePost(Long userId, Long postId) {
+        User user = userGetService.getById(userId);
+        RoommatePost post = roommatePostGetService.getById(postId);
+
+        if (!post.getUser().getId().equals(user.getId())) {
+            throw new PostDeleteForbiddenException();
+        }
+
+        roommatePostDeleteService.deletePost(post);
+    }
 }
