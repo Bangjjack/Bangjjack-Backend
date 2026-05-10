@@ -1,0 +1,173 @@
+# Feature Specification: 룸메이트 모집글 단건 조회
+# Status: Draft
+# Last Updated: 2026-05-10
+
+meta:
+  id: FEAT-010
+  title: 룸메이트 모집글 단건 조회
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    인증된 사용자가 postId로 특정 룸메이트 모집글의 상세 정보를 조회한다.
+    삭제된 모집글(deleted=true)은 조회할 수 없다.
+    응답에는 모집글 정보(제목, 설명, 방 유형, 모집 인원, 상태, 학기, 기숙사),
+    작성자 기본 정보(id, username, profileImage), 공동 생활습관 6개 항목,
+    그리고 요청자가 해당 모집글의 작성자인지 여부(isOwner)가 포함된다.
+  user_story: >
+    As a 인증된 사용자, I want to 특정 룸메이트 모집글의 상세 내용을 조회하고,
+    so that 지원 여부를 판단하거나 내 글인 경우 수정/삭제 버튼을 표시할 수 있다.
+  goals:
+    - postId로 단건 모집글 상세 조회
+    - 삭제된 모집글 조회 차단
+    - 작성자 기본 정보 포함 응답
+    - 공동 생활습관 6개 항목 포함 응답
+    - 요청자 본인 작성 여부(isOwner) 반환
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/posts/{postId}
+      summary: 룸메이트 모집글 단건 조회
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: postId
+            type: Long
+            required: true
+            note: "조회할 모집글 ID"
+        dto: "(없음)"
+        fields: []
+      response:
+        dto: RoommatePostDetailResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<RoommatePostDetailResponse>
+        response_code: PostResponseCode.POST_DETAIL_FOUND
+        fields:
+          - name: postId
+            type: Long
+          - name: title
+            type: String
+          - name: description
+            type: String
+          - name: roomSize
+            type: String (Enum)
+          - name: recruitMemberCount
+            type: Integer
+          - name: status
+            type: String (Enum)
+            note: "OPEN | CLOSED"
+          - name: semester
+            type: String (Enum)
+            note: "작성 시점 스냅샷"
+          - name: dormitory
+            type: String (Enum)
+            note: "작성 시점 스냅샷"
+          - name: isOwner
+            type: Boolean
+            note: "요청자(JWT userId)와 모집글 작성자(post.user.id)가 동일하면 true"
+          - name: createdAt
+            type: LocalDateTime
+          - name: author
+            type: AuthorResponse (nested)
+            fields:
+              - name: authorId
+                type: Long
+              - name: username
+                type: String
+              - name: profileImage
+                type: String
+                note: "null 가능"
+          - name: sharedLifestyle
+            type: SharedLifestyleResponse (nested)
+            fields:
+              - name: roomTrashBinSharing
+                type: Boolean
+              - name: recycling
+                type: String (Enum)
+              - name: phoneCall
+                type: String (Enum)
+              - name: itemSharing
+                type: String (Enum)
+              - name: earphoneUsage
+                type: Boolean
+              - name: lightsOutTime
+                type: String (Enum)
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommatePostController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable postId 수신 후 PostUseCase.getPostDetail(userId, postId) 호출"
+    - step: 2
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService로 postId 기준 RoommatePost 조회 (없거나 deleted=true이면 POST_NOT_FOUND)"
+    - step: 3
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService로 해당 post의 PostSharedLifestyle 조회"
+    - step: 4
+      layer: UseCase (RoommatePostUseCase)
+      action: "isOwner = post.getUser().getId().equals(userId) 계산"
+    - step: 5
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner) 생성 후 반환"
+    - step: 6
+      layer: Response
+      action: "200 OK, CommonResponse<RoommatePostDetailResponse> 반환"
+
+  response_dto_structure:
+    RoommatePostDetailResponse:
+      note: "static factory method from(RoommatePost, PostSharedLifestyle, boolean isOwner) 사용"
+      nested:
+        - AuthorResponse:
+            note: "static factory method from(User) 사용"
+            source: "post.getUser()"
+        - SharedLifestyleResponse:
+            note: "static factory method from(PostSharedLifestyle) 사용"
+
+  error_codes:
+    domain_range: "407xx (Post 도메인)"
+    codes:
+      - code: 40704
+        name: POST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "모집글을 찾을 수 없습니다."
+        trigger: "postId에 해당하는 모집글이 없거나 deleted=true인 경우"
+        note: "기존 코드 재사용"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "deleted=true인 모집글은 조회 불가. POST_NOT_FOUND 반환."
+    - "OPEN / CLOSED 상태 모두 조회 가능."
+    - "인증된 사용자(MEMBER)만 조회 가능."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 postId로 GET 요청 시 200 OK, RoommatePostDetailResponse 반환 확인"
+    - "응답에 post, author, sharedLifestyle 3개 영역 데이터가 모두 포함되는지 확인"
+    - "OPEN / CLOSED 상태 모두 정상 조회 가능 확인"
+    - "작성자 본인이 조회하면 isOwner=true 반환"
+    - "타인이 조회하면 isOwner=false 반환"
+  edge_cases:
+    - "존재하지 않는 postId → 404 POST_NOT_ FOUND"
+    - "이미 삭제된 postId → 404 POST_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "isOwner는 서버에서 userId 비교로 계산. 클라이언트가 수정/삭제 버튼 표시 여부 판단에 활용."
+  - "응답 DTO는 Static Factory Method 패턴 사용: RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner)"
+  - "Controller는 @CurrentMemberId로 userId를 받아 UseCase에 전달. 인증 통과 보장 + isOwner 계산 목적."
+  - "PostSharedLifestyle 조회는 기존 RoommatePostGetService.getSharedLifestyleByPost()를 재사용."
