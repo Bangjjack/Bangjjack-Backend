@@ -39,6 +39,10 @@ public class ChatRoom extends BaseEntity {
         return "DM_" + Math.min(userId1, userId2) + "_" + Math.max(userId1, userId2);
     }
 
+    public boolean isClosed() {
+        return this.status == RoomStatus.CLOSED;
+    }
+
     public void close() {
         this.status = RoomStatus.CLOSED;
     }

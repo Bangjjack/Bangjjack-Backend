@@ -7,7 +7,6 @@ import com.project.bangjjack.domain.chat.application.exception.ChatForbiddenExce
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
-import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -31,7 +30,7 @@ public class SendChatMessageUseCase {
     public ChatMessageAckResponse execute(Long roomId, Long currentUserId, SendChatMessageRequest request) {
         ChatRoom chatRoom = chatRoomGetService.getById(roomId);
 
-        if (chatRoom.getStatus() == RoomStatus.CLOSED) {
+        if (chatRoom.isClosed()) {
             throw new ChatRoomClosedException();
         }
 
