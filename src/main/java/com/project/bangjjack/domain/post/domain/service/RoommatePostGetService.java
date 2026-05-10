@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.post.domain.service;
 
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
+import com.project.bangjjack.domain.post.application.exception.SharedLifestyleNotFoundException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
@@ -28,6 +29,6 @@ public class RoommatePostGetService {
 
     public PostSharedLifestyle getSharedLifestyleByPost(RoommatePost post) {
         return postSharedLifestyleRepository.findByPost(post)
-                .orElseThrow(PostNotFoundException::new);
+                .orElseThrow(SharedLifestyleNotFoundException::new);
     }
 }
