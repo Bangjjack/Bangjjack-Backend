@@ -2,6 +2,11 @@ package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
+import com.project.bangjjack.domain.post.domain.entity.ItemSharing;
+import com.project.bangjjack.domain.post.domain.entity.LightsOutTime;
+import com.project.bangjjack.domain.post.domain.entity.PhoneCall;
+import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
+import com.project.bangjjack.domain.post.domain.entity.Recycling;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
@@ -61,25 +66,34 @@ class RoommatePostUseCaseDeleteTest {
         );
     }
 
+    private PostSharedLifestyle sharedLifestyleFor(RoommatePost post) {
+        return PostSharedLifestyle.create(
+                post, true, Recycling.SHARE_BIN, PhoneCall.SHORT_CALLS_OKAY,
+                ItemSharing.NO_PREFERENCE, true, LightsOutTime.BETWEEN_23_24
+        );
+    }
+
     @Nested
     @DisplayName("모집글 삭제 시")
     class DeletePost {
 
         @Test
-        @DisplayName("작성자 본인이 요청하면 예외 없이 모집글이 삭제된다")
+        @DisplayName("작성자 본인이 요청하면 예외 없이 모집글과 공유생활정보가 함께 삭제된다")
         void 본인_모집글_삭제_성공() throws Exception {
             // given
             Long userId = 1L;
             User owner = userWithId(userId);
             RoommatePost post = postOwnedBy(owner);
+            PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
 
             given(roommatePostGetService.getById(1L)).willReturn(post);
+            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
 
             // when & then
             assertThatCode(() -> roommatePostUseCase.deletePost(userId, 1L))
                     .doesNotThrowAnyException();
 
-            then(roommatePostDeleteService).should().deletePost(post);
+            then(roommatePostDeleteService).should().deletePost(post, sharedLifestyle);
         }
 
         @Test
@@ -94,7 +108,7 @@ class RoommatePostUseCaseDeleteTest {
             assertThatThrownBy(() -> roommatePostUseCase.deletePost(1L, nonExistentPostId))
                     .isInstanceOf(PostNotFoundException.class);
 
-            then(roommatePostDeleteService).should(never()).deletePost(any());
+            then(roommatePostDeleteService).should(never()).deletePost(any(), any());
         }
 
         @Test
@@ -112,7 +126,7 @@ class RoommatePostUseCaseDeleteTest {
             assertThatThrownBy(() -> roommatePostUseCase.deletePost(requesterId, 1L))
                     .isInstanceOf(PostDeleteForbiddenException.class);
 
-            then(roommatePostDeleteService).should(never()).deletePost(any());
+            then(roommatePostDeleteService).should(never()).deletePost(any(), any());
         }
     }
 }

@@ -122,6 +122,7 @@ public class RoommatePostUseCase {
             throw new PostDeleteForbiddenException();
         }
 
-        roommatePostDeleteService.deletePost(post);
+        PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
+        roommatePostDeleteService.deletePost(post, sharedLifestyle);
     }
 }
