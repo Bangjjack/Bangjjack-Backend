@@ -15,7 +15,7 @@ public enum PostErrorCode implements ErrorCodeInterface {
     POST_NOT_FOUND(40704, HttpStatus.NOT_FOUND, "모집글을 찾을 수 없습니다."),
     POST_DELETE_FORBIDDEN(40705, HttpStatus.FORBIDDEN, "모집글을 삭제할 권한이 없습니다."),
     POST_UPDATE_FORBIDDEN(40706, HttpStatus.FORBIDDEN, "모집글을 수정할 권한이 없습니다."),
-    POST_NOT_EDITABLE(40707, HttpStatus.CONFLICT, "마감된 모집글은 수정할 수 없습니다."),
+    POST_NOT_EDITABLE(40707, HttpStatus.UNPROCESSABLE_ENTITY, "마감된 모집글은 수정할 수 없습니다."),
     SHARED_LIFESTYLE_NOT_FOUND(40708, HttpStatus.NOT_FOUND, "모집글의 공동생활 정보를 찾을 수 없습니다.");
 
     private final int code;
