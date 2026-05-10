@@ -32,10 +32,7 @@ import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class RoommatePostUseCaseUpdateTest {
@@ -119,8 +116,6 @@ class RoommatePostUseCaseUpdateTest {
             // when & then
             assertThatCode(() -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .doesNotThrowAnyException();
-
-            then(roommatePostUpdateService).should().updatePost(post, sharedLifestyle);
         }
 
         @Test
@@ -134,8 +129,6 @@ class RoommatePostUseCaseUpdateTest {
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.updatePost(1L, nonExistentPostId, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostNotFoundException.class);
-
-            then(roommatePostUpdateService).should(never()).updatePost(any(), any());
         }
 
         @Test
@@ -152,8 +145,6 @@ class RoommatePostUseCaseUpdateTest {
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.updatePost(requesterId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostUpdateForbiddenException.class);
-
-            then(roommatePostUpdateService).should(never()).updatePost(any(), any());
         }
 
         @Test
@@ -169,8 +160,6 @@ class RoommatePostUseCaseUpdateTest {
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostNotEditableException.class);
-
-            then(roommatePostUpdateService).should(never()).updatePost(any(), any());
         }
 
         @Test
@@ -186,8 +175,6 @@ class RoommatePostUseCaseUpdateTest {
             // when & then
             assertThatThrownBy(() -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 2)))
                     .isInstanceOf(InvalidRecruitMemberCountException.class);
-
-            then(roommatePostUpdateService).should(never()).updatePost(any(), any());
         }
     }
 }

@@ -65,6 +65,10 @@ public class RoommatePost extends BaseEntity {
         this.recruitMemberCount = recruitMemberCount;
     }
 
+    public boolean isEditable() {
+        return this.status == PostStatus.OPEN;
+    }
+
     public void close() {
         this.status = PostStatus.CLOSED;
     }

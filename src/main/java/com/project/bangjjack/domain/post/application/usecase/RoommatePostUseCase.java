@@ -6,13 +6,11 @@ import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostEx
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
 import com.project.bangjjack.domain.post.application.exception.PostUpdateForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
-import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
@@ -90,7 +88,7 @@ public class RoommatePostUseCase {
             throw new PostUpdateForbiddenException();
         }
 
-        if (post.getStatus() != PostStatus.OPEN) {
+        if (!post.isEditable()) {
             throw new PostNotEditableException();
         }
 
@@ -98,20 +96,8 @@ public class RoommatePostUseCase {
             throw new InvalidRecruitMemberCountException();
         }
 
-        post.update(request.title(), request.description(), request.roomSize(), request.recruitMemberCount());
-
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
-        UpdateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
-        sharedLifestyle.update(
-                lifestyle.roomTrashBinSharing(),
-                lifestyle.recycling(),
-                lifestyle.phoneCall(),
-                lifestyle.itemSharing(),
-                lifestyle.earphoneUsage(),
-                lifestyle.lightsOutTime()
-        );
-
-        roommatePostUpdateService.updatePost(post, sharedLifestyle);
+        roommatePostUpdateService.updatePost(post, sharedLifestyle, request);
     }
 
     @Transactional

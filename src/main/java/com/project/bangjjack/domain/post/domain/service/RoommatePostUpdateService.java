@@ -1,21 +1,25 @@
 package com.project.bangjjack.domain.post.domain.service;
 
+import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
-import com.project.bangjjack.domain.post.domain.repository.PostSharedLifestyleRepository;
-import com.project.bangjjack.domain.post.domain.repository.RoommatePostRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
-@RequiredArgsConstructor
 public class RoommatePostUpdateService {
 
-    private final RoommatePostRepository roommatePostRepository;
-    private final PostSharedLifestyleRepository postSharedLifestyleRepository;
+    public void updatePost(RoommatePost post, PostSharedLifestyle sharedLifestyle, UpdateRoommatePostRequest request) {
+        post.update(request.title(), request.description(), request.roomSize(), request.recruitMemberCount());
 
-    public void updatePost(RoommatePost post, PostSharedLifestyle sharedLifestyle) {
-        roommatePostRepository.save(post);
-        postSharedLifestyleRepository.save(sharedLifestyle);
+        UpdateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
+        sharedLifestyle.update(
+                lifestyle.roomTrashBinSharing(),
+                lifestyle.recycling(),
+                lifestyle.phoneCall(),
+                lifestyle.itemSharing(),
+                lifestyle.earphoneUsage(),
+                lifestyle.lightsOutTime()
+        );
     }
 }
