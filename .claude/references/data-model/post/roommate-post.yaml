@@ -1,0 +1,68 @@
+# RoommatePost Entity
+# Last Updated: 2026-05-05
+
+entity: ROOMMATE_POST
+description: 룸메이트 모집글. 기본 태그(학기·기숙사)는 작성 시점 스냅샷으로 저장.
+table: roommate_posts
+domain: Post
+extends: BaseEntity
+
+columns:
+  - user_id:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: "작성자 FK"
+  - title:
+      type: VARCHAR(40)
+      nullable: false
+      description: "모집글 제목 (최대 40자)"
+  - description:
+      type: TEXT
+      nullable: false
+      description: "소개글 (최대 500자)"
+  - room_size:
+      type: VARCHAR(15)
+      nullable: false
+      enum: RoomSize
+      description: "몇인실 (2인1실 / 3인1실 / 4인1실)"
+  - recruit_member_count:
+      type: INT
+      nullable: false
+      description: "모집 인원"
+  - status:
+      type: VARCHAR(10)
+      nullable: false
+      default: OPEN
+      enum: PostStatus
+      description: "모집 상태 (모집중 / 모집완료)"
+  - semester:
+      type: VARCHAR(20)
+      nullable: false
+      enum: Semester
+      description: "학기 스냅샷 — 작성 시점 user.semester 복사"
+  - dormitory:
+      type: VARCHAR(10)
+      nullable: false
+      enum: Dormitory
+      description: "기숙사 스냅샷 — 작성 시점 user.dormitory 복사"
+
+relationships:
+  - type: ManyToOne
+    target: User
+    fk: user_id
+    fetch: LAZY
+    description: "작성자"
+
+business_logic:
+  - "create(user, title, description, roomSize, recruitMemberCount, semester, dormitory): 정적 팩토리 메서드"
+  - "close(): status = CLOSED (모집 마감)"
+  - "softDelete(): → BaseEntity 위임"
+
+enums:
+  RoomSize:
+    values: [ TWO_PERSON, THREE_PERSON, FOUR_PERSON ]
+    display: { TWO_PERSON: "2인1실", THREE_PERSON: "3인1실", FOUR_PERSON: "4인1실" }
+  PostStatus:
+    values: [ OPEN, CLOSED ]
+    display: { OPEN: "모집중", CLOSED: "모집완료" }

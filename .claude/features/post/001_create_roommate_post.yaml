@@ -1,0 +1,192 @@
+# Feature Specification: 룸메이트 모집글 작성
+# Status: Draft
+# Last Updated: 2026-05-05
+
+meta:
+  id: FEAT-007
+  title: 룸메이트 모집글 작성
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    온보딩, 생활습관 체크리스트, 룸메이트 우선순위 선호도 등록을 모두 완료한 사용자가
+    룸메이트 모집글을 최초 1개 작성한다.
+    학기, 기숙사는 요청 Body로 받지 않고 서버가 기존 사용자 데이터를 조회해 작성 시점 스냅샷으로 저장하며,
+    공동 생활습관 6개 항목만 사용자가 직접 선택한다.
+    별도의 선호도 스냅샷(PostPriority)은 저장하지 않으며, 매칭 시 사용자의 현재 선호도를 실시간으로 활용한다.
+  user_story: >
+    As a 온보딩/체크리스트/선호도 등록 완료 사용자, I want to 룸메이트 모집글을 작성하고,
+    so that 나와 맞는 룸메이트를 찾을 수 있다.
+  goals:
+    - 제목, 몇인실, 모집 인원, 소개글 입력
+    - 기본 태그(학기, 기숙사) 자동 스냅샷 저장
+    - 공동 생활습관 6개 항목 직접 선택
+    - 사전 등록 정보 미완료 사용자 작성 차단
+    - 사용자당 OPEN 상태 모집글 1개만 허용
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: POST
+      path: /api/v1/posts
+      summary: 룸메이트 모집글 작성
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        dto: CreateRoommatePostRequest
+        fields:
+          - name: title
+            type: String
+            required: true
+            validation: "@NotBlank, @Size(min=1, max=40)"
+          - name: roomSize
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, TWO_PERSON | THREE_PERSON | FOUR_PERSON"
+          - name: recruitMemberCount
+            type: Integer
+            required: true
+            validation: "@NotNull, @Min(1), roomSize별 허용 범위 검증"
+            note: "roomSize와 일관되어야 함. TWO_PERSON=1, THREE_PERSON=1~2, FOUR_PERSON=1~3"
+          - name: description
+            type: String
+            required: true
+            validation: "@NotBlank, @Size(min=1, max=500)"
+          - name: sharedLifestyle
+            type: CreateSharedLifestyleRequest (nested)
+            required: true
+            validation: "@NotNull, 하위 6개 필드 모두 필수"
+            fields:
+              - name: roomTrashBinSharing
+                type: Boolean
+                required: true
+                validation: "@NotNull"
+              - name: recycling
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, SHARE_BIN | MANAGE_SEPARATELY"
+              - name: phoneCall
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, ONLY_IN_ROOM | SHORT_CALLS_OKAY | NO_PREFERENCE"
+              - name: itemSharing
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, USE_SEPARATELY | BORROW_WITH_PERMISSION | NO_PREFERENCE"
+              - name: earphoneUsage
+                type: Boolean
+                required: true
+                validation: "@NotNull"
+              - name: lightsOutTime
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, BEFORE_23 | BETWEEN_23_24 | BETWEEN_00_01 | BETWEEN_01_02 | AFTER_03 | NO_PREFERENCE"
+        note: "semester, dormitory는 요청 Body에 포함하지 않음. 서버가 DB에서 직접 조회."
+      response:
+        dto: Void
+        http_status: 201 CREATED
+        wrapper: CommonResponse<Void>
+        response_code: PostResponseCode.POST_CREATED
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (PostController)
+      action: CurrentMemberId로 JWT에서 userId 추출, @Valid로 요청 검증 후 PostUseCase.createPost(userId, request) 호출
+    - step: 2
+      layer: UseCase (PostUseCase)
+      action: UserGetService로 userId 기준 User 조회
+    - step: 3
+      layer: UseCase (PostUseCase)
+      action: isOnboarded, isChecklistRegistered, isRoommatePreferenceRegistered 모두 true인지 검증
+    - step: 4
+      layer: UseCase (PostUseCase)
+      action: 작성자의 OPEN 상태 모집글 존재 여부 확인 → 존재 시 AlreadyOpenPostExistsException 발생
+    - step: 5
+      layer: UseCase (PostUseCase)
+      action: roomSize와 recruitMemberCount 조합의 도메인 규칙 검증
+    - step: 6
+      layer: Domain (RoommatePost Entity)
+      action: RoommatePost.create(user, title, description, roomSize, recruitMemberCount, semester, dormitory) 호출
+    - step: 7
+      layer: Domain (PostSharedLifestyle Entity)
+      action: sharedLifestyle 6개 항목으로 PostSharedLifestyle 생성
+    - step: 8
+      layer: Infrastructure (PostRepository)
+      action: 모집글 저장 시 PostSharedLifestyle 함께 저장
+    - step: 9
+      layer: Response
+      action: 반환값 없음 (void). 201 CREATED 응답.
+
+  error_codes:
+    domain_range: "407xx (Post 도메인)"
+    codes:
+      - code: 40701
+        name: ALREADY_OPEN_POST_EXISTS
+        status: 409 CONFLICT
+        message: "이미 모집 중인 룸메이트 모집글이 존재합니다."
+        trigger: "OPEN 상태 모집글이 이미 존재하는 사용자가 POST 재요청 시"
+      - code: 40702
+        name: POST_WRITE_PRECONDITION_NOT_MET
+        status: 400 BAD_REQUEST
+        message: "모집글 작성 전 온보딩, 체크리스트, 선호도 등록을 완료해주세요."
+        trigger: "isOnboarded / isChecklistRegistered / isRoommatePreferenceRegistered 중 하나라도 false인 경우"
+      - code: 40703
+        name: INVALID_RECRUIT_MEMBER_COUNT
+        status: 400 BAD_REQUEST
+        message: "모집 인원이 방 유형과 일치하지 않습니다."
+        trigger: "roomSize와 recruitMemberCount 조합이 유효하지 않을 때"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "온보딩(isOnboarded), 체크리스트(isChecklistRegistered), 선호도(isRoommatePreferenceRegistered) 모두 완료한 사용자만 작성 가능"
+    - "사용자당 OPEN 상태 모집글은 1개만 허용. 기존 OPEN 게시글이 있으면 409 ALREADY_OPEN_POST_EXISTS"
+    - "title: 1~40자, 공백만으로 구성 불가"
+    - "description: 1~500자, 공백만으로 구성 불가"
+    - "roomSize: TWO_PERSON | THREE_PERSON | FOUR_PERSON 중 1개 필수"
+    - "recruitMemberCount: 1 이상 필수"
+    - "recruitMemberCount는 roomSize와 일관되어야 함. TWO_PERSON=1, THREE_PERSON=1~2, FOUR_PERSON=1~3"
+    - "sharedLifestyle의 모든 하위 필드는 null 불가"
+    - "semester, dormitory는 user에서 서버가 직접 조회하며 요청 Body로 받지 않음"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 요청으로 POST 호출 시 201 CREATED 반환, roommate_posts / post_shared_lifestyles 레코드 생성 확인"
+    - "학기, 기숙사가 작성 시점 user 값으로 스냅샷 저장되는지 확인"
+    - "sharedLifestyle 6개 항목이 요청값대로 저장되는지 확인"
+    - "roomSize와 recruitMemberCount가 허용 조합일 때만 저장되는지 확인"
+  edge_cases:
+    - "온보딩 미완료 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
+    - "체크리스트 미등록 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
+    - "선호도 미등록 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
+    - "이미 OPEN 상태 모집글이 존재하는 사용자 → 409 ALREADY_OPEN_POST_EXISTS"
+    - "title 41자 입력 → 400 BAD_REQUEST (@Size)"
+    - "description 501자 입력 → 400 BAD_REQUEST (@Size)"
+    - "title 공백만 입력 → 400 BAD_REQUEST (@NotBlank)"
+    - "sharedLifestyle 하위 필드 중 1개라도 null → 400 BAD_REQUEST"
+    - "roomSize 허용되지 않는 값 → 400 BAD_REQUEST"
+    - "recruitMemberCount 누락 → 400 BAD_REQUEST"
+    - "TWO_PERSON인데 recruitMemberCount=2 → 400 BAD_REQUEST"
+    - "THREE_PERSON인데 recruitMemberCount=3 → 400 BAD_REQUEST"
+    - "FOUR_PERSON인데 recruitMemberCount=0 → 400 BAD_REQUEST"
+    - "존재하지 않는 userId (JWT 변조) → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "semester, dormitory는 요청 Body에 포함하지 않음. 서버가 DB 직접 조회 후 스냅샷 저장."
+  - "스냅샷 저장 이유: 사용자가 이후 온보딩 정보를 변경해도 기존 모집글 태그는 유지됨."
+  - "OPEN 상태 모집글 중복 작성 정책은 사용자당 1개로 제한함. 새 글 작성을 위해서는 기존 글 마감 또는 삭제 정책과 연계 필요."
+  - "향후 모집글 목록 조회(GET /api/v1/posts), 상세 조회, 수정, 마감 처리 API 별도 스펙 작성 필요."
+  - "그룹 기능 구현 시 createPost에 추가 필요: (1) 작성자 그룹장 여부 검증, (2) 그룹이 없다면 그룹 생성 후 그룹장 역할 할당."

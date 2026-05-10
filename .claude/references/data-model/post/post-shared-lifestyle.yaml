@@ -1,0 +1,72 @@
+# PostSharedLifestyle Entity
+# Last Updated: 2026-05-05
+
+entity: POST_SHARED_LIFESTYLE
+description: 모집글의 공동 생활습관 정보. RoommatePost와 1:1 관계.
+table: post_shared_lifestyles
+domain: Post
+extends: BaseEntity
+
+columns:
+  - post_id:
+      type: BIGINT
+      nullable: false
+      unique: true
+      fk: roommate_posts.id
+      description: "모집글 FK (1:1)"
+  - room_trash_bin_sharing:
+      type: BOOLEAN
+      nullable: false
+      description: "방 쓰레기통 공유 (true: O, false: X)"
+  - recycling:
+      type: VARCHAR(20)
+      nullable: false
+      enum: Recycling
+      enum_values: [ SHARE_BIN, MANAGE_SEPARATELY ]
+      description: "분리수거 (분리수거함 공유 / 각자 관리)"
+  - phone_call:
+      type: VARCHAR(25)
+      nullable: false
+      enum: PhoneCall
+      enum_values: [ ONLY_IN_ROOM, SHORT_CALLS_OKAY, NO_PREFERENCE ]
+      description: "전화 통화 (방에서만 / 짧은 통화는 가능 / 무관)"
+  - item_sharing:
+      type: VARCHAR(30)
+      nullable: false
+      enum: ItemSharing
+      enum_values: [ USE_SEPARATELY, BORROW_WITH_PERMISSION, NO_PREFERENCE ]
+      description: "물건 공유 (각자 사용 / 허락 받고 빌리기 / 무관)"
+  - earphone_usage:
+      type: BOOLEAN
+      nullable: false
+      description: "이어폰 사용 (true: O, false: X)"
+  - lights_out_time:
+      type: VARCHAR(20)
+      nullable: false
+      enum: LightsOutTime
+      enum_values: [ BEFORE_23, BETWEEN_23_24, BETWEEN_00_01, BETWEEN_01_02, AFTER_03, NO_PREFERENCE ]
+      description: "소등 시간 (23시 이전 / 23~24시 / 00~01시 / 01~02시 / 03시 이후 / 무관)"
+
+relationships:
+  - type: OneToOne
+    target: RoommatePost
+    fk: post_id
+    fetch: LAZY
+    description: "소속 모집글"
+
+business_logic:
+  - "create(post, roomTrashBinSharing, recycling, phoneCall, itemSharing, earphoneUsage, lightsOutTime): 정적 팩토리 메서드"
+
+enums:
+  Recycling:
+    values: [ SHARE_BIN, MANAGE_SEPARATELY ]
+    display: { SHARE_BIN: "분리수거함 공유", MANAGE_SEPARATELY: "각자 관리" }
+  PhoneCall:
+    values: [ ONLY_IN_ROOM, SHORT_CALLS_OKAY, NO_PREFERENCE ]
+    display: { ONLY_IN_ROOM: "방에서만", SHORT_CALLS_OKAY: "짧은 통화는 가능", NO_PREFERENCE: "무관" }
+  ItemSharing:
+    values: [ USE_SEPARATELY, BORROW_WITH_PERMISSION, NO_PREFERENCE ]
+    display: { USE_SEPARATELY: "각자 사용", BORROW_WITH_PERMISSION: "허락 받고 빌리기", NO_PREFERENCE: "무관" }
+  LightsOutTime:
+    values: [ BEFORE_23, BETWEEN_23_24, BETWEEN_00_01, BETWEEN_01_02, AFTER_03, NO_PREFERENCE ]
+    display: { BEFORE_23: "23시 이전", BETWEEN_23_24: "23~24시", BETWEEN_00_01: "00~01시", BETWEEN_01_02: "01~02시", AFTER_03: "03시 이후", NO_PREFERENCE: "무관" }
