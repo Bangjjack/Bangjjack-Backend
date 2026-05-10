@@ -1,6 +1,8 @@
 package com.project.bangjjack.domain.chat.application;
 
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
+
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageAckResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSavedEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatForbiddenException;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
@@ -8,6 +10,7 @@ import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundE
 import com.project.bangjjack.domain.chat.application.usecase.SendChatMessageUseCase;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -21,6 +24,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,11 +62,15 @@ class SendChatMessageUseCaseTest {
             // given
             Long roomId = 1L;
             Long senderId = 10L;
-            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요");
+            String clientTempId = "client-temp-uuid-123";
+            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요", clientTempId);
 
             ChatRoom chatRoom = ChatRoom.createDirect(senderId, "DM_10_20");
             User sender = User.create("provider-id", "홍길동", "hong@test.com", "https://profile.jpg");
             Chat savedChat = Chat.create(senderId, chatRoom, "안녕하세요");
+
+            ReflectionTestUtils.setField(savedChat, "id", 100L);
+            ReflectionTestUtils.setField(savedChat, "createdAt", LocalDateTime.now());
 
             given(chatRoomGetService.getById(roomId)).willReturn(chatRoom);
             given(chatRoomGetService.isParticipant(roomId, senderId)).willReturn(true);
@@ -68,18 +78,27 @@ class SendChatMessageUseCaseTest {
             given(chatCreateService.save(any(Chat.class))).willReturn(savedChat);
 
             // when
-            sendChatMessageUseCase.execute(roomId, senderId, request);
+            ChatMessageAckResponse ack = sendChatMessageUseCase.execute(roomId, senderId, request);
 
             // then
             verify(chatCreateService).save(any(Chat.class));
+
             ArgumentCaptor<ChatMessageSavedEvent> captor = ArgumentCaptor.forClass(ChatMessageSavedEvent.class);
             verify(eventPublisher).publishEvent(captor.capture());
-
             ChatMessageSavedEvent event = captor.getValue();
+
+            assertThat(event.messageId()).isEqualTo(100L);
             assertThat(event.roomId()).isEqualTo(roomId);
             assertThat(event.senderId()).isEqualTo(senderId);
             assertThat(event.senderNickname()).isEqualTo("홍길동");
+            assertThat(event.senderProfileImage()).isEqualTo("https://profile.jpg");
             assertThat(event.content()).isEqualTo("안녕하세요");
+            assertThat(event.type()).isEqualTo(MessageType.TEXT);
+            assertThat(event.createdAt()).isNotNull();
+
+            assertThat(ack.messageId()).isEqualTo(100L);
+            assertThat(ack.clientTempId()).isEqualTo(clientTempId);
+            assertThat(ack.createdAt()).isEqualTo(event.createdAt());
         }
 
         @Test
@@ -88,7 +107,7 @@ class SendChatMessageUseCaseTest {
             // given
             Long roomId = 999L;
             Long senderId = 10L;
-            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요");
+            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요", "temp-id");
 
             given(chatRoomGetService.getById(roomId)).willThrow(new ChatRoomNotFoundException());
 
@@ -103,7 +122,7 @@ class SendChatMessageUseCaseTest {
             // given
             Long roomId = 1L;
             Long senderId = 10L;
-            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요");
+            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요", "temp-id");
 
             ChatRoom chatRoom = ChatRoom.createDirect(senderId, "DM_10_20");
             chatRoom.close();
@@ -121,7 +140,7 @@ class SendChatMessageUseCaseTest {
             // given
             Long roomId = 1L;
             Long outsiderId = 99L;
-            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요");
+            SendChatMessageRequest request = new SendChatMessageRequest("안녕하세요", "temp-id");
 
             ChatRoom chatRoom = ChatRoom.createDirect(10L, "DM_10_20");
 
