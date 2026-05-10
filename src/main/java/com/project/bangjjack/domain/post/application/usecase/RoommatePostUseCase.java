@@ -4,13 +4,19 @@ import com.project.bangjjack.domain.post.application.dto.request.CreateRoommateP
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
+import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
+import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
+import com.project.bangjjack.domain.post.application.exception.PostUpdateForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
+import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +32,7 @@ public class RoommatePostUseCase {
     private final RoommatePostGetService roommatePostGetService;
     private final RoommatePostCreateService roommatePostCreateService;
     private final RoommatePostDeleteService roommatePostDeleteService;
+    private final RoommatePostUpdateService roommatePostUpdateService;
 
     @Transactional
     public void createPost(Long userId, CreateRoommatePostRequest request) {
@@ -65,6 +72,39 @@ public class RoommatePostUseCase {
         );
 
         roommatePostCreateService.createPost(post, sharedLifestyle);
+    }
+
+    @Transactional
+    public void updatePost(Long userId, Long postId, UpdateRoommatePostRequest request) {
+        User user = userGetService.getById(userId);
+        RoommatePost post = roommatePostGetService.getById(postId);
+
+        if (!post.getUser().getId().equals(user.getId())) {
+            throw new PostUpdateForbiddenException();
+        }
+
+        if (post.getStatus() != PostStatus.OPEN) {
+            throw new PostNotEditableException();
+        }
+
+        if (!request.roomSize().isValidRecruitCount(request.recruitMemberCount())) {
+            throw new InvalidRecruitMemberCountException();
+        }
+
+        post.update(request.title(), request.description(), request.roomSize(), request.recruitMemberCount());
+
+        PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
+        UpdateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
+        sharedLifestyle.update(
+                lifestyle.roomTrashBinSharing(),
+                lifestyle.recycling(),
+                lifestyle.phoneCall(),
+                lifestyle.itemSharing(),
+                lifestyle.earphoneUsage(),
+                lifestyle.lightsOutTime()
+        );
+
+        roommatePostUpdateService.updatePost(post, sharedLifestyle);
     }
 
     @Transactional
