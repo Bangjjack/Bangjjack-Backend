@@ -29,4 +29,13 @@ public class RoommatePostController {
         roommatePostUseCase.createPost(memberId, request);
         return CommonResponse.success(PostResponseCode.POST_CREATED);
     }
+
+    @Operation(summary = "룸메이트 모집글 삭제", description = "작성자 본인만 모집글을 삭제할 수 있습니다. Soft Delete로 처리됩니다.")
+    @DeleteMapping("/{postId}")
+    public CommonResponse<Void> deletePost(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long postId) {
+        roommatePostUseCase.deletePost(memberId, postId);
+        return CommonResponse.success(PostResponseCode.POST_DELETED);
+    }
 }
