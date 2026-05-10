@@ -40,6 +40,22 @@ public class PostSharedLifestyle extends BaseEntity {
     @Column(nullable = false, length = 20)
     private LightsOutTime lightsOutTime;
 
+    public void update(
+            boolean roomTrashBinSharing,
+            Recycling recycling,
+            PhoneCall phoneCall,
+            ItemSharing itemSharing,
+            boolean earphoneUsage,
+            LightsOutTime lightsOutTime
+    ) {
+        this.roomTrashBinSharing = roomTrashBinSharing;
+        this.recycling = recycling;
+        this.phoneCall = phoneCall;
+        this.itemSharing = itemSharing;
+        this.earphoneUsage = earphoneUsage;
+        this.lightsOutTime = lightsOutTime;
+    }
+
     public static PostSharedLifestyle create(
             RoommatePost post,
             boolean roomTrashBinSharing,

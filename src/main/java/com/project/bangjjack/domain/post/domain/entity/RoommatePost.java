@@ -58,6 +58,13 @@ public class RoommatePost extends BaseEntity {
         return new RoommatePost(user, title, description, roomSize, recruitMemberCount, PostStatus.OPEN, semester, dormitory);
     }
 
+    public void update(String title, String description, RoomSize roomSize, int recruitMemberCount) {
+        this.title = title;
+        this.description = description;
+        this.roomSize = roomSize;
+        this.recruitMemberCount = recruitMemberCount;
+    }
+
     public void close() {
         this.status = PostStatus.CLOSED;
     }
