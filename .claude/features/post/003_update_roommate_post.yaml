@@ -1,0 +1,213 @@
+# Feature Specification: 룸메이트 모집글 수정
+# Status: Draft
+# Last Updated: 2026-05-10
+
+meta:
+  id: FEAT-009
+  title: 룸메이트 모집글 수정
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    모집글 작성자 본인만 OPEN 상태인 모집글을 수정할 수 있다.
+    수정 가능 필드는 title, description, roomSize, recruitMemberCount, sharedLifestyle(6개 항목)이며,
+    작성 시 스냅샷으로 저장된 semester·dormitory는 수정 대상에서 제외한다.
+    sharedLifestyle은 새 엔티티를 생성하지 않고 기존 PostSharedLifestyle의 필드를 도메인 메서드로 업데이트한다.
+    CLOSED 상태 모집글은 수정할 수 없다.
+  user_story: >
+    As a 모집글 작성자, I want to 내가 작성한 OPEN 상태 모집글의 내용을 수정하고,
+    so that 변경된 조건을 반영해 더 적합한 룸메이트를 찾을 수 있다.
+  goals:
+    - 작성자 본인만 수정 가능 (타인 차단)
+    - OPEN 상태인 모집글만 수정 가능 (CLOSED 차단)
+    - title / description / roomSize / recruitMemberCount / sharedLifestyle 수정
+    - semester·dormitory 수정 불가 (스냅샷 유지)
+    - roomSize 변경 시 recruitMemberCount 유효성 재검증
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: PATCH
+      path: /api/v1/posts/{postId}
+      summary: 룸메이트 모집글 수정
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: postId
+            type: Long
+            required: true
+            note: "수정할 모집글 ID"
+        dto: UpdateRoommatePostRequest
+        fields:
+          - name: title
+            type: String
+            required: true
+            validation: "@NotBlank, @Size(min=1, max=40)"
+          - name: roomSize
+            type: String (Enum)
+            required: true
+            validation: "@NotNull, TWO_PERSON | THREE_PERSON | FOUR_PERSON"
+          - name: recruitMemberCount
+            type: Integer
+            required: true
+            validation: "@NotNull, @Min(1), roomSize별 허용 범위 검증"
+            note: "TWO_PERSON=1, THREE_PERSON=1~2, FOUR_PERSON=1~3"
+          - name: description
+            type: String
+            required: true
+            validation: "@NotBlank, @Size(min=1, max=500)"
+          - name: sharedLifestyle
+            type: UpdateSharedLifestyleRequest (nested)
+            required: true
+            validation: "@NotNull, 하위 6개 필드 모두 필수"
+            fields:
+              - name: roomTrashBinSharing
+                type: Boolean
+                required: true
+                validation: "@NotNull"
+              - name: recycling
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, SHARE_BIN | MANAGE_SEPARATELY"
+              - name: phoneCall
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, ONLY_IN_ROOM | SHORT_CALLS_OKAY | NO_PREFERENCE"
+              - name: itemSharing
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, USE_SEPARATELY | BORROW_WITH_PERMISSION | NO_PREFERENCE"
+              - name: earphoneUsage
+                type: Boolean
+                required: true
+                validation: "@NotNull"
+              - name: lightsOutTime
+                type: String (Enum)
+                required: true
+                validation: "@NotNull, BEFORE_23 | BETWEEN_23_24 | BETWEEN_00_01 | BETWEEN_01_02 | AFTER_03 | NO_PREFERENCE"
+        note: "semester, dormitory는 수정 대상에서 제외. 작성 시 스냅샷 값을 유지."
+      response:
+        dto: Void
+        http_status: 200 OK
+        wrapper: CommonResponse<Void>
+        response_code: PostResponseCode.POST_UPDATED
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommatePostController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable postId, @RequestBody @Valid request 수신 후 PostUseCase.updatePost(userId, postId, request) 호출"
+    - step: 2
+      layer: UseCase (RoommatePostUseCase)
+      action: "UserGetService로 userId 기준 User 조회 (없으면 USER_NOT_FOUND)"
+    - step: 3
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService로 postId 기준 RoommatePost 조회 (없거나 deleted=true이면 POST_NOT_FOUND)"
+    - step: 4
+      layer: UseCase (RoommatePostUseCase)
+      action: "post.getUser().getId()와 userId 일치 여부 검증 → 불일치 시 POST_UPDATE_FORBIDDEN"
+    - step: 5
+      layer: UseCase (RoommatePostUseCase)
+      action: "post.getStatus() == OPEN 여부 검증 → CLOSED이면 POST_NOT_EDITABLE"
+    - step: 6
+      layer: UseCase (RoommatePostUseCase)
+      action: "request.roomSize().isValidRecruitCount(request.recruitMemberCount()) 검증 → 불일치 시 INVALID_RECRUIT_MEMBER_COUNT"
+    - step: 7
+      layer: Domain (RoommatePost Entity)
+      action: "post.update(title, description, roomSize, recruitMemberCount) 호출 → 필드 직접 변경"
+    - step: 8
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService로 해당 post의 PostSharedLifestyle 조회"
+    - step: 9
+      layer: Domain (PostSharedLifestyle Entity)
+      action: "sharedLifestyle.update(roomTrashBinSharing, recycling, phoneCall, itemSharing, earphoneUsage, lightsOutTime) 호출"
+    - step: 10
+      layer: Infrastructure (RoommatePostUpdateService)
+      action: "변경된 post, sharedLifestyle 각각 save"
+    - step: 11
+      layer: Response
+      action: "반환값 없음 (void). 200 OK 응답."
+
+  error_codes:
+    domain_range: "407xx (Post 도메인)"
+    codes:
+      - code: 40704
+        name: POST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "모집글을 찾을 수 없습니다."
+        trigger: "postId에 해당하는 모집글이 존재하지 않거나 이미 삭제(deleted=true)된 경우"
+        note: "삭제 기능(FEAT-008)에서 추가된 기존 코드 재사용"
+      - code: 40706
+        name: POST_UPDATE_FORBIDDEN
+        status: 403 FORBIDDEN
+        message: "모집글을 수정할 권한이 없습니다."
+        trigger: "모집글의 작성자(user_id)와 요청자(JWT userId)가 다른 경우"
+      - code: 40707
+        name: POST_NOT_EDITABLE
+        status: 409 CONFLICT
+        message: "마감된 모집글은 수정할 수 없습니다."
+        trigger: "post.status == CLOSED인 모집글 수정 요청 시"
+      - code: 40703
+        name: INVALID_RECRUIT_MEMBER_COUNT
+        status: 400 BAD_REQUEST
+        message: "모집 인원이 방 유형과 일치하지 않습니다."
+        trigger: "roomSize와 recruitMemberCount 조합이 유효하지 않을 때"
+        note: "작성 기능(FEAT-007)에서 추가된 기존 코드 재사용"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "수정은 작성자 본인만 가능. postId의 user_id와 JWT userId가 일치해야 함."
+    - "OPEN 상태 모집글만 수정 가능. CLOSED 상태이면 409 POST_NOT_EDITABLE."
+    - "title: 1~40자, 공백만으로 구성 불가"
+    - "description: 1~500자, 공백만으로 구성 불가"
+    - "roomSize: TWO_PERSON | THREE_PERSON | FOUR_PERSON 중 1개 필수"
+    - "recruitMemberCount는 roomSize와 일관되어야 함. TWO_PERSON=1, THREE_PERSON=1~2, FOUR_PERSON=1~3"
+    - "sharedLifestyle의 모든 하위 필드는 null 불가"
+    - "semester, dormitory는 수정 불가. 작성 시점 스냅샷 값 유지."
+
+  domain_method_required:
+    - entity: RoommatePost
+      method: "update(String title, String description, RoomSize roomSize, int recruitMemberCount)"
+      note: "필드 직접 변경. status·semester·dormitory는 변경하지 않음."
+    - entity: PostSharedLifestyle
+      method: "update(boolean roomTrashBinSharing, Recycling recycling, PhoneCall phoneCall, ItemSharing itemSharing, boolean earphoneUsage, LightsOutTime lightsOutTime)"
+      note: "기존 엔티티의 6개 필드를 모두 덮어씀."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "작성자 본인이 OPEN 모집글에 유효한 요청 시 200 OK, DB 필드 변경 확인"
+    - "roomSize 변경(TWO → THREE) 시 recruitMemberCount도 함께 유효 값으로 변경 가능"
+    - "sharedLifestyle 6개 항목이 요청값대로 반영되는지 확인"
+    - "semester·dormitory는 수정 요청 이후에도 기존 스냅샷 값 유지 확인"
+  edge_cases:
+    - "존재하지 않는 postId → 404 POST_NOT_FOUND"
+    - "이미 삭제된 postId → 404 POST_NOT_FOUND"
+    - "타인의 모집글 수정 시도 → 403 POST_UPDATE_FORBIDDEN"
+    - "CLOSED 상태 모집글 수정 시도 → 409 POST_NOT_EDITABLE"
+    - "TWO_PERSON인데 recruitMemberCount=2 → 400 INVALID_RECRUIT_MEMBER_COUNT"
+    - "title 41자 입력 → 400 BAD_REQUEST (@Size)"
+    - "description 501자 입력 → 400 BAD_REQUEST (@Size)"
+    - "title 공백만 입력 → 400 BAD_REQUEST (@NotBlank)"
+    - "sharedLifestyle 하위 필드 중 1개라도 null → 400 BAD_REQUEST"
+    - "존재하지 않는 userId (JWT 변조) → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "semester·dormitory는 수정 대상 아님. 작성 시점 스냅샷 정책(FEAT-007)과 일관성 유지."
+  - "sharedLifestyle 수정은 새 엔티티 생성이 아닌 기존 PostSharedLifestyle의 update() 도메인 메서드 사용."
+  - "RoommatePost.update()와 PostSharedLifestyle.update() 도메인 메서드를 각 엔티티에 신규 추가해야 함."
+  - "PostSharedLifestyle 조회를 위해 PostSharedLifestyleRepository.findByPost(post) 또는 RoommatePostGetService에 메서드 추가 필요."
+  - "에러 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml 규칙)."
