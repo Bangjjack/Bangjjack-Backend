@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.post.presentation;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.usecase.RoommatePostUseCase;
 import com.project.bangjjack.domain.post.presentation.response.PostResponseCode;
 import com.project.bangjjack.global.annotation.CurrentMemberId;
@@ -29,6 +30,14 @@ public class RoommatePostController {
             @RequestBody @Valid CreateRoommatePostRequest request) {
         roommatePostUseCase.createPost(memberId, request);
         return CommonResponse.success(PostResponseCode.POST_CREATED);
+    }
+
+    @Operation(summary = "룸메이트 모집글 단건 조회", description = "postId로 모집글 상세 정보를 조회합니다.")
+    @GetMapping("/{postId}")
+    public CommonResponse<RoommatePostDetailResponse> getPostDetail(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long postId) {
+        return CommonResponse.success(PostResponseCode.POST_DETAIL_FOUND, roommatePostUseCase.getPostDetail(memberId, postId));
     }
 
     @Operation(summary = "룸메이트 모집글 수정", description = "작성자 본인만 OPEN 상태 모집글을 수정할 수 있습니다.")

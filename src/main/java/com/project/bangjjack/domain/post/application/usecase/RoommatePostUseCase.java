@@ -4,6 +4,7 @@ import com.project.bangjjack.domain.post.application.dto.request.CreateRoommateP
 import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
+import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
@@ -72,6 +73,13 @@ public class RoommatePostUseCase {
         );
 
         roommatePostCreateService.createPost(post, sharedLifestyle);
+    }
+
+    public RoommatePostDetailResponse getPostDetail(Long userId, Long postId) {
+        RoommatePost post = roommatePostGetService.getById(postId);
+        PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
+        boolean isOwner = post.getUser().getId().equals(userId);
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner);
     }
 
     @Transactional
