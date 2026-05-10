@@ -16,11 +16,14 @@ import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.stereotype.Component;
 
 import java.security.Principal;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Component
 @RequiredArgsConstructor
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
+    private static final Pattern CHAT_ROOM_ID_PATTERN = Pattern.compile("^/sub/chat-rooms/(\\d+)$");
     private final JwtAuthenticator jwtAuthenticator;
     private final ChatRoomGetService chatRoomGetService;
 
@@ -70,12 +73,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
 
     private Long extractChatRoomId(String destination) {
         if (destination == null) return null;
-        String prefix = ChatConstants.CHAT_ROOM_SUBSCRIBE_PREFIX;
-        if (!destination.startsWith(prefix)) return null;
-        try {
-            return Long.parseLong(destination.substring(prefix.length()));
-        } catch (NumberFormatException e) {
-            return null;
+
+        Matcher matcher = CHAT_ROOM_ID_PATTERN.matcher(destination);
+        if (matcher.matches()) {
+            return Long.parseLong(matcher.group(1));
         }
+        return null;
     }
 }
