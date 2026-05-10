@@ -42,6 +42,7 @@ public class ChatGlobalExceptionHandler {
     public void handleValidationException(Message<?> message, Principal principal) {
         if (principal == null) return;
 
+        log.debug("메시지 유효성 검증 실패 userId={} destination={}", principal.getName(), extractDestination(message));
         String clientTempId = extractClientTempId(message);
         messagingTemplate.convertAndSendToUser(
                 principal.getName(),
