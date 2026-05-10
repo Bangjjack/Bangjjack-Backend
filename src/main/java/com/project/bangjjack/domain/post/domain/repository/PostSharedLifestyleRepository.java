@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface PostSharedLifestyleRepository extends JpaRepository<PostSharedLifestyle, Long> {
 
-    Optional<PostSharedLifestyle> findByPost(RoommatePost post);
+    Optional<PostSharedLifestyle> findByPostAndDeletedFalse(RoommatePost post);
 
     @Query("SELECT psl FROM PostSharedLifestyle psl JOIN FETCH psl.post p JOIN FETCH p.user WHERE p.id = :postId AND p.deleted = false AND psl.deleted = false")
     Optional<PostSharedLifestyle> findWithPostAndUserByPostId(@Param("postId") Long postId);

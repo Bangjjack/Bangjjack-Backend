@@ -28,7 +28,7 @@ public class RoommatePostGetService {
     }
 
     public PostSharedLifestyle getSharedLifestyleByPost(RoommatePost post) {
-        return postSharedLifestyleRepository.findByPost(post)
+        return postSharedLifestyleRepository.findByPostAndDeletedFalse(post)
                 .orElseThrow(SharedLifestyleNotFoundException::new);
     }
 
