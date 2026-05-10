@@ -30,12 +30,11 @@ public class SendChatMessageUseCase {
     public ChatMessageAckResponse execute(Long roomId, Long currentUserId, SendChatMessageRequest request) {
         ChatRoom chatRoom = chatRoomGetService.getById(roomId);
 
-        if (chatRoom.isClosed()) {
-            throw new ChatRoomClosedException();
-        }
-
         if (!chatRoomGetService.isParticipant(roomId, currentUserId)) {
             throw new ChatForbiddenException();
+        }
+        if (chatRoom.isClosed()) {
+            throw new ChatRoomClosedException();
         }
 
         User sender = userGetService.getById(currentUserId);
