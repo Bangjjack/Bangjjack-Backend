@@ -12,7 +12,7 @@ import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
 
-import java.security.Principal;
+import com.project.bangjjack.global.config.websocket.UserPrincipal;
 
 @Slf4j
 @Controller
@@ -26,10 +26,9 @@ public class ChatMessageMappingController {
     public void sendMessage(
             @DestinationVariable Long roomId,
             @Valid @Payload SendChatMessageRequest request,
-            Principal principal
+            UserPrincipal principal
     ) {
-        Long currentUserId = Long.parseLong(principal.getName());
-        ChatMessageAckResponse ack = sendChatMessageUseCase.execute(roomId, currentUserId, request);
+        ChatMessageAckResponse ack = sendChatMessageUseCase.execute(roomId, principal.userId(), request);
         messagingTemplate.convertAndSendToUser(principal.getName(), "/queue/messages/ack", ack);
     }
 }

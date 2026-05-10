@@ -1,6 +1,5 @@
 package com.project.bangjjack.domain.chat.presentation.websocket;
 
-import com.project.bangjjack.domain.chat.ChatConstants;
 import com.project.bangjjack.domain.chat.application.exception.ChatForbiddenException;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.global.common.exception.UnAuthorizedException;
@@ -60,11 +59,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
         }
 
         Principal user = accessor.getUser();
-        if (user == null) {
+        if (!(user instanceof UserPrincipal userPrincipal)) {
             throw new UnAuthorizedException();
         }
 
-        Long userId = Long.parseLong(user.getName());
+        Long userId = userPrincipal.userId();
         chatRoomGetService.getById(roomId); // ChatRoomNotFoundException — 방이 없으면 404
         if (!chatRoomGetService.isParticipant(roomId, userId)) {
             throw new ChatForbiddenException();
