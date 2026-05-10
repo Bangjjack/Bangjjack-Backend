@@ -84,10 +84,9 @@ public class RoommatePostUseCase {
 
     @Transactional
     public void updatePost(Long userId, Long postId, UpdateRoommatePostRequest request) {
-        User user = userGetService.getById(userId);
         RoommatePost post = roommatePostGetService.getById(postId);
 
-        if (!post.getUser().getId().equals(user.getId())) {
+        if (!post.getUser().getId().equals(userId)) {
             throw new PostUpdateForbiddenException();
         }
 
@@ -117,10 +116,9 @@ public class RoommatePostUseCase {
 
     @Transactional
     public void deletePost(Long userId, Long postId) {
-        User user = userGetService.getById(userId);
         RoommatePost post = roommatePostGetService.getById(postId);
 
-        if (!post.getUser().getId().equals(user.getId())) {
+        if (!post.getUser().getId().equals(userId)) {
             throw new PostDeleteForbiddenException();
         }
 

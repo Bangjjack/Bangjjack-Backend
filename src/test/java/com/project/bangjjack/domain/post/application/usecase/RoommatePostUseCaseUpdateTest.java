@@ -20,7 +20,6 @@ import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
 import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
-import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -40,9 +39,6 @@ import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class RoommatePostUseCaseUpdateTest {
-
-    @Mock
-    private UserGetService userGetService;
 
     @Mock
     private RoommatePostGetService roommatePostGetService;
@@ -117,7 +113,6 @@ class RoommatePostUseCaseUpdateTest {
             RoommatePost post = openPostOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
 
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(1L)).willReturn(post);
             given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
 
@@ -130,18 +125,14 @@ class RoommatePostUseCaseUpdateTest {
 
         @Test
         @DisplayName("존재하지 않는 postId로 요청하면 PostNotFoundException이 발생한다")
-        void 존재하지_않는_모집글_수정_시_예외_발생() throws Exception {
+        void 존재하지_않는_모집글_수정_시_예외_발생() {
             // given
-            Long userId = 1L;
-            User owner = userWithId(userId);
             Long nonExistentPostId = 999L;
-
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(nonExistentPostId))
                     .willThrow(PostNotFoundException.class);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.updatePost(userId, nonExistentPostId, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
+            assertThatThrownBy(() -> roommatePostUseCase.updatePost(1L, nonExistentPostId, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostNotFoundException.class);
 
             then(roommatePostUpdateService).should(never()).updatePost(any(), any());
@@ -153,11 +144,9 @@ class RoommatePostUseCaseUpdateTest {
             // given
             Long requesterId = 1L;
             Long ownerId = 2L;
-            User requester = userWithId(requesterId);
             User owner = userWithId(ownerId);
             RoommatePost post = openPostOwnedBy(owner);
 
-            given(userGetService.getById(requesterId)).willReturn(requester);
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then
@@ -175,7 +164,6 @@ class RoommatePostUseCaseUpdateTest {
             User owner = userWithId(userId);
             RoommatePost closedPost = closedPostOwnedBy(owner);
 
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(1L)).willReturn(closedPost);
 
             // when & then
@@ -193,7 +181,6 @@ class RoommatePostUseCaseUpdateTest {
             User owner = userWithId(userId);
             RoommatePost post = openPostOwnedBy(owner);
 
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then

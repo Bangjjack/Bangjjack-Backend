@@ -11,7 +11,6 @@ import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
 import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
-import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,9 +30,6 @@ import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class RoommatePostUseCaseDeleteTest {
-
-    @Mock
-    private UserGetService userGetService;
 
     @Mock
     private RoommatePostGetService roommatePostGetService;
@@ -77,7 +73,6 @@ class RoommatePostUseCaseDeleteTest {
             User owner = userWithId(userId);
             RoommatePost post = postOwnedBy(owner);
 
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then
@@ -89,18 +84,14 @@ class RoommatePostUseCaseDeleteTest {
 
         @Test
         @DisplayName("존재하지 않는 postId로 요청하면 PostNotFoundException이 발생한다")
-        void 존재하지_않는_모집글_삭제_시_예외_발생() throws Exception {
+        void 존재하지_않는_모집글_삭제_시_예외_발생() {
             // given
-            Long userId = 1L;
-            User owner = userWithId(userId);
             Long nonExistentPostId = 999L;
-
-            given(userGetService.getById(userId)).willReturn(owner);
             given(roommatePostGetService.getById(nonExistentPostId))
                     .willThrow(PostNotFoundException.class);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.deletePost(userId, nonExistentPostId))
+            assertThatThrownBy(() -> roommatePostUseCase.deletePost(1L, nonExistentPostId))
                     .isInstanceOf(PostNotFoundException.class);
 
             then(roommatePostDeleteService).should(never()).deletePost(any());
@@ -112,11 +103,9 @@ class RoommatePostUseCaseDeleteTest {
             // given
             Long requesterId = 1L;
             Long ownerId = 2L;
-            User requester = userWithId(requesterId);
             User owner = userWithId(ownerId);
             RoommatePost post = postOwnedBy(owner);
 
-            given(userGetService.getById(requesterId)).willReturn(requester);
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then
