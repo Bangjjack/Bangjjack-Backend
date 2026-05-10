@@ -1,6 +1,5 @@
 package com.project.bangjjack.domain.chat.infrastructure.redis;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.ChatConstants;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
@@ -22,8 +21,8 @@ public class ChatRedisPublisher {
         try {
             String json = objectMapper.writeValueAsString(message);
             redissonClient.getTopic(ChatConstants.CHAT_ROOM_TOPIC_PREFIX + roomId, StringCodec.INSTANCE).publish(json);
-        } catch (JsonProcessingException e) {
-            log.error("채팅 메시지 직렬화 실패 roomId={}", roomId, e);
+        } catch (Exception e) {
+            log.error("채팅 메시지 발행 실패 roomId={} messageId={}", roomId, message.messageId(), e);
         }
     }
 }
