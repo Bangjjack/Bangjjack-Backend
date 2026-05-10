@@ -4,6 +4,8 @@ import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
@@ -11,5 +13,6 @@ public interface RoommatePostRepository extends JpaRepository<RoommatePost, Long
 
     boolean existsByUserAndStatusAndDeletedFalse(User user, PostStatus status);
 
-    Optional<RoommatePost> findByIdAndDeletedFalse(Long id);
+    @Query("SELECT p FROM RoommatePost p JOIN FETCH p.user WHERE p.id = :postId AND p.deleted = false")
+    Optional<RoommatePost> findWithUserByIdAndDeletedFalse(@Param("postId") Long postId);
 }

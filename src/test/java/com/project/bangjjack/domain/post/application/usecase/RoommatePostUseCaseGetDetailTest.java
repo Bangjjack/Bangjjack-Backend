@@ -79,8 +79,7 @@ class RoommatePostUseCaseGetDetailTest {
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
 
-            given(roommatePostGetService.getById(1L)).willReturn(post);
-            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
@@ -101,8 +100,7 @@ class RoommatePostUseCaseGetDetailTest {
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
 
-            given(roommatePostGetService.getById(1L)).willReturn(post);
-            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(viewerId, 1L);
@@ -116,7 +114,7 @@ class RoommatePostUseCaseGetDetailTest {
         void 존재하지_않는_모집글_조회_시_예외_발생() {
             // given
             Long nonExistentPostId = 999L;
-            given(roommatePostGetService.getById(nonExistentPostId))
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(nonExistentPostId))
                     .willThrow(PostNotFoundException.class);
 
             // when & then

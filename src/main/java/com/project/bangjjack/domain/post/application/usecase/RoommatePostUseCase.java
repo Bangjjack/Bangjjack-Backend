@@ -76,8 +76,8 @@ public class RoommatePostUseCase {
     }
 
     public RoommatePostDetailResponse getPostDetail(Long userId, Long postId) {
-        RoommatePost post = roommatePostGetService.getById(postId);
-        PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
+        PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId);
+        RoommatePost post = sharedLifestyle.getPost();
         boolean isOwner = post.getUser().getId().equals(userId);
         return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner);
     }

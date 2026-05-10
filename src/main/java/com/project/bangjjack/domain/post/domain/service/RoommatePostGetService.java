@@ -23,12 +23,17 @@ public class RoommatePostGetService {
     }
 
     public RoommatePost getById(Long postId) {
-        return roommatePostRepository.findByIdAndDeletedFalse(postId)
+        return roommatePostRepository.findWithUserByIdAndDeletedFalse(postId)
                 .orElseThrow(PostNotFoundException::new);
     }
 
     public PostSharedLifestyle getSharedLifestyleByPost(RoommatePost post) {
         return postSharedLifestyleRepository.findByPost(post)
                 .orElseThrow(SharedLifestyleNotFoundException::new);
+    }
+
+    public PostSharedLifestyle getSharedLifestyleWithPostAndUserByPostId(Long postId) {
+        return postSharedLifestyleRepository.findWithPostAndUserByPostId(postId)
+                .orElseThrow(PostNotFoundException::new);
     }
 }
