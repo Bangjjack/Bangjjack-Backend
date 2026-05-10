@@ -130,7 +130,7 @@ technical_spec:
         trigger: "OPEN 상태 모집글이 이미 존재하는 사용자가 POST 재요청 시"
       - code: 40702
         name: POST_WRITE_PRECONDITION_NOT_MET
-        status: 409 CONFLICT
+        status: 400 BAD_REQUEST
         message: "모집글 작성 전 온보딩, 체크리스트, 선호도 등록을 완료해주세요."
         trigger: "isOnboarded / isChecklistRegistered / isRoommatePreferenceRegistered 중 하나라도 false인 경우"
       - code: 40703
@@ -166,9 +166,9 @@ testing_strategy:
     - "sharedLifestyle 6개 항목이 요청값대로 저장되는지 확인"
     - "roomSize와 recruitMemberCount가 허용 조합일 때만 저장되는지 확인"
   edge_cases:
-    - "온보딩 미완료 사용자 → 409 POST_WRITE_PRECONDITION_NOT_MET"
-    - "체크리스트 미등록 사용자 → 409 POST_WRITE_PRECONDITION_NOT_MET"
-    - "선호도 미등록 사용자 → 409 POST_WRITE_PRECONDITION_NOT_MET"
+    - "온보딩 미완료 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
+    - "체크리스트 미등록 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
+    - "선호도 미등록 사용자 → 400 POST_WRITE_PRECONDITION_NOT_MET"
     - "이미 OPEN 상태 모집글이 존재하는 사용자 → 409 ALREADY_OPEN_POST_EXISTS"
     - "title 41자 입력 → 400 BAD_REQUEST (@Size)"
     - "description 501자 입력 → 400 BAD_REQUEST (@Size)"
