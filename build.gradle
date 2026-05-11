@@ -32,6 +32,9 @@ dependencies {
     // Redis - Redisson
     implementation 'org.redisson:redisson:4.1.0'
 
+76    // WebSocket (STOMP)
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
