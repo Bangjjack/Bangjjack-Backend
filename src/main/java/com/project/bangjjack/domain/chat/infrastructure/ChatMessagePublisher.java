@@ -7,8 +7,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.client.codec.StringCodec;
 import org.redisson.client.RedisException;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
@@ -29,9 +29,11 @@ public class ChatMessagePublisher {
         try {
             RTopic topic = redissonClient.getTopic(CHANNEL_PREFIX + roomId, StringCodec.INSTANCE);
             topic.publish(json);
+            log.debug("[Redis Pub/Sub] 메시지 발행 완료 - channel=chat:room:{}, messageId={}", roomId, broadcast.messageId());
         } catch (RedisException e) {
-            log.warn("Redis 장애 발생. SimpMessagingTemplate fallback으로 broadcast. roomId={}", roomId);
+            log.warn("[Redis Pub/Sub] Redis 장애 감지 - Fallback 전환. roomId={}, 원인={}", roomId, e.getMessage());
             messagingTemplate.convertAndSend(STOMP_DESTINATION_PREFIX + roomId, broadcast);
+            log.debug("[Redis Pub/Sub] Fallback 브로드캐스트 완료 - roomId={}", roomId);
         }
     }
 

@@ -32,26 +32,42 @@ public class WebSocketChannelInterceptor implements ChannelInterceptor {
         }
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            String token = extractToken(accessor);
-            Claims claims = jwtAuthenticator.parseToken(token);
-            Long userId = Long.parseLong(claims.getSubject());
-            String memberName = claims.get("name", String.class);
-            Role role = Role.valueOf(claims.get("role", String.class));
+            log.debug("[WebSocket] 연결 시도 - sessionId={}", accessor.getSessionId());
+            try {
+                String token = extractToken(accessor);
+                Claims claims = jwtAuthenticator.parseToken(token);
+                Long userId = Long.parseLong(claims.getSubject());
+                String memberName = claims.get("name", String.class);
+                Role role = Role.valueOf(claims.get("role", String.class));
 
-            // Last-Connection-Wins: 기존 세션을 새 세션으로 덮어쓴다
-            sessionRegistry.register(userId, accessor.getSessionId());
-            MemberPrincipal memberPrincipal = MemberPrincipal.of(userId, memberName, role);
-            accessor.setUser(new UsernamePasswordAuthenticationToken(
-                    memberPrincipal, null, memberPrincipal.getAuthorities()));
+                // Last-Connection-Wins: 기존 세션을 새 세션으로 덮어쓴다
+                sessionRegistry.register(userId, accessor.getSessionId());
+                MemberPrincipal memberPrincipal = MemberPrincipal.of(userId, memberName, role);
+                accessor.setUser(new UsernamePasswordAuthenticationToken(
+                        memberPrincipal, null, memberPrincipal.getAuthorities()));
 
-            log.debug("WebSocket CONNECT. userId={}, sessionId={}", userId, accessor.getSessionId());
+                log.debug("[WebSocket] 연결 성공 - userId={}, memberName={}, sessionId={}", userId, memberName, accessor.getSessionId());
+            } catch (Exception e) {
+                log.warn("[WebSocket] 연결 실패 - sessionId={}, 원인={}", accessor.getSessionId(), e.getMessage());
+                throw e;
+            }
+        }
+
+        if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            log.debug("[WebSocket] 구독 요청 - destination={}, sessionId={}", accessor.getDestination(), accessor.getSessionId());
+        }
+
+        if (StompCommand.SEND.equals(accessor.getCommand())) {
+            log.debug("[WebSocket] 메시지 전송 요청 - destination={}, sessionId={}", accessor.getDestination(), accessor.getSessionId());
         }
 
         if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
             MemberPrincipal principal = (MemberPrincipal) accessor.getUser();
             if (principal != null) {
                 sessionRegistry.remove(principal.getMemberId(), accessor.getSessionId());
-                log.debug("WebSocket DISCONNECT. userId={}, sessionId={}", principal.getMemberId(), accessor.getSessionId());
+                log.debug("[WebSocket] 연결 해제 - userId={}, sessionId={}", principal.getMemberId(), accessor.getSessionId());
+            } else {
+                log.debug("[WebSocket] 연결 해제 (인증 없음) - sessionId={}", accessor.getSessionId());
             }
         }
 
