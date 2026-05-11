@@ -1,0 +1,172 @@
+# Feature Specification: 채팅 메시지 전송
+# Status: Done
+# Last Updated: 2026-05-11
+
+meta:
+  id: FEAT-CHAT-002
+  title: 채팅 메시지 전송
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    채팅방 참여자가 WebSocket(STOMP)으로 메시지를 전송하면,
+    DB에 비동기 저장 후 Redis Pub/Sub을 통해 같은 방 구독자 전체에게 broadcast한다.
+    Redis 장애 시 SimpMessagingTemplate fallback으로 단일 인스턴스 내 전달을 보장하며,
+    DB First 전략으로 메시지 유실을 방지한다.
+  user_story: >
+    As a 채팅방 참여자, I want to 실시간으로 메시지를 전송하고 싶다,
+    so that 룸메이트 후보와 즉각적인 대화를 나눌 수 있다.
+  goals:
+    - WebSocket STOMP 기반 실시간 메시지 전송
+    - DB First 저장으로 메시지 유실 방지
+    - Redis Pub/Sub 기반 broadcast (다중 인스턴스 대응)
+    - Redis 장애 시 SimpMessagingTemplate fallback
+    - DB auto-increment id 기반 메시지 순서 보장
+    - 사용자당 WebSocket 세션 1개 제한
+
+# ──────────────────────────────────────────────
+# WebSocket/STOMP 명세
+# ──────────────────────────────────────────────
+technical_spec:
+  protocol: WebSocket (STOMP over SockJS)
+
+  websocket:
+    connect_endpoint: /ws/chat
+    auth: >
+      STOMP CONNECT 프레임 Authorization 헤더에 Bearer JWT 포함.
+      Spring Security ChannelInterceptor에서 CONNECT 시 JWT 검증.
+
+    publish:
+      description: 클라이언트 → 서버 메시지 전송
+      destination: /pub/chat/rooms/{roomId}
+      dto: SendChatMessageRequest
+      fields:
+        - name: content
+          type: String
+          required: true
+          validation: "@NotBlank, @Size(max=1000)"
+
+    broadcast:
+      description: "전송 성공 후 이 포맷으로 동일 채팅방 구독자 전체에게 broadcast됩니다."
+      destination: /sub/chat/rooms/{roomId}
+      dto: ChatMessageBroadcast
+      fields:
+        - name: messageId
+          type: Long
+          note: DB 저장 완료 후 채번된 id (클라이언트 재정렬 기준)
+        - name: roomId
+          type: Long
+        - name: senderId
+          type: Long
+        - name: content
+          type: String
+        - name: createdAt
+          type: LocalDateTime
+          note: DB 저장 시각 (ISO-8601)
+
+# ──────────────────────────────────────────────
+# 데이터 흐름
+# ──────────────────────────────────────────────
+  data_flow:
+    - step: 1
+      layer: Presentation (ChatMessageController @MessageMapping)
+      action: >
+        STOMP 헤더에서 JWT 추출 → userId 확보.
+        @Valid로 SendChatMessageRequest 검증.
+        ChatMessageUseCase.sendMessage(senderId, roomId, request) 호출.
+
+    - step: 2
+      layer: UseCase (ChatMessageUseCase)
+      action: >
+        ChatRoomGetService로 roomId 조회 → status=OPEN 검증 (CLOSED 시 40603).
+        ChatRoomParticipantGetService로 senderId 참여 여부 DB 직접 조회 (캐시 미사용, 40604).
+
+    - step: 3
+      layer: Domain (ChatSaveService)
+      action: >
+        Chat.create(senderId, room, content) 생성.
+        ChatRepository.save() 호출 — @Async(ThreadPoolTaskExecutor) 비동기.
+        저장 완료 Future에서 messageId 확보 후 반환.
+        저장 실패 시 클라이언트에 STOMP ERROR 프레임 전송, broadcast 미발행.
+
+    - step: 4
+      layer: Infrastructure (ChatMessagePublisher)
+      action: >
+        Redis Pub/Sub channel "chat:room:{roomId}" 에 ChatMessageBroadcast 발행.
+        RedisConnectionFailureException 발생 시 SimpMessagingTemplate fallback으로 전환.
+
+    - step: 5
+      layer: Infrastructure (ChatMessageSubscriber)
+      action: >
+        Redis 구독자가 메시지 수신 →
+        SimpMessagingTemplate.convertAndSend("/sub/chat/rooms/{roomId}", broadcast) 호출.
+
+  error_codes:
+    domain: chat
+    range: "406xx"
+    codes:
+      - code: 40602
+        name: CHAT_ROOM_NOT_FOUND
+        message: "채팅방을 찾을 수 없습니다."
+        http: 404
+        trigger: roomId에 해당하는 ChatRoom 미존재
+        note: FEAT-CHAT-001에서 정의된 공용 코드 재사용
+      - code: 40603
+        name: CHAT_ROOM_CLOSED
+        message: "종료된 채팅방에는 메시지를 전송할 수 없습니다."
+        http: 400
+        trigger: ChatRoom.status = CLOSED
+      - code: 40604
+        name: NOT_CHAT_PARTICIPANT
+        message: "채팅방 참여자가 아닙니다."
+        http: 403
+        trigger: senderId가 ChatRoomParticipant에 없거나 soft delete된 경우
+      - code: 40605
+        name: MESSAGE_CONTENT_BLANK
+        message: "메시지 내용을 입력해주세요."
+        http: 400
+        trigger: content가 null 또는 공백만으로 구성
+      - code: 40606
+        name: MESSAGE_CONTENT_TOO_LONG
+        message: "메시지는 최대 1000자까지 입력 가능합니다."
+        http: 400
+        trigger: content 길이 > 1000
+
+# ──────────────────────────────────────────────
+# 테스트 전략
+# ──────────────────────────────────────────────
+testing_strategy:
+  happy_path:
+    - "유효한 STOMP 메시지 전송 → Chat 엔티티 DB 저장 확인, /sub/chat/rooms/{roomId} broadcast 확인"
+    - "Redis 정상 시 Pub/Sub 경로로 broadcast 전달 확인"
+    - "연속 메시지 전송 시 messageId 오름차순 보장 확인"
+    - "DIRECT/GROUP 채팅방 모두 동일 로직으로 처리되는지 확인"
+
+  edge_cases:
+    - "content 공백만 입력 → STOMP ERROR 40605 MESSAGE_CONTENT_BLANK"
+    - "content 1001자 → STOMP ERROR 40606 MESSAGE_CONTENT_TOO_LONG"
+    - "status=CLOSED 채팅방 → STOMP ERROR 40603 CHAT_ROOM_CLOSED"
+    - "참여자 아닌 userId → STOMP ERROR 40604 NOT_CHAT_PARTICIPANT"
+    - "존재하지 않는 roomId → STOMP ERROR 40602 CHAT_ROOM_NOT_FOUND"
+    - "Redis 다운 시 SimpMessagingTemplate fallback 경로로 broadcast 전달 확인"
+    - "ChatRepository.save() 실패 → STOMP ERROR 전송 확인, broadcast 미발행 확인"
+    - "비동기 저장 예외 → ChatAsyncExceptionHandler 호출 확인"
+    - "동일 userId 중복 STOMP CONNECT → 기존 세션 종료 후 신규 세션 허용 확인"
+    - "메시지 전송과 참여자 퇴장 동시 → DB 조회 기반 검증으로 정확성 유지 확인"
+
+  unit_test_targets:
+    - "ChatMessageUseCase: CLOSED 방 / 미참여자 예외 분기 (Mock Service)"
+    - "ChatMessagePublisher: Redis 정상 시 publish 호출, 장애 시 fallback 전환 검증"
+    - "ChatSaveService: save 성공 시 messageId 반환, 실패 시 예외 전파 검증"
+
+# ──────────────────────────────────────────────
+# 주의사항
+# ──────────────────────────────────────────────
+notes:
+  - "메시지 이력 조회 API (GET /api/v1/chat/rooms/{roomId}/messages) 는 별도 스펙 작성 필요."
+  - "읽음 처리 (ChatRoomParticipant.last_read_message_id 갱신) 는 별도 스펙 작성 필요."
+  - "다중 인스턴스 배포 시 각 인스턴스가 Redis Pub/Sub 구독자로 등록되어야 broadcast 정상 동작."
+  - "WebSocket 인증 실패 (JWT 만료/변조) 시 STOMP CONNECT 거부. 이후 프레임에서 재검증 불필요."
+  - "GROUP 채팅 전송도 동일 로직 재사용. roomType 분기 불필요."
+  - "ChatAsyncConfig, ChatAsyncExceptionHandler 는 인프라 레이어에 신규 구현 필요."
