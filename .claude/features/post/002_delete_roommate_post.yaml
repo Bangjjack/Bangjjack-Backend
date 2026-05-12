@@ -1,0 +1,122 @@
+# Feature Specification: 룸메이트 모집글 삭제
+# Status: Draft
+# Last Updated: 2026-05-10
+
+meta:
+  id: FEAT-008
+  title: 룸메이트 모집글 삭제
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    모집글 작성자 본인만 자신이 작성한 룸메이트 모집글을 삭제할 수 있다.
+    삭제는 Hard Delete가 아닌 Soft Delete(deleted = true, deletedAt 설정)로 처리한다.
+    OPEN 및 CLOSED 상태 모두 삭제 가능하며, 이미 삭제된 모집글은 조회 자체가 불가하다.
+    삭제된 모집글은 목록/상세 조회에서 노출되지 않으며, 해당 글의 OPEN 상태가 해제되므로
+    작성자는 이후 새 모집글을 작성할 수 있다.
+  user_story: >
+    As a 모집글 작성자, I want to 내가 작성한 룸메이트 모집글을 삭제하고,
+    so that 더 이상 필요 없는 모집글을 정리하고 필요 시 새 모집글을 작성할 수 있다.
+  goals:
+    - 작성자 본인만 삭제 가능 (타인 삭제 차단)
+    - Soft Delete 처리 (deleted, deletedAt 필드 갱신)
+    - OPEN / CLOSED 상태 모두 삭제 가능
+    - 존재하지 않는(또는 이미 삭제된) 모집글 삭제 차단
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: DELETE
+      path: /api/v1/posts/{postId}
+      summary: 룸메이트 모집글 삭제
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: postId
+            type: Long
+            required: true
+            note: "삭제할 모집글 ID"
+        dto: "(없음)"
+        fields: []
+      response:
+        dto: Void
+        http_status: 200 OK
+        wrapper: CommonResponse<Void>
+        response_code: PostResponseCode.POST_DELETED
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommatePostController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable로 postId 수신 후 PostUseCase.deletePost(userId, postId) 호출"
+    - step: 2
+      layer: UseCase (RoommatePostUseCase)
+      action: "UserGetService로 userId 기준 User 조회 (없으면 USER_NOT_FOUND)"
+    - step: 3
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService로 postId 기준 RoommatePost 조회 (없거나 이미 삭제된 경우 POST_NOT_FOUND)"
+    - step: 4
+      layer: UseCase (RoommatePostUseCase)
+      action: "post.getUser().getId()와 userId 일치 여부 검증 → 불일치 시 POST_DELETE_FORBIDDEN"
+    - step: 5
+      layer: Domain (RoommatePost Entity / BaseEntity)
+      action: "post.softDelete() 호출 → deleted = true, deletedAt = LocalDateTime.now()"
+    - step: 6
+      layer: Infrastructure (RoommatePostDeleteService)
+      action: "변경된 post 저장 (save)"
+    - step: 7
+      layer: Response
+      action: "반환값 없음 (void). 200 OK 응답."
+
+  error_codes:
+    domain_range: "407xx (Post 도메인)"
+    codes:
+      - code: 40704
+        name: POST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "모집글을 찾을 수 없습니다."
+        trigger: "postId에 해당하는 모집글이 존재하지 않거나 이미 삭제(deleted=true)된 경우"
+      - code: 40705
+        name: POST_DELETE_FORBIDDEN
+        status: 403 FORBIDDEN
+        message: "모집글을 삭제할 권한이 없습니다."
+        trigger: "모집글의 작성자(user_id)와 요청자(JWT userId)가 다른 경우"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  validation_rules:
+    - "삭제는 작성자 본인만 가능. postId의 user_id와 JWT userId가 일치해야 함."
+    - "deleted = true인 모집글은 POST_NOT_FOUND로 응답 (이미 삭제 처리된 글)"
+    - "OPEN / CLOSED 상태 모두 삭제 가능. 상태 제한 없음."
+    - "Hard Delete 금지. 반드시 BaseEntity.softDelete()를 통해 Soft Delete 처리."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "작성자 본인이 OPEN 상태 모집글 삭제 → 200 OK, deleted=true / deletedAt 설정 확인"
+    - "작성자 본인이 CLOSED 상태 모집글 삭제 → 200 OK, deleted=true / deletedAt 설정 확인"
+    - "삭제 후 해당 postId로 조회 시 POST_NOT_FOUND 반환 확인"
+    - "삭제 후 작성자가 새 모집글 작성 시 OPEN 상태 중복 없으므로 정상 작성 가능 확인"
+  edge_cases:
+    - "존재하지 않는 postId → 404 POST_NOT_FOUND"
+    - "이미 삭제된 postId → 404 POST_NOT_FOUND"
+    - "타인의 모집글 삭제 시도 → 403 POST_DELETE_FORBIDDEN"
+    - "존재하지 않는 userId (JWT 변조) → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "Hard Delete 절대 금지. BaseEntity.softDelete()로 Soft Delete 처리."
+  - "삭제 시 PostSharedLifestyle도 RoommatePost와 함께 명시적으로 softDelete() 처리됨. 조회 시 deleted 필터로 제외."
+  - "삭제된 OPEN 모집글은 더 이상 OPEN으로 카운트되지 않으므로, 작성자는 이후 새 모집글 작성 가능."
+  - "에러 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml 규칙)."

@@ -1,7 +1,7 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
+import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
@@ -62,7 +62,7 @@ class RoommatePostUseCaseCreateTest {
                 roomSize,
                 recruitMemberCount,
                 "같이 잘 지낼 룸메이트를 찾습니다.",
-                new CreateSharedLifestyleRequest(
+                new SharedLifestyleRequest(
                         true,
                         Recycling.SHARE_BIN,
                         PhoneCall.SHORT_CALLS_OKAY,
