@@ -1,9 +1,8 @@
 package com.project.bangjjack.domain.chat.infrastructure;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.infrastructure.broadcaster.ChatBroadcaster;
+import com.project.bangjjack.global.infrastructure.JsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
@@ -20,11 +19,11 @@ public class ChatMessagePublisher {
     private static final String CHANNEL_PREFIX = "chat:room:";
 
     private final RedissonClient redissonClient;
-    private final ObjectMapper objectMapper;
+    private final JsonSerializer jsonSerializer;
     private final ChatBroadcaster chatBroadcaster;
 
     public void publish(Long roomId, ChatMessageBroadcast broadcast) {
-        String json = serialize(broadcast);
+        String json = jsonSerializer.serialize(broadcast);
         try {
             RTopic topic = redissonClient.getTopic(CHANNEL_PREFIX + roomId, StringCodec.INSTANCE);
             topic.publish(json);
@@ -36,11 +35,4 @@ public class ChatMessagePublisher {
         }
     }
 
-    private String serialize(ChatMessageBroadcast broadcast) {
-        try {
-            return objectMapper.writeValueAsString(broadcast);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("ChatMessageBroadcast 직렬화 실패", e);
-        }
-    }
 }
