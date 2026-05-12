@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 public record RoommatePostSummaryResponse(
         Long postId,
         String title,
+        String description,
         Dormitory dormitory,
         RoomSize roomSize,
         int recruitMemberCount,
@@ -18,6 +19,7 @@ public record RoommatePostSummaryResponse(
         return new RoommatePostSummaryResponse(
                 post.getId(),
                 post.getTitle(),
+                post.getDescription(),
                 post.getDormitory(),
                 post.getRoomSize(),
                 post.getRecruitMemberCount(),
