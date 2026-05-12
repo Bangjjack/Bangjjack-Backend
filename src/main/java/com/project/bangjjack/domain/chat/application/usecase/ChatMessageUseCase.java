@@ -2,15 +2,16 @@ package com.project.bangjjack.domain.chat.application.usecase;
 
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
-import com.project.bangjjack.domain.chat.infrastructure.ChatMessagePublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +23,7 @@ public class ChatMessageUseCase {
 
     private final ChatRoomGetService chatRoomGetService;
     private final ChatSaveService chatSaveService;
-    private final ChatMessagePublisher chatMessagePublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void sendMessage(Long senderId, Long roomId, SendChatMessageRequest request) {
@@ -43,8 +44,8 @@ public class ChatMessageUseCase {
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
 
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(savedChat, roomId);
-        chatMessagePublisher.publish(roomId, broadcast);
-        log.debug("[채팅 송신] 브로드캐스트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
+        eventPublisher.publishEvent(new ChatMessageSentEvent(roomId, broadcast));
+        log.debug("[채팅 송신] 브로드캐스트 이벤트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
     }
 
 }
