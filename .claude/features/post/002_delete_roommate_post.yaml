@@ -117,6 +117,6 @@ testing_strategy:
 # ============================================================
 notes:
   - "Hard Delete 절대 금지. BaseEntity.softDelete()로 Soft Delete 처리."
-  - "삭제 시 PostSharedLifestyle는 별도 삭제 처리 없이 RoommatePost와 함께 논리 삭제로 간주. 조회 시 deleted 필터로 제외."
+  - "삭제 시 PostSharedLifestyle도 RoommatePost와 함께 명시적으로 softDelete() 처리됨. 조회 시 deleted 필터로 제외."
   - "삭제된 OPEN 모집글은 더 이상 OPEN으로 카운트되지 않으므로, 작성자는 이후 새 모집글 작성 가능."
   - "에러 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml 규칙)."
