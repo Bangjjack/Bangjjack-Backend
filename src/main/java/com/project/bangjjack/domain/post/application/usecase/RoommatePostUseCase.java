@@ -6,6 +6,7 @@ import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostEx
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
 import com.project.bangjjack.domain.post.application.exception.PostUpdateForbiddenException;
@@ -97,7 +98,13 @@ public class RoommatePostUseCase {
         }
 
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
-        roommatePostUpdateService.updatePost(post, sharedLifestyle, request);
+        UpdateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
+        roommatePostUpdateService.updatePost(
+                post, sharedLifestyle,
+                request.title(), request.description(), request.roomSize(), request.recruitMemberCount(),
+                lifestyle.roomTrashBinSharing(), lifestyle.recycling(), lifestyle.phoneCall(),
+                lifestyle.itemSharing(), lifestyle.earphoneUsage(), lifestyle.lightsOutTime()
+        );
     }
 
     @Transactional
