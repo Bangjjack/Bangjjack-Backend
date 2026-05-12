@@ -1,8 +1,7 @@
 package com.project.bangjjack.domain.chat.infrastructure.broadcaster;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.global.infrastructure.JsonSerializer;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.util.Set;
+import java.util.Collection;
 
 @Slf4j
 @Component
@@ -18,12 +17,12 @@ import java.util.Set;
 public class WebSocketBroadcaster implements ChatBroadcaster {
 
     private final WebSocketSessionStore sessionStore;
-    private final ObjectMapper objectMapper;
+    private final JsonSerializer jsonSerializer;
 
     @Override
     public void broadcastToRoom(Long roomId, ChatMessageBroadcast broadcast) {
-        String json = serialize(broadcast);
-        Set<WebSocketSession> sessions = sessionStore.getSessionsByRoom(roomId);
+        String json = jsonSerializer.serialize(broadcast);
+        Collection<WebSocketSession> sessions = sessionStore.getSessionsByRoom(roomId);
 
         sessions.forEach(session -> {
             if (!session.isOpen()) return;
@@ -34,13 +33,5 @@ public class WebSocketBroadcaster implements ChatBroadcaster {
             }
         });
         log.debug("[WS Broadcast] 브로드캐스트 완료 - roomId={}, recipients={}", roomId, sessions.size());
-    }
-
-    private String serialize(ChatMessageBroadcast broadcast) {
-        try {
-            return objectMapper.writeValueAsString(broadcast);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("ChatMessageBroadcast 직렬화 실패", e);
-        }
     }
 }
