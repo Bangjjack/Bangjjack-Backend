@@ -3,14 +3,20 @@ package com.project.bangjjack.domain.post.presentation;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
+import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
 import com.project.bangjjack.domain.post.application.usecase.RoommatePostUseCase;
+import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.presentation.response.PostResponseCode;
+import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.global.annotation.CurrentMemberId;
 import com.project.bangjjack.global.common.response.CommonResponse;
+import com.project.bangjjack.global.common.response.SliceResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +36,15 @@ public class RoommatePostController {
             @RequestBody @Valid CreateRoommatePostRequest request) {
         roommatePostUseCase.createPost(memberId, request);
         return CommonResponse.success(PostResponseCode.POST_CREATED);
+    }
+
+    @Operation(summary = "룸메이트 모집글 목록 조회", description = "캠퍼스/방 유형 필터로 OPEN 상태 모집글 목록을 최신순으로 조회합니다.")
+    @GetMapping
+    public CommonResponse<SliceResponse<RoommatePostSummaryResponse>> getPostList(
+            @RequestParam(required = false) Campus campus,
+            @RequestParam(required = false) RoomSize roomSize,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return CommonResponse.success(PostResponseCode.POST_LIST_FOUND, roommatePostUseCase.getPostList(campus, roomSize, pageable));
     }
 
     @Operation(summary = "룸메이트 모집글 단건 조회", description = "postId로 모집글 상세 정보를 조회합니다.")
