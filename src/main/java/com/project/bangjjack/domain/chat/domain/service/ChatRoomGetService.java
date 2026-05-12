@@ -37,4 +37,10 @@ public class ChatRoomGetService {
             throw new NotChatParticipantException();
         }
     }
+
+    public void validateSubscription(Long roomId, Long userId) {
+        if (!chatRoomRepository.existsActiveRoomWithParticipant(roomId, userId)) {
+            throw new NotChatParticipantException();
+        }
+    }
 }

@@ -14,4 +14,10 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query("SELECT cr FROM ChatRoom cr WHERE cr.id = :id AND cr.deleted = false")
     Optional<ChatRoom> findByIdAndDeletedFalse(@Param("id") Long id);
+
+    @Query("SELECT COUNT(cr) > 0 FROM ChatRoom cr " +
+            "JOIN ChatRoomParticipant crp ON cr.id = crp.chatRoom.id " +
+            "WHERE cr.id = :roomId AND crp.userId = :userId " +
+            "AND cr.deleted = false AND crp.deleted = false")
+    boolean existsActiveRoomWithParticipant(@Param("roomId") Long roomId, @Param("userId") Long userId);
 }

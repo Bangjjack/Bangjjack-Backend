@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessage
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
+import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.global.common.exception.ApplicationException;
 import com.project.bangjjack.global.infrastructure.redis.WebSocketSessionRegistry;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
@@ -23,6 +24,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final ChatMessageUseCase chatMessageUseCase;
+    private final ChatRoomGetService chatRoomGetService;
     private final WebSocketSessionStore sessionStore;
     private final WebSocketSessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
@@ -42,8 +44,11 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         try {
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
+                    log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                    chatRoomGetService.validateSubscription(inbound.roomId(), principal.getMemberId());
+                    
                     sessionStore.subscribe(inbound.roomId(), session);
-                    log.debug("[WS] 구독 등록 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                    log.debug("[WS] 구독 등록 완료 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                 }
                 case UNSUBSCRIBE -> {
                     sessionStore.unsubscribe(inbound.roomId(), session);
