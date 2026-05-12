@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Chat extends BaseEntity {
 
-    @Column(name = "sender_id", nullable = false)
+    @Column(name = "user_id", nullable = false)
     private Long senderId;
 
     @ManyToOne(fetch = FetchType.LAZY)
