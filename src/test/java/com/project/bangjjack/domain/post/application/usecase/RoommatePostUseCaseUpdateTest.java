@@ -1,7 +1,7 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
+import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
@@ -86,7 +86,7 @@ class RoommatePostUseCaseUpdateTest {
                 roomSize,
                 recruitMemberCount,
                 "수정된 소개글입니다.",
-                new UpdateSharedLifestyleRequest(
+                new SharedLifestyleRequest(
                         false,
                         Recycling.MANAGE_SEPARATELY,
                         PhoneCall.ONLY_IN_ROOM,

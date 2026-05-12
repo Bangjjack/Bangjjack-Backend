@@ -1,12 +1,12 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.CreateSharedLifestyleRequest;
+import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.UpdateSharedLifestyleRequest;
+import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
 import com.project.bangjjack.domain.post.application.exception.PostUpdateForbiddenException;
@@ -60,7 +60,7 @@ public class RoommatePostUseCase {
                 user.getDormitory()
         );
 
-        CreateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
+        SharedLifestyleRequest lifestyle = request.sharedLifestyle();
         PostSharedLifestyle sharedLifestyle = PostSharedLifestyle.create(
                 post,
                 lifestyle.roomTrashBinSharing(),
@@ -98,7 +98,7 @@ public class RoommatePostUseCase {
         }
 
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
-        UpdateSharedLifestyleRequest lifestyle = request.sharedLifestyle();
+        SharedLifestyleRequest lifestyle = request.sharedLifestyle();
         roommatePostUpdateService.updatePost(
                 post, sharedLifestyle,
                 request.title(), request.description(), request.roomSize(), request.recruitMemberCount(),

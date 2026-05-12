@@ -17,6 +17,6 @@ public record UpdateRoommatePostRequest(
 
         @NotBlank @Size(min = 1, max = 500) String description,
 
-        @NotNull @Valid UpdateSharedLifestyleRequest sharedLifestyle
+        @NotNull @Valid SharedLifestyleRequest sharedLifestyle
 ) {
 }
