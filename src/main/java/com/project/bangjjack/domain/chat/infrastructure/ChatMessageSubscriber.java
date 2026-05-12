@@ -2,13 +2,13 @@ package com.project.bangjjack.domain.chat.infrastructure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.domain.chat.infrastructure.broadcaster.ChatBroadcaster;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RPatternTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
 @Slf4j
@@ -17,11 +17,10 @@ import org.springframework.stereotype.Component;
 public class ChatMessageSubscriber {
 
     private static final String CHANNEL_PATTERN = "chat:room:*";
-    private static final String STOMP_DESTINATION_PREFIX = "/sub/chat/rooms/";
 
     private final RedissonClient redissonClient;
     private final ObjectMapper objectMapper;
-    private final SimpMessagingTemplate messagingTemplate;
+    private final ChatBroadcaster chatBroadcaster;
 
     @PostConstruct
     public void subscribe() {
@@ -31,9 +30,8 @@ public class ChatMessageSubscriber {
                 log.debug("[Redis Sub] 메시지 수신 - channel={}", channel);
                 try {
                     ChatMessageBroadcast broadcast = objectMapper.readValue(json, ChatMessageBroadcast.class);
-                    log.debug("[Redis Sub] 역직렬화 완료 - messageId={}, roomId={}", broadcast.messageId(), broadcast.roomId());
-                    messagingTemplate.convertAndSend(STOMP_DESTINATION_PREFIX + broadcast.roomId(), broadcast);
-                    log.debug("[Redis Sub] STOMP 브로드캐스트 완료 - destination={}{}", STOMP_DESTINATION_PREFIX, broadcast.roomId());
+                    chatBroadcaster.broadcastToRoom(broadcast.roomId(), broadcast);
+                    log.debug("[Redis Sub] 브로드캐스트 완료 - roomId={}, messageId={}", broadcast.roomId(), broadcast.messageId());
                 } catch (Exception e) {
                     log.error("[Redis Sub] 메시지 처리 실패 - channel={}, 원인={}", channel, e.getMessage(), e);
                 }

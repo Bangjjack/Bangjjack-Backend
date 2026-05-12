@@ -1,35 +1,29 @@
 package com.project.bangjjack.global.config.websocket;
 
+import com.project.bangjjack.domain.chat.presentation.ChatWebSocketHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.messaging.simp.config.ChannelRegistration;
-import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
-import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
+import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
+import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+/**
+ * 순수 WebSocket 설정.
+ * STOMP 전환 시: @EnableWebSocketMessageBroker 기반 StompWebSocketConfig 추가 후
+ * WebSocketBroadcaster → StompBroadcaster 교체.
+ */
 @Configuration
-@EnableWebSocketMessageBroker
+@EnableWebSocket
 @RequiredArgsConstructor
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+public class WebSocketConfig implements WebSocketConfigurer {
 
-    private final WebSocketChannelInterceptor webSocketChannelInterceptor;
-
-    @Override
-    public void configureMessageBroker(MessageBrokerRegistry registry) {
-        registry.enableSimpleBroker("/sub");
-        registry.setApplicationDestinationPrefixes("/pub");
-    }
+    private final ChatWebSocketHandler chatWebSocketHandler;
+    private final JwtWebSocketHandshakeInterceptor handshakeInterceptor;
 
     @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint("/ws/chat")
-                .setAllowedOriginPatterns("*") // 운영 배포 시 실제 프론트엔드 도메인으로 교체
-                .withSockJS();
-    }
-
-    @Override
-    public void configureClientInboundChannel(ChannelRegistration registration) {
-        registration.interceptors(webSocketChannelInterceptor);
+    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        registry.addHandler(chatWebSocketHandler, "/ws/chat")
+                .addInterceptors(handshakeInterceptor)
+                .setAllowedOriginPatterns("*");
     }
 }
