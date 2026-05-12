@@ -3,7 +3,9 @@ package com.project.bangjjack.domain.chat.presentation;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
+import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
+import com.project.bangjjack.global.common.exception.ApplicationException;
 import com.project.bangjjack.global.infrastructure.redis.WebSocketSessionRegistry;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
 import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
@@ -37,23 +39,42 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         WebSocketInboundMessage inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
         MemberPrincipal principal = getPrincipal(session);
 
-        switch (inbound.type()) {
-            case SUBSCRIBE -> {
-                sessionStore.subscribe(inbound.roomId(), session);
-                log.debug("[WS] 구독 등록 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+        try {
+            switch (inbound.type()) {
+                case SUBSCRIBE -> {
+                    sessionStore.subscribe(inbound.roomId(), session);
+                    log.debug("[WS] 구독 등록 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                }
+                case UNSUBSCRIBE -> {
+                    sessionStore.unsubscribe(inbound.roomId(), session);
+                    log.debug("[WS] 구독 해제 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                }
+                case SEND -> {
+                    log.debug("[WS] 메시지 수신 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                    chatMessageUseCase.sendMessage(
+                            principal.getMemberId(),
+                            inbound.roomId(),
+                            new SendChatMessageRequest(inbound.content())
+                    );
+                }
             }
-            case UNSUBSCRIBE -> {
-                sessionStore.unsubscribe(inbound.roomId(), session);
-                log.debug("[WS] 구독 해제 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-            }
-            case SEND -> {
-                log.debug("[WS] 메시지 수신 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-                chatMessageUseCase.sendMessage(
-                        principal.getMemberId(),
-                        inbound.roomId(),
-                        new SendChatMessageRequest(inbound.content())
-                );
-            }
+        } catch (ApplicationException e) {
+            log.warn("[WS] 도메인 예외 - userId={}, roomId={}, code={}, 원인={}",
+                    principal.getMemberId(), inbound.roomId(), e.getErrorCode().getCode(), e.getMessage());
+            sendError(session, WebSocketErrorResponse.from(e));
+        } catch (Exception e) {
+            log.error("[WS] 예상치 못한 오류 - userId={}, roomId={}, 원인={}",
+                    principal.getMemberId(), inbound.roomId(), e.getMessage(), e);
+            sendError(session, WebSocketErrorResponse.unknown());
+        }
+    }
+
+    private void sendError(WebSocketSession session, WebSocketErrorResponse error) {
+        if (!session.isOpen()) return;
+        try {
+            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(error)));
+        } catch (Exception ex) {
+            log.warn("[WS] 에러 응답 전송 실패 - sessionId={}, 원인={}", session.getId(), ex.getMessage());
         }
     }
 
