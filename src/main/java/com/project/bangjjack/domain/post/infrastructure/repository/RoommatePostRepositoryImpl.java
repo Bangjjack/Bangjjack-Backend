@@ -27,6 +27,7 @@ public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
 
     private final JPAQueryFactory queryFactory;
     private static final QRoommatePost post = QRoommatePost.roommatePost;
+    private static final BooleanExpression ALWAYS_FALSE = Expressions.asBoolean(true).isFalse();
 
     @Override
     public Slice<RoommatePost> findPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
@@ -72,7 +73,7 @@ public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
     private BooleanExpression campusFilter(Campus campus) {
         if (campus == null) return null;
         List<Dormitory> dormitories = Dormitory.ofCampus(campus);
-        if (dormitories.isEmpty()) return Expressions.asBoolean(false).isTrue();
+        if (dormitories.isEmpty()) return ALWAYS_FALSE;
         return post.dormitory.in(dormitories);
     }
 
