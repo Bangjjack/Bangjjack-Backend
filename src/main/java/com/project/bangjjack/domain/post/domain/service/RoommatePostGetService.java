@@ -4,11 +4,15 @@ import com.project.bangjjack.domain.post.application.exception.PostNotFoundExcep
 import com.project.bangjjack.domain.post.application.exception.SharedLifestyleNotFoundException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
+import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.repository.PostSharedLifestyleRepository;
 import com.project.bangjjack.domain.post.domain.repository.RoommatePostRepository;
+import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -35,5 +39,9 @@ public class RoommatePostGetService {
     public PostSharedLifestyle getSharedLifestyleWithPostAndUserByPostId(Long postId) {
         return postSharedLifestyleRepository.findWithPostAndUserByPostId(postId)
                 .orElseThrow(PostNotFoundException::new);
+    }
+
+    public Slice<RoommatePost> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
+        return roommatePostRepository.findPostList(campus, roomSize, pageable);
     }
 }
