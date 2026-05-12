@@ -9,7 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 
-public interface RoommatePostRepository extends JpaRepository<RoommatePost, Long> {
+public interface RoommatePostRepository extends JpaRepository<RoommatePost, Long>, RoommatePostQueryRepository {
 
     boolean existsByUserAndStatusAndDeletedFalse(User user, PostStatus status);
 
