@@ -8,6 +8,7 @@ import com.project.bangjjack.domain.post.domain.repository.RoommatePostQueryRepo
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -19,7 +20,7 @@ import java.util.List;
 
 @Repository
 @RequiredArgsConstructor
-public class RoommatePostQueryRepositoryImpl implements RoommatePostQueryRepository {
+public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
 
     private final JPAQueryFactory queryFactory;
     private static final QRoommatePost post = QRoommatePost.roommatePost;
@@ -41,7 +42,7 @@ public class RoommatePostQueryRepositoryImpl implements RoommatePostQueryReposit
 
         boolean hasNext = content.size() > pageable.getPageSize();
         if (hasNext) {
-            content.remove(content.size() - 1);
+            content.removeLast();
         }
 
         return new SliceImpl<>(content, pageable, hasNext);
@@ -49,7 +50,9 @@ public class RoommatePostQueryRepositoryImpl implements RoommatePostQueryReposit
 
     private BooleanExpression campusFilter(Campus campus) {
         if (campus == null) return null;
-        return post.dormitory.in(Dormitory.ofCampus(campus));
+        List<Dormitory> dormitories = Dormitory.ofCampus(campus);
+        if (dormitories.isEmpty()) return Expressions.asBoolean(false).isTrue();
+        return post.dormitory.in(dormitories);
     }
 
     private BooleanExpression roomSizeFilter(RoomSize roomSize) {
