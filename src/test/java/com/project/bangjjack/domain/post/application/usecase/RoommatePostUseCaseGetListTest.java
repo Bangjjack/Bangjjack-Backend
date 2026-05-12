@@ -6,13 +6,12 @@ import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
-import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
-import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
 import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
+import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.global.common.response.SliceResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -44,9 +43,6 @@ class RoommatePostUseCaseGetListTest {
 
     @Mock
     private RoommatePostDeleteService roommatePostDeleteService;
-
-    @Mock
-    private RoommatePostUpdateService roommatePostUpdateService;
 
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;

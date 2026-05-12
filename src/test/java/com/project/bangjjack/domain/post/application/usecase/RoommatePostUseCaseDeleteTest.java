@@ -2,19 +2,10 @@ package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
-import com.project.bangjjack.domain.post.domain.entity.ItemSharing;
-import com.project.bangjjack.domain.post.domain.entity.LightsOutTime;
-import com.project.bangjjack.domain.post.domain.entity.PhoneCall;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
-import com.project.bangjjack.domain.post.domain.entity.Recycling;
-import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
-import com.project.bangjjack.domain.user.domain.entity.Campus;
-import com.project.bangjjack.domain.user.domain.entity.Dormitory;
-import com.project.bangjjack.domain.user.domain.entity.Gender;
-import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,8 +15,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.lang.reflect.Field;
-
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.postOwnedBy;
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.sharedLifestyleFor;
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.userWithId;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,41 +37,13 @@ class RoommatePostUseCaseDeleteTest {
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;
 
-    private User userWithId(Long id) throws Exception {
-        User user = User.create("provider-" + id, "테스트유저" + id, "test" + id + "@gachon.ac.kr", null);
-        user.completeOnboarding(2000, 2, Gender.MALE, Campus.GLOBAL_CAMPUS, null, Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
-        Field idField = user.getClass().getSuperclass().getDeclaredField("id");
-        idField.setAccessible(true);
-        idField.set(user, id);
-        return user;
-    }
-
-    private RoommatePost postOwnedBy(User owner) {
-        return RoommatePost.create(
-                owner,
-                "룸메이트 구해요",
-                "함께 지낼 룸메이트를 찾습니다.",
-                RoomSize.TWO_PERSON,
-                1,
-                Semester.SIXTEEN_WEEKS,
-                Dormitory.DORM_1
-        );
-    }
-
-    private PostSharedLifestyle sharedLifestyleFor(RoommatePost post) {
-        return PostSharedLifestyle.create(
-                post, true, Recycling.SHARE_BIN, PhoneCall.SHORT_CALLS_OKAY,
-                ItemSharing.NO_PREFERENCE, true, LightsOutTime.BETWEEN_23_24
-        );
-    }
-
     @Nested
     @DisplayName("모집글 삭제 시")
     class DeletePost {
 
         @Test
         @DisplayName("작성자 본인이 요청하면 예외 없이 모집글과 공유생활정보가 함께 삭제된다")
-        void 본인_모집글_삭제_성공() throws Exception {
+        void 본인_모집글_삭제_성공() {
             // given
             Long userId = 1L;
             User owner = userWithId(userId);
@@ -113,7 +77,7 @@ class RoommatePostUseCaseDeleteTest {
 
         @Test
         @DisplayName("타인의 모집글을 삭제하려 하면 PostDeleteForbiddenException이 발생한다")
-        void 타인_모집글_삭제_시_권한_예외_발생() throws Exception {
+        void 타인_모집글_삭제_시_권한_예외_발생() {
             // given
             Long requesterId = 1L;
             Long ownerId = 2L;
