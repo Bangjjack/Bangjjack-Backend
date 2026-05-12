@@ -14,9 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -42,8 +39,7 @@ public class ChatMessageUseCase {
         chatRoomGetService.validateParticipant(roomId, senderId);
         log.debug("[채팅 송신] 참여자 검증 완료 - senderId={}, roomId={}", senderId, roomId);
 
-        CompletableFuture<Chat> saveFuture = chatSaveService.saveAsync(senderId, roomId, request.content());
-        Chat savedChat = getSavedChat(saveFuture);
+        Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content());
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
 
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(savedChat, roomId);
@@ -51,12 +47,4 @@ public class ChatMessageUseCase {
         log.debug("[채팅 송신] 브로드캐스트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
     }
 
-    private Chat getSavedChat(CompletableFuture<Chat> saveFuture) {
-        try {
-            return saveFuture.get(5, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            log.error("[채팅 송신] 메시지 저장 실패 - 원인={}", e.getMessage(), e);
-            throw new RuntimeException("메시지 저장에 실패했습니다.", e);
-        }
-    }
 }
