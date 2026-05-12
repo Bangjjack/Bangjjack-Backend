@@ -147,7 +147,7 @@ technical_spec:
         trigger: "모집글의 작성자(user_id)와 요청자(JWT userId)가 다른 경우"
       - code: 40707
         name: POST_NOT_EDITABLE
-        status: 409 CONFLICT
+        status: 422 UNPROCESSABLE_ENTITY
         message: "마감된 모집글은 수정할 수 없습니다."
         trigger: "post.status == CLOSED인 모집글 수정 요청 시"
       - code: 40703
