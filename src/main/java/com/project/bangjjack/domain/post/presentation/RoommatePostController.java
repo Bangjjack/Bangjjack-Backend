@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -43,7 +44,7 @@ public class RoommatePostController {
     public CommonResponse<SliceResponse<RoommatePostSummaryResponse>> getPostList(
             @RequestParam(required = false) Campus campus,
             @RequestParam(required = false) RoomSize roomSize,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return CommonResponse.success(PostResponseCode.POST_LIST_FOUND, roommatePostUseCase.getPostList(campus, roomSize, pageable));
     }
 

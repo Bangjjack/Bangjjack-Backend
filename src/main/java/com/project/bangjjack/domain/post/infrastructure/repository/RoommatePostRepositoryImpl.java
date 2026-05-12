@@ -7,13 +7,16 @@ import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.repository.RoommatePostQueryRepository;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.ComparableExpressionBase;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.SliceImpl;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,7 +38,7 @@ public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
                         campusFilter(campus),
                         roomSizeFilter(roomSize)
                 )
-                .orderBy(post.createdAt.desc())
+                .orderBy(orderSpecifiers(pageable))
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize() + 1L)
                 .fetch();
@@ -46,6 +49,24 @@ public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
         }
 
         return new SliceImpl<>(content, pageable, hasNext);
+    }
+
+    private OrderSpecifier<?>[] orderSpecifiers(Pageable pageable) {
+        if (pageable.getSort().isUnsorted()) {
+            return new OrderSpecifier[]{post.createdAt.desc()};
+        }
+        return pageable.getSort().stream()
+                .map(this::toOrderSpecifier)
+                .toArray(OrderSpecifier[]::new);
+    }
+
+    private OrderSpecifier<?> toOrderSpecifier(Sort.Order order) {
+        ComparableExpressionBase<?> path = switch (order.getProperty()) {
+            case "createdAt" -> post.createdAt;
+            case "recruitMemberCount" -> post.recruitMemberCount;
+            default -> post.createdAt;
+        };
+        return order.isAscending() ? path.asc() : path.desc();
     }
 
     private BooleanExpression campusFilter(Campus campus) {
