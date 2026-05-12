@@ -160,7 +160,7 @@ testing_strategy:
     - "작성자 본인이 조회하면 isOwner=true 반환"
     - "타인이 조회하면 isOwner=false 반환"
   edge_cases:
-    - "존재하지 않는 postId → 404 POST_NOT_ FOUND"
+    - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "이미 삭제된 postId → 404 POST_NOT_FOUND"
 
 # ============================================================
