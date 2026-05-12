@@ -15,12 +15,8 @@ public enum Dormitory {
     }
 
     public static List<Dormitory> ofCampus(Campus campus) {
-        List<Dormitory> dormitories = Arrays.stream(values())
+        return Arrays.stream(values())
                 .filter(d -> d.campus == campus)
                 .toList();
-        if (dormitories.isEmpty()) {
-            throw new IllegalStateException("No dormitories mapped for campus: " + campus);
-        }
-        return dormitories;
     }
 }
