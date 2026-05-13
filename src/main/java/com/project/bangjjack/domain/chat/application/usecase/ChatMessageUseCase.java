@@ -29,16 +29,13 @@ public class ChatMessageUseCase {
     public void sendMessage(Long senderId, Long roomId, SendChatMessageRequest request) {
         log.debug("[채팅 송신] 시작 - senderId={}, roomId={}, content='{}'", senderId, roomId, request.content());
 
+        // ChatWebSocketHandler에서 이미 validateParticipant를 통해 존재 여부와 참여 권한을 확인했음
         ChatRoom chatRoom = chatRoomGetService.getById(roomId);
-        log.debug("[채팅 송신] 채팅방 조회 완료 - roomId={}, status={}", roomId, chatRoom.getStatus());
 
         if (chatRoom.getStatus() == RoomStatus.CLOSED) {
             log.warn("[채팅 송신] 종료된 채팅방 전송 시도 - senderId={}, roomId={}", senderId, roomId);
             throw new ChatRoomClosedException();
         }
-
-        chatRoomGetService.validateParticipant(roomId, senderId);
-        log.debug("[채팅 송신] 참여자 검증 완료 - senderId={}, roomId={}", senderId, roomId);
 
         Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content());
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
