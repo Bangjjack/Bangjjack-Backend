@@ -23,13 +23,13 @@ public class ChatMessagePublisher {
     private final ChatBroadcaster chatBroadcaster;
 
     public void publish(Long roomId, ChatMessageBroadcast broadcast) {
-        String json = jsonSerializer.serialize(broadcast);
         try {
+            String json = jsonSerializer.serialize(broadcast);
             RTopic topic = redissonClient.getTopic(CHANNEL_PREFIX + roomId, StringCodec.INSTANCE);
             topic.publish(json);
             log.debug("[Redis Pub/Sub] 메시지 발행 완료 - channel=chat:room:{}, messageId={}", roomId, broadcast.messageId());
-        } catch (RedisException e) {
-            log.warn("[Redis Pub/Sub] Redis 장애 감지 - Fallback 전환. roomId={}, 원인={}", roomId, e.getMessage());
+        } catch (Exception e) {
+            log.warn("[Redis Pub/Sub] 발행 실패 - Fallback 전환. roomId={}, 원인={}", roomId, e.getMessage());
             chatBroadcaster.broadcastToRoom(roomId, broadcast);
             log.debug("[Redis Pub/Sub] Fallback 브로드캐스트 완료 - roomId={}", roomId);
         }
