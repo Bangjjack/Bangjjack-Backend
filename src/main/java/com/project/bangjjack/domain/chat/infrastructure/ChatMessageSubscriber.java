@@ -38,7 +38,8 @@ public class ChatMessageSubscriber {
             });
             log.info("[Redis Sub] 채팅 구독 등록 완료 - pattern={}", CHANNEL_PATTERN);
         } catch (Exception e) {
-            log.warn("[Redis Sub] 구독 등록 실패 - Redis 연결 상태를 확인하세요. 원인={}", e.getMessage());
+            log.error("[Redis Sub] 구독 등록 실패 - 서버를 시작할 수 없습니다. 원인={}", e.getMessage());
+            throw new IllegalStateException("Redis 채팅 구독 등록 실패", e);
         }
     }
 }
