@@ -33,14 +33,12 @@ public class ChatRoomGetService {
     }
 
     public void validateParticipant(Long roomId, Long userId) {
+        if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
+            throw new ChatRoomNotFoundException();
+        }
         if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)) {
             throw new NotChatParticipantException();
         }
     }
 
-    public void validateSubscription(Long roomId, Long userId) {
-        if (!chatRoomRepository.existsActiveRoomWithParticipant(roomId, userId)) {
-            throw new NotChatParticipantException();
-        }
-    }
 }

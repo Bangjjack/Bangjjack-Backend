@@ -38,14 +38,15 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        WebSocketInboundMessage inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
         MemberPrincipal principal = getPrincipal(session);
 
         try {
+            WebSocketInboundMessage inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
+
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-                    chatRoomGetService.validateSubscription(inbound.roomId(), principal.getMemberId());
+                    chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
                     
                     sessionStore.subscribe(inbound.roomId(), session);
                     log.debug("[WS] 구독 등록 완료 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
@@ -55,7 +56,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     log.debug("[WS] 구독 해제 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                 }
                 case SEND -> {
-                    log.debug("[WS] 메시지 수신 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                    log.debug("[WS] 메시지 송신 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
+                    
+                    // 1. 채팅방 존재 여부 및 참여 권한 먼저 확인 (존재하지 않으면 40602 발생)
+                    chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
+
+                    // 2. 그 다음 구독 여부 확인 (구독 안되어 있으면 40605 발생)
+                    if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
+                        throw new com.project.bangjjack.domain.chat.application.exception.NotSubscribedException();
+                    }
+
                     chatMessageUseCase.sendMessage(
                             principal.getMemberId(),
                             inbound.roomId(),
@@ -64,12 +74,15 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
             }
         } catch (ApplicationException e) {
-            log.warn("[WS] 도메인 예외 - userId={}, roomId={}, code={}, 원인={}",
-                    principal.getMemberId(), inbound.roomId(), e.getErrorCode().getCode(), e.getMessage());
+            log.warn("[WS] 도메인 예외 - userId={}, code={}, 원인={}",
+                    principal.getMemberId(), e.getErrorCode().getCode(), e.getMessage());
             sendError(session, WebSocketErrorResponse.from(e));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException | java.lang.IllegalArgumentException e) {
+            log.warn("[WS] 메시지 파싱 오류 - userId={}, 원인={}", principal.getMemberId(), e.getMessage());
+            sendError(session, WebSocketErrorResponse.unknown()); // 또는 전용 파싱 에러 응답
         } catch (Exception e) {
-            log.error("[WS] 예상치 못한 오류 - userId={}, roomId={}, 원인={}",
-                    principal.getMemberId(), inbound.roomId(), e.getMessage(), e);
+            log.error("[WS] 예상치 못한 오류 - userId={}, 원인={}",
+                    principal.getMemberId(), e.getMessage(), e);
             sendError(session, WebSocketErrorResponse.unknown());
         }
     }

@@ -51,4 +51,9 @@ public class WebSocketSessionStore {
         ConcurrentHashMap<String, WebSocketSession> sessions = roomSessions.get(roomId);
         return sessions != null ? sessions.values() : Collections.emptyList();
     }
+
+    public boolean isSubscribed(Long roomId, WebSocketSession session) {
+        Set<Long> rooms = sessionRooms.get(session.getId());
+        return rooms != null && rooms.contains(roomId);
+    }
 }
