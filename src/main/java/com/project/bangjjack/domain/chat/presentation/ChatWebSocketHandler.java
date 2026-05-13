@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
+import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.global.common.exception.ApplicationException;
 import com.project.bangjjack.global.infrastructure.redis.WebSocketSessionRegistry;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
 import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -17,6 +20,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -28,6 +33,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private final WebSocketSessionStore sessionStore;
     private final WebSocketSessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
+    private final Validator validator;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -57,20 +63,23 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 }
                 case SEND -> {
                     log.debug("[WS] 메시지 송신 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-                    
-                    // 1. 채팅방 존재 여부 및 참여 권한 먼저 확인 (존재하지 않으면 40602 발생)
+
+                    // 1. 메시지 내용 검증
+                    SendChatMessageRequest request = new SendChatMessageRequest(inbound.content());
+                    Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
+                    if (!violations.isEmpty()) {
+                        throw new InvalidMessageContentException();
+                    }
+
+                    // 2. 채팅방 존재 여부 및 참여 권한 확인 (존재하지 않으면 40602 발생)
                     chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
 
-                    // 2. 그 다음 구독 여부 확인 (구독 안되어 있으면 40605 발생)
+                    // 3. 구독 여부 확인 (구독 안되어 있으면 40605 발생)
                     if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
                         throw new com.project.bangjjack.domain.chat.application.exception.NotSubscribedException();
                     }
 
-                    chatMessageUseCase.sendMessage(
-                            principal.getMemberId(),
-                            inbound.roomId(),
-                            new SendChatMessageRequest(inbound.content())
-                    );
+                    chatMessageUseCase.sendMessage(principal.getMemberId(), inbound.roomId(), request);
                 }
             }
         } catch (ApplicationException e) {
