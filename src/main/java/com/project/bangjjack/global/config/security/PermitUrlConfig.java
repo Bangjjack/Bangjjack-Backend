@@ -12,7 +12,9 @@ public class PermitUrlConfig {
                 "/api/v1/auth/token",
                 "/v3/api-docs/**",
                 "/swagger-ui/**",
-                "/swagger-resources/**"
+                "/swagger-resources/**",
+                "/actuator/health",
+                "/actuator/health/**"
         };
     }
 }
