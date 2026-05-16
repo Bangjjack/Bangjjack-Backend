@@ -39,3 +39,12 @@ jwt:
   access:
     secret: ${JWT_ACCESS}
     expiration-seconds: 259200
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
