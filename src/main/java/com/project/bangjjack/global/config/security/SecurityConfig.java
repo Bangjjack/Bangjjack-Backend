@@ -67,7 +67,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://localhost:5173",
-                "http://localhost:8080"
+                "http://localhost:8080",
+                "https://43.202.238.44.nip.io"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
