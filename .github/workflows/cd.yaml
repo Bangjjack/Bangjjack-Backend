@@ -68,4 +68,5 @@ jobs:
           key: ${{secrets.PROD_KEY}}
           script: |
             docker pull ${{secrets.DOCKER_USERNAME}}/bangjjack:latest
+            chmod +x ~/deploy.sh
             sudo ~/deploy.sh
