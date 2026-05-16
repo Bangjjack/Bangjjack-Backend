@@ -37,8 +37,8 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Without Test
-        run: ./gradlew build -x test
+      - name: Build bootJar
+        run: ./gradlew bootJar
 
       - name: 도커 로그인
         uses: docker/login-action@v3
@@ -55,20 +55,17 @@ jobs:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64
-          tags: hanseunghyun0615/bangjjack:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/bangjjack:latest
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Docker 이미지 dev 서버 배포
+      - name: Docker 이미지 prod 서버 배포
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.DEV_HOST }}
-          username: ${{ secrets.DEV_USERNAME }}
-          key: ${{ secrets.DEV_KEY }}
+          host: ${{secrets.PROD_HOST}}
+          username: ${{secrets.PROD_USERNAME}}
+          key: ${{secrets.PROD_KEY}}
           script: |
-            cd /home/ubuntu
-            docker rm -f bangjjack || true
-            docker compose pull bangjjack
-            docker compose up -d --no-deps --force-recreate --pull always bangjjack
-            docker image prune -f
+            docker pull ${{secrets.DOCKER_USERNAME}}/bangjjack:latest
+            sudo ~/deploy.sh
