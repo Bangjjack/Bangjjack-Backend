@@ -1,0 +1,175 @@
+# Feature Specification: 채팅 메시지 조회
+# Status: Draft
+# Last Updated: 2026-05-17
+
+meta:
+  id: FEAT-CHAT-002
+  title: 채팅 메시지 조회
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    채팅방 참여자가 특정 채팅방의 메시지 목록을 커서 기반 페이지네이션으로 조회한다.
+  user_story: >
+    As a 채팅방 참여자, I want to 채팅방의 이전 메시지를 순차적으로 불러오고 싶다,
+    so that 끊김 없이 대화 히스토리를 확인할 수 있다.
+  goals:
+    - 참여자만 메시지 조회 가능 (비참여자 접근 차단)
+    - 커서 기반 페이지네이션 (무한 스크롤 / 시간 기준 역순 조회)
+    - Chat 엔티티의 기존 복합 인덱스(room_id, created_at) 활용
+    - 페이지네이션 응답에 다음 페이지 여부 및 커서 포함
+
+# ──────────────────────────────────────────────
+# API 설계
+# ──────────────────────────────────────────────
+technical_spec:
+  api:
+    method: GET
+    path: /api/v1/chat-rooms/{roomId}/messages
+    summary: 채팅방 메시지 목록 조회 (커서 기반 페이지네이션)
+    auth: AUTHENTICATED (JWT)
+    http_status:
+      success: 200
+    request:
+      dto: (Query Parameters)
+      fields:
+        - name: cursor
+          type: Long
+          required: false
+          validation: "없으면 가장 최신 메시지부터 조회 (첫 페이지)"
+          note: "이전 응답의 nextCursor 값을 그대로 사용. 해당 messageId 이전 메시지를 조회"
+        - name: size
+          type: int
+          required: false
+          default: 30
+          validation: "1 이상 100 이하"
+    response:
+      dto: ChatMessagePageResponse
+      wrapper: CommonResponse<ChatMessagePageResponse>
+      fields:
+        - name: messages
+          type: List<ChatMessageResponse>
+          note: "최신순 정렬 (createdAt DESC). 클라이언트는 역순으로 렌더링"
+        - name: nextCursor
+          type: Long
+          nullable: true
+          note: "다음 페이지 조회 시 cursor 파라미터에 사용. 마지막 페이지면 null"
+        - name: hasNext
+          type: boolean
+          note: "다음 페이지 존재 여부"
+
+  response_dto_detail:
+    ChatMessageResponse:
+      fields:
+        - name: messageId
+          type: Long
+        - name: senderId
+          type: Long
+        - name: content
+          type: String
+        - name: createdAt
+          type: LocalDateTime
+
+  data_flow:
+    - step: 1
+      layer: Presentation (ChatRoomController)
+      action: >
+        JWT에서 currentMemberId 추출, @PathVariable roomId / @RequestParam cursor?, size 수신.
+        ChatRoomUseCase.getMessages(currentMemberId, roomId, cursor, size) 호출
+
+    - step: 2
+      layer: UseCase (ChatRoomUseCase)
+      action: >
+        chatRoomGetService.getByIdAndValidateParticipant(roomId, currentMemberId) 호출
+        → 채팅방 존재 확인 + 참여자 검증 (실패 시 각각 예외).
+        chatMessageGetService.getMessages(roomId, cursor, size) 호출 후 ChatMessagePageResponse 반환
+
+    - step: 3
+      layer: Domain Service (ChatMessageGetService — 신규)
+      action: >
+        ChatRepository.findByCursorPage(roomId, cursor, size + 1) 호출.
+        조회 결과가 size + 1개이면 hasNext=true, nextCursor = 마지막 항목의 id.
+        실제 반환 리스트는 앞 size개만 포함
+
+    - step: 4
+      layer: Repository (ChatRepository)
+      action: >
+        @Query로 커서 기반 쿼리 실행.
+        cursor가 null이면 WHERE room_id = :roomId ORDER BY id DESC LIMIT :limit.
+        cursor가 있으면 WHERE room_id = :roomId AND id < :cursor ORDER BY id DESC LIMIT :limit.
+        기존 복합 인덱스(room_id, created_at) 대신 id 기반 커서 사용 → PK 단일 인덱스 활용
+
+    - step: 5
+      layer: Response
+      action: CommonResponse<ChatMessagePageResponse> 200 반환
+
+  index_note: >
+    Chat 엔티티에 IDX_chat_room_id_created_at (room_id, created_at) 인덱스가 이미 존재.
+    커서를 PK(id)로 사용하면 PK 인덱스를 활용하므로 더 효율적.
+    커서를 createdAt으로 사용하면 동일 시각 메시지가 복수일 때 누락/중복 발생 위험 → id 커서 채택.
+
+  validation_rules:
+    - "roomId에 해당하는 채팅방이 존재해야 한다 (없으면 CHAT_ROOM_NOT_FOUND)"
+    - "currentMemberId가 해당 채팅방의 참여자여야 한다 (아니면 NOT_CHAT_PARTICIPANT)"
+    - "size는 1 이상 100 이하여야 한다 (기본값 30)"
+    - "cursor가 존재하면 해당 id보다 작은 메시지를 조회한다 (id DESC)"
+
+  error_codes:
+    domain: chat
+    range: "406xx"
+    reuse:
+      - code: 40602
+        name: CHAT_ROOM_NOT_FOUND
+        message: "채팅방을 찾을 수 없습니다."
+        http: 404
+      - code: 40604
+        name: NOT_CHAT_PARTICIPANT
+        message: "채팅방 참여자가 아닙니다."
+        http: 403
+    new: []
+
+  database:
+    entities:
+      - name: Chat
+        action: Read
+        fields: "id, senderId, content, createdAt"
+        index: "PK(id) 활용 (cursor 기반 탐색)"
+      - name: ChatRoom
+        action: Read
+        fields: "id (존재 확인)"
+      - name: ChatRoomParticipant
+        action: Read
+        fields: "roomId, userId (참여자 검증)"
+
+# ──────────────────────────────────────────────
+# 테스트 전략
+# ──────────────────────────────────────────────
+testing_strategy:
+  happy_path:
+    - "cursor=null, size=30 → 최신 메시지 30개 반환, hasNext=true (메시지가 30개 초과인 경우)"
+    - "cursor=null, size=30 → 전체 메시지 수가 30개 이하면 hasNext=false, nextCursor=null"
+    - "cursor=N → id < N인 메시지를 최신순으로 size개 반환"
+    - "여러 페이지 연속 조회 시 메시지 중복/누락 없음 (커서 연속성 검증)"
+
+  edge_cases:
+    - "메시지가 0개인 채팅방 조회 → 빈 리스트, hasNext=false, nextCursor=null"
+    - "cursor가 가장 오래된 메시지 id 이하 → 빈 리스트 반환"
+    - "size=1로 조회 → 1개만 반환, hasNext 정확히 계산"
+    - "roomId 미존재 → 40602 CHAT_ROOM_NOT_FOUND"
+    - "비참여자 요청 → 40604 NOT_CHAT_PARTICIPANT"
+
+  unit_test_targets:
+    - "ChatMessageGetService: cursor=null 시 최신 N개 반환 검증"
+    - "ChatMessageGetService: cursor 있을 때 해당 id 미만 메시지만 반환 검증"
+    - "ChatMessageGetService: size+1 조회 후 hasNext 계산 로직 검증"
+    - "ChatRoomUseCase.getMessages: 참여자 검증 실패 시 예외 위임 확인"
+
+# ──────────────────────────────────────────────
+# 확장성 노트
+# ──────────────────────────────────────────────
+extensibility:
+  future_considerations:
+    - "읽음 처리(read receipt) 추가 시 ChatRoomParticipant에 lastReadMessageId 컬럼 추가로 확장 가능"
+    - "메시지 검색(keyword) 기능 추가 시 Elasticsearch 또는 Full-Text Search 별도 검토 필요"
+    - "단체 채팅방 메시지 조회는 동일 API 재사용 가능 (roomId만 다름)"
