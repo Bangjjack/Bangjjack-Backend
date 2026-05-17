@@ -7,6 +7,8 @@ import com.project.bangjjack.domain.user.domain.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class RoommatePreferenceGetService {
@@ -16,5 +18,9 @@ public class RoommatePreferenceGetService {
     public RoommatePreference getByUser(User user) {
         return roommatePreferenceRepository.findByUserAndDeletedFalse(user)
                 .orElseThrow(ChecklistNotFoundException::new);
+    }
+
+    public Optional<RoommatePreference> findByUser(User user) {
+        return roommatePreferenceRepository.findByUserAndDeletedFalse(user);
     }
 }
