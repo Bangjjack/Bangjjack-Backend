@@ -1,10 +1,12 @@
 package com.project.bangjjack.domain.chat.presentation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
+import com.project.bangjjack.domain.chat.application.exception.NotSubscribedException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.global.common.exception.ApplicationException;
@@ -13,6 +15,7 @@ import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionSto
 import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,8 +23,6 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-
-import java.util.Set;
 
 @Slf4j
 @Component
@@ -47,13 +48,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         MemberPrincipal principal = getPrincipal(session);
 
         try {
-            WebSocketInboundMessage inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
+            WebSocketInboundMessage inbound = objectMapper.readValue(message.getPayload(),
+                    WebSocketInboundMessage.class);
 
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                     chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
-                    
+
                     sessionStore.subscribe(inbound.roomId(), session);
                     log.debug("[WS] 구독 등록 완료 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                 }
@@ -76,7 +78,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
                     // 3. 구독 여부 확인 (구독 안되어 있으면 40605 발생)
                     if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
-                        throw new com.project.bangjjack.domain.chat.application.exception.NotSubscribedException();
+                        throw new NotSubscribedException();
                     }
 
                     chatMessageUseCase.sendMessage(principal.getMemberId(), inbound.roomId(), request);
@@ -86,7 +88,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             log.warn("[WS] 도메인 예외 - userId={}, code={}, 원인={}",
                     principal.getMemberId(), e.getErrorCode().getCode(), e.getMessage());
             sendError(session, WebSocketErrorResponse.from(e));
-        } catch (com.fasterxml.jackson.core.JsonProcessingException | java.lang.IllegalArgumentException e) {
+        } catch (JsonProcessingException | IllegalArgumentException e) {
             log.warn("[WS] 메시지 파싱 오류 - userId={}, 원인={}", principal.getMemberId(), e.getMessage());
             sendError(session, WebSocketErrorResponse.unknown()); // 또는 전용 파싱 에러 응답
         } catch (Exception e) {
@@ -97,7 +99,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void sendError(WebSocketSession session, WebSocketErrorResponse error) {
-        if (!session.isOpen()) return;
+        if (!session.isOpen()) {
+            return;
+        }
         try {
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(error)));
         } catch (Exception ex) {
@@ -108,7 +112,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         MemberPrincipal principal = getPrincipal(session);
-        if (principal == null) return;
+        if (principal == null) {
+            return;
+        }
         sessionStore.removeAll(session);
         sessionRegistry.remove(principal.getMemberId(), session.getId());
         log.debug("[WS] 연결 해제 - userId={}, sessionId={}, status={}", principal.getMemberId(), session.getId(), status);
