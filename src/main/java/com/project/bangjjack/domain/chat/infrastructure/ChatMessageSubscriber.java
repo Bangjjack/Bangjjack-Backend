@@ -9,10 +9,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RPatternTopic;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
+@Profile("!test")
 @RequiredArgsConstructor
 public class ChatMessageSubscriber {
 
