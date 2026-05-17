@@ -27,4 +27,14 @@ public class BookmarkController {
         bookmarkUseCase.createBookmark(memberId, postId);
         return CommonResponse.success(BookmarkResponseCode.BOOKMARK_CREATED);
     }
+
+    @Operation(summary = "북마크 해제", description = "등록한 북마크를 해제합니다. 북마크가 없으면 404를 반환합니다.")
+    @DeleteMapping("/{postId}/bookmarks")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public CommonResponse<Void> deleteBookmark(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long postId) {
+        bookmarkUseCase.deleteBookmark(memberId, postId);
+        return CommonResponse.success(BookmarkResponseCode.BOOKMARK_DELETED);
+    }
 }
