@@ -16,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -54,9 +55,11 @@ class BookmarkUseCaseDeleteTest {
 
             given(bookmarkGetService.getActiveBookmark(userId, postId)).willReturn(bookmark);
 
-            // when & then
-            assertThatCode(() -> bookmarkUseCase.deleteBookmark(userId, postId))
-                    .doesNotThrowAnyException();
+            // when
+            bookmarkUseCase.deleteBookmark(userId, postId);
+
+            // then
+            assertThat(bookmark.isDeleted()).isTrue();
         }
 
         @Test
