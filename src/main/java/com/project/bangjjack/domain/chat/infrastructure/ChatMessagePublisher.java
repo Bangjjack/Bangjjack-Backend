@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RTopic;
 import org.redisson.api.RedissonClient;
-import org.redisson.client.RedisException;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
