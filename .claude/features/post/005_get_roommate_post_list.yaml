@@ -1,0 +1,152 @@
+# Feature Specification: 룸메이트 모집글 목록 조회
+# Status: Draft
+# Last Updated: 2026-05-10
+
+meta:
+  id: FEAT-011
+  title: 룸메이트 모집글 목록 조회
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    인증된 사용자가 캠퍼스 / 방 유형 필터를 적용하여 OPEN 상태 룸메이트 모집글 목록을 조회한다.
+    최신순 정렬, 페이지 기반 페이지네이션(Slice)을 사용한다.
+    AI 추천 및 매칭 % 기능은 별도 API로 구현 예정이므로 본 명세에서 제외한다.
+  user_story: >
+    As a 인증된 사용자, I want to 캠퍼스와 방 유형으로 필터링된 모집글 목록을 보고,
+    so that 나에게 맞는 룸메이트를 찾을 수 있다.
+  goals:
+    - OPEN 상태 모집글만 목록 반환
+    - 캠퍼스(글로벌/메디컬) 필터링
+    - 방 유형(2인실/3인1실/4인1실) 탭 필터링
+    - 최신순 정렬
+    - Slice 기반 페이지네이션 (hasNext 제공)
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/posts
+      summary: 룸메이트 모집글 목록 조회
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        query_params:
+          - name: campus
+            type: String (Enum)
+            required: false
+            values: "GLOBAL_CAMPUS | MEDICAL_CAMPUS"
+            note: "미전달 시 전체 캠퍼스 조회"
+          - name: roomSize
+            type: String (Enum)
+            required: false
+            values: "TWO_PERSON | THREE_PERSON | FOUR_PERSON"
+            note: "미전달 시 전체 방 유형 조회 (전체 탭)"
+          - name: page
+            type: Integer
+            required: false
+            default: 0
+          - name: size
+            type: Integer
+            required: false
+            default: 20
+      response:
+        dto: RoommatePostSummaryResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<SliceResponse<RoommatePostSummaryResponse>>
+        response_code: PostResponseCode.POST_LIST_FOUND
+        fields:
+          - name: postId
+            type: Long
+          - name: title
+            type: String
+          - name: description
+            type: String
+            note: "클라이언트에서 말줄임 처리"
+          - name: dormitory
+            type: String (Enum)
+          - name: roomSize
+            type: String (Enum)
+          - name: recruitMemberCount
+            type: Integer
+            note: "UI의 1/2 표기 중 분자: 모집 인원 수. 분모는 RoomSize에서 파생"
+          - name: createdAt
+            type: LocalDateTime
+            note: "클라이언트에서 '3일 전' 등 상대 시간으로 변환"
+
+  filtering_logic:
+    - "campus 파라미터 → 해당 캠퍼스 소속 Dormitory 값들로 변환하여 dormitory IN (...) 필터 적용"
+    - "roomSize 파라미터 → roomSize = ? 필터 적용"
+    - "status = OPEN 고정 필터 (CLOSED, 삭제된 게시글 제외)"
+    - "정렬: createdAt DESC (최신순)"
+
+  pagination:
+    type: Slice (Spring Data)
+    note: >
+      Slice는 count 쿼리 없이 hasNext만 반환하여 무한 스크롤에 적합.
+      SliceResponse<T>는 content(List), hasNext(boolean) 포함.
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommatePostController)
+      action: "campus, roomSize, Pageable 파라미터 수신 후 RoommatePostUseCase.getPostList() 호출"
+    - step: 2
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostGetService.getPostList(campus, roomSize, pageable) 호출"
+    - step: 3
+      layer: Domain Service (RoommatePostGetService)
+      action: "campus → Dormitory 목록 변환 후 RoommatePostRepository 조회 (status=OPEN, 최신순)"
+    - step: 4
+      layer: UseCase (RoommatePostUseCase)
+      action: "Slice<RoommatePost> → Slice<RoommatePostSummaryResponse> 변환 후 반환"
+
+  new_components:
+    response_dto:
+      - name: RoommatePostSummaryResponse
+        location: application/dto/response/
+        note: "static factory method from(RoommatePost) 사용"
+    response_code:
+      - name: POST_LIST_FOUND
+        code: 200
+        message: "룸메이트 모집글 목록 조회에 성공했습니다."
+    repository_query:
+      - name: findPostList
+        type: "QueryDSL (RoommatePostRepositoryImpl)"
+        note: >
+          campus, roomSize optional 조건은 BooleanExpression null 반환으로 처리.
+          campus에 매핑된 Dormitory가 없으면 항상-false 조건으로 빈 결과 반환.
+          status=OPEN, deleted=false 고정 필터.
+
+  error_codes:
+    note: "목록 조회는 별도 에러 없음. 결과 없을 경우 빈 배열 반환."
+
+  validation_rules:
+    - "status=OPEN인 게시글만 반환 (CLOSED, deleted=true 제외)"
+    - "campus 값이 유효하지 않으면 400 반환"
+    - "roomSize 값이 유효하지 않으면 400 반환"
+    - "인증된 사용자(MEMBER)만 조회 가능"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "필터 없이 조회 시 전체 OPEN 게시글 반환"
+    - "campus=GLOBAL_CAMPUS 필터 시 글로벌 캠퍼스 기숙사 게시글만 반환"
+    - "roomSize=TWO_PERSON 필터 시 2인실 게시글만 반환"
+    - "campus + roomSize 동시 필터 적용 정상 동작"
+    - "CLOSED 게시글은 결과에 포함되지 않음"
+    - "hasNext=false 시 마지막 페이지 확인"
+  edge_cases:
+    - "조건에 맞는 게시글 없을 경우 빈 배열 + hasNext=false 반환"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "AI 추천 탭 및 매칭 % 기능은 별도 AI API로 구현 예정, 본 명세 제외"
+  - "campus 필터는 Dormitory.ofCampus()로 변환. 매핑된 기숙사가 없는 캠퍼스(MEDICAL_CAMPUS 등)는 빈 목록 반환"
+  - "QueryDSL 사용 확정 (RoommatePostRepositoryImpl)"
+  - "Slice 사용으로 count 쿼리 제거, 무한 스크롤 대응"

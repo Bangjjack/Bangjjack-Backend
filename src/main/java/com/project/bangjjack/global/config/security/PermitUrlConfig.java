@@ -14,6 +14,8 @@ public class PermitUrlConfig {
                 "/swagger-ui/**",
                 "/swagger-resources/**",
                 "/ws/chat/**"
+                "/actuator/health",
+                "/actuator/health/**"
         };
     }
 }

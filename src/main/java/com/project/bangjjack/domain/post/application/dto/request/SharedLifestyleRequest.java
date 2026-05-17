@@ -6,7 +6,7 @@ import com.project.bangjjack.domain.post.domain.entity.PhoneCall;
 import com.project.bangjjack.domain.post.domain.entity.Recycling;
 import jakarta.validation.constraints.NotNull;
 
-public record CreateSharedLifestyleRequest(
+public record SharedLifestyleRequest(
 
         @NotNull Boolean roomTrashBinSharing,
 
