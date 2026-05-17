@@ -2,11 +2,13 @@ package com.project.bangjjack.domain.chat.application.usecase;
 
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
+import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +25,7 @@ public class ChatMessageUseCase {
 
     private final ChatRoomGetService chatRoomGetService;
     private final ChatSaveService chatSaveService;
+    private final ChatMessageGetService chatMessageGetService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -45,4 +48,8 @@ public class ChatMessageUseCase {
         log.debug("[채팅 송신] 브로드캐스트 이벤트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
     }
 
+    public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
+        chatRoomGetService.getByIdAndValidateParticipant(roomId, currentUserId);
+        return chatMessageGetService.getMessages(roomId, cursor, size);
+    }
 }
