@@ -20,6 +20,10 @@ public class BookmarkGetService {
         return bookmarkRepository.existsByUserAndPostAndDeletedFalse(user, post);
     }
 
+    public boolean existsActiveBookmark(Long userId, Long postId) {
+        return bookmarkRepository.findActiveBookmark(userId, postId).isPresent();
+    }
+
     public PostBookmark getActiveBookmark(Long userId, Long postId) {
         return bookmarkRepository.findActiveBookmark(userId, postId)
                 .orElseThrow(BookmarkNotFoundException::new);

@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
+import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
@@ -37,6 +38,7 @@ public class RoommatePostUseCase {
     private final RoommatePostCreateService roommatePostCreateService;
     private final RoommatePostDeleteService roommatePostDeleteService;
     private final RoommatePostUpdateService roommatePostUpdateService;
+    private final BookmarkGetService bookmarkGetService;
 
     @Transactional
     public void createPost(Long userId, CreateRoommatePostRequest request) {
@@ -89,7 +91,8 @@ public class RoommatePostUseCase {
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId);
         RoommatePost post = sharedLifestyle.getPost();
         boolean isOwner = post.getUser().getId().equals(userId);
-        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner);
+        boolean isBookmarked = bookmarkGetService.existsActiveBookmark(userId, postId);
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked);
     }
 
     @Transactional
