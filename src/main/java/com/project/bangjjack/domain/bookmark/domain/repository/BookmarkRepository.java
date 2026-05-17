@@ -15,6 +15,8 @@ public interface BookmarkRepository extends JpaRepository<PostBookmark, Long> {
 
     boolean existsByUserAndPostAndDeletedFalse(User user, RoommatePost post);
 
+    boolean existsByUserIdAndPostIdAndDeletedFalse(Long userId, Long postId);
+
     @Query("SELECT b FROM PostBookmark b WHERE b.user.id = :userId AND b.post.id = :postId AND b.deleted = false")
     Optional<PostBookmark> findActiveBookmark(@Param("userId") Long userId, @Param("postId") Long postId);
 

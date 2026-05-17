@@ -21,7 +21,7 @@ public class BookmarkGetService {
     }
 
     public boolean existsActiveBookmark(Long userId, Long postId) {
-        return bookmarkRepository.findActiveBookmark(userId, postId).isPresent();
+        return bookmarkRepository.existsByUserIdAndPostIdAndDeletedFalse(userId, postId);
     }
 
     public PostBookmark getActiveBookmark(Long userId, Long postId) {
