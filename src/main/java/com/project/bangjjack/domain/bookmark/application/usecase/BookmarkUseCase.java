@@ -33,4 +33,10 @@ public class BookmarkUseCase {
 
         bookmarkCreateService.save(PostBookmark.create(user, post));
     }
+
+    @Transactional
+    public void deleteBookmark(Long userId, Long postId) {
+        PostBookmark bookmark = bookmarkGetService.getActiveBookmark(userId, postId);
+        bookmark.softDelete();
+    }
 }
