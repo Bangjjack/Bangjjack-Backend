@@ -1,10 +1,11 @@
 package com.project.bangjjack.domain.chat.application;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
-import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
+import com.project.bangjjack.domain.chat.domain.entity.Chat;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -16,9 +17,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,16 +36,25 @@ class ChatMessageUseCaseGetMessagesTest {
     private ChatRoomGetService chatRoomGetService;
 
     @Mock
-    private ChatSaveService chatSaveService;
+    private ChatSaveService chatSaveService; // ChatMessageUseCase 의존성 주입에 필요
 
     @Mock
     private ChatMessageGetService chatMessageGetService;
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private ApplicationEventPublisher eventPublisher; // ChatMessageUseCase 의존성 주입에 필요
 
     @InjectMocks
     private ChatMessageUseCase chatMessageUseCase;
+
+    private final AtomicLong idSequence = new AtomicLong(1L);
+
+    private Chat createChat() {
+        ChatRoom chatRoom = ChatRoom.createDirect(1L, "DM_1_2");
+        Chat chat = Chat.create(1L, chatRoom, "테스트 메시지");
+        ReflectionTestUtils.setField(chat, "id", idSequence.getAndIncrement());
+        return chat;
+    }
 
     @Nested
     @DisplayName("채팅 메시지 조회 시")
@@ -54,19 +66,13 @@ class ChatMessageUseCaseGetMessagesTest {
             // given
             Long currentUserId = 1L;
             Long roomId = 10L;
-            Long cursor = null;
             int size = 30;
+            List<Chat> chats = List.of(createChat());
 
-            ChatMessagePageResponse expected = new ChatMessagePageResponse(
-                    List.of(new ChatMessageResponse(5L, currentUserId, "안녕", LocalDateTime.now())),
-                    null,
-                    false
-            );
-
-            given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(expected);
+            given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(chats);
 
             // when
-            ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentUserId, roomId, cursor, size);
+            ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentUserId, roomId, null, size);
 
             // then
             assertThat(response.messages()).hasSize(1);
@@ -76,32 +82,59 @@ class ChatMessageUseCaseGetMessagesTest {
         }
 
         @Test
-        @DisplayName("cursor와 함께 조회하면 해당 커서 이후 메시지와 다음 페이지 정보를 반환한다")
+        @DisplayName("size보다 많은 메시지가 있으면 hasNext=true이고 nextCursor가 반환된다")
+        void size보다_많으면_hasNext가_true이다() {
+            // given
+            Long roomId = 10L;
+            int size = 2;
+            // size+1개 반환 (도메인 서비스가 size+1 조회 → UseCase가 잘라냄)
+            List<Chat> fetched = List.of(createChat(), createChat(), createChat());
+
+            given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(fetched);
+
+            // when
+            ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, null, size);
+
+            // then
+            assertThat(response.messages()).hasSize(size);
+            assertThat(response.hasNext()).isTrue();
+            assertThat(response.nextCursor()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("cursor와 함께 조회하면 nextCursor와 hasNext를 정확하게 계산한다")
         void cursor와_함께_조회하면_페이지네이션_정보를_반환한다() {
             // given
-            Long currentUserId = 1L;
             Long roomId = 10L;
             Long cursor = 50L;
             int size = 2;
+            List<Chat> fetched = List.of(createChat(), createChat());
 
-            ChatMessagePageResponse expected = new ChatMessagePageResponse(
-                    List.of(
-                            new ChatMessageResponse(49L, currentUserId, "메시지1", LocalDateTime.now()),
-                            new ChatMessageResponse(48L, currentUserId, "메시지2", LocalDateTime.now())
-                    ),
-                    48L,
-                    true
-            );
-
-            given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(expected);
+            given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(fetched);
 
             // when
-            ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentUserId, roomId, cursor, size);
+            ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, cursor, size);
 
             // then
             assertThat(response.messages()).hasSize(2);
-            assertThat(response.hasNext()).isTrue();
-            assertThat(response.nextCursor()).isEqualTo(48L);
+            assertThat(response.hasNext()).isFalse();
+            assertThat(response.nextCursor()).isNull();
+        }
+
+        @Test
+        @DisplayName("메시지가 없으면 빈 리스트와 hasNext=false를 반환한다")
+        void 메시지가_없으면_빈_리스트를_반환한다() {
+            // given
+            Long roomId = 10L;
+            given(chatMessageGetService.getMessages(roomId, null, 30)).willReturn(Collections.emptyList());
+
+            // when
+            ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, null, 30);
+
+            // then
+            assertThat(response.messages()).isEmpty();
+            assertThat(response.hasNext()).isFalse();
+            assertThat(response.nextCursor()).isNull();
         }
 
         @Test

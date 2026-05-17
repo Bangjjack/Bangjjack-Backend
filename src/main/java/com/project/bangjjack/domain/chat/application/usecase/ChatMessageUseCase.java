@@ -3,6 +3,7 @@ package com.project.bangjjack.domain.chat.application.usecase;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
@@ -16,6 +17,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -50,6 +53,17 @@ public class ChatMessageUseCase {
 
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         chatRoomGetService.getByIdAndValidateParticipant(roomId, currentUserId);
-        return chatMessageGetService.getMessages(roomId, cursor, size);
+
+        List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
+
+        boolean hasNext = fetched.size() > size;
+        List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
+        Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
+
+        List<ChatMessageResponse> messages = content.stream()
+                .map(ChatMessageResponse::from)
+                .toList();
+
+        return new ChatMessagePageResponse(messages, nextCursor, hasNext);
     }
 }
