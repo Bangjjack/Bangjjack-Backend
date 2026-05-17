@@ -30,8 +30,7 @@ public class ChatMessageUseCase {
         // TODO: 운영 환경 전환 시 content 제거 또는 contentLength로 변경 (PII)
         log.debug("[채팅 송신] 시작 - senderId={}, roomId={}, content='{}'", senderId, roomId, request.content());
 
-        // ChatWebSocketHandler에서 이미 validateParticipant를 통해 존재 여부와 참여 권한을 확인했음
-        ChatRoom chatRoom = chatRoomGetService.getById(roomId);
+        ChatRoom chatRoom = chatRoomGetService.getByIdAndValidateParticipant(roomId, senderId);
 
         if (chatRoom.getStatus() == RoomStatus.CLOSED) {
             log.warn("[채팅 송신] 종료된 채팅방 전송 시도 - senderId={}, roomId={}", senderId, roomId);

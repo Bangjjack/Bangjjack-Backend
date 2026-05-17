@@ -66,17 +66,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                 case SEND -> {
                     log.debug("[WS] 메시지 송신 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
 
-                    // 1. 메시지 내용 검증
                     SendChatMessageRequest request = new SendChatMessageRequest(inbound.content());
                     Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
                     if (!violations.isEmpty()) {
                         throw new InvalidMessageContentException();
                     }
 
-                    // 2. 채팅방 존재 여부 및 참여 권한 확인 (존재하지 않으면 40602 발생)
-                    chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
-
-                    // 3. 구독 여부 확인 (구독 안되어 있으면 40605 발생)
                     if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
                         throw new NotSubscribedException();
                     }

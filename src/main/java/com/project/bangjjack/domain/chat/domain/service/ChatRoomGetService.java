@@ -41,4 +41,12 @@ public class ChatRoomGetService {
         }
     }
 
+    public ChatRoom getByIdAndValidateParticipant(Long roomId, Long userId) {
+        ChatRoom chatRoom = getById(roomId);
+        if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)) {
+            throw new NotChatParticipantException();
+        }
+        return chatRoom;
+    }
+
 }
