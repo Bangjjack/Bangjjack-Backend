@@ -33,6 +33,9 @@ dependencies {
     // Redis - Redisson
     implementation 'org.redisson:redisson:4.1.0'
 
+    // WebSocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
     // QueryDSL
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'

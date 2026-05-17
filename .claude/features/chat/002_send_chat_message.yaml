@@ -1,0 +1,223 @@
+# Feature Specification: 채팅 메시지 전송
+# Status: Done
+# Last Updated: 2026-05-13
+
+meta:
+  id: FEAT-CHAT-002
+  title: 채팅 메시지 전송
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    채팅방 참여자가 순수 WebSocket(Raw WebSocket, STOMP 미사용)으로 메시지를 전송하면,
+    DB에 동기 저장 후 트랜잭션 커밋 시점에 Redis Pub/Sub을 통해 같은 방 구독자 전체에게 broadcast한다.
+    Redis 장애 시 WebSocketBroadcaster(WebSocketSessionStore 기반) fallback으로 단일 인스턴스 내 전달을 보장한다.
+    메시지 전송 전 반드시 SUBSCRIBE 메시지로 방을 구독해야 하며, 미구독 상태에서 SEND 시 40605 에러를 반환한다.
+  user_story: >
+    As a 채팅방 참여자, I want to 실시간으로 메시지를 전송하고 싶다,
+    so that 룸메이트 후보와 즉각적인 대화를 나눌 수 있다.
+  goals:
+    - 순수 WebSocket 기반 실시간 메시지 전송 (STOMP 미사용)
+    - DB 동기 저장 후 @TransactionalEventListener(AFTER_COMMIT)으로 Redis 발행 시점 보장
+    - Redis Pub/Sub 기반 broadcast (다중 인스턴스 대응)
+    - Redis 장애 시 WebSocketBroadcaster fallback
+    - DB auto-increment id 기반 메시지 순서 보장
+    - WebSocketSessionRegistry(Redis)로 userId당 최신 세션 1개 추적 (Last-Connection-Wins)
+
+# ──────────────────────────────────────────────
+# WebSocket 명세
+# ──────────────────────────────────────────────
+technical_spec:
+  protocol: Raw WebSocket (STOMP/SockJS 미사용)
+
+  websocket:
+    connect_endpoint: /ws/chat
+    auth: >
+      HTTP 핸드셰이크 시 JwtWebSocketHandshakeInterceptor에서 Authorization 헤더의 Bearer JWT를 검증.
+      검증 성공 시 MemberPrincipal을 WebSocketSession attributes에 저장.
+
+    message_types:
+      - type: SUBSCRIBE
+        direction: client → server
+        description: 채팅방 구독 등록. 구독 전 참여 권한 검증 수행.
+        payload:
+          - name: type
+            value: "SUBSCRIBE"
+          - name: roomId
+            type: Long
+            required: true
+
+      - type: UNSUBSCRIBE
+        direction: client → server
+        description: 채팅방 구독 해제.
+        payload:
+          - name: type
+            value: "UNSUBSCRIBE"
+          - name: roomId
+            type: Long
+            required: true
+
+      - type: SEND
+        direction: client → server
+        description: 메시지 전송. 구독된 방에만 전송 가능.
+        payload:
+          - name: type
+            value: "SEND"
+          - name: roomId
+            type: Long
+            required: true
+          - name: content
+            type: String
+            required: true
+
+      - type: ERROR
+        direction: server → client
+        description: 도메인/파싱 예외 발생 시 서버가 클라이언트에게 전송.
+        payload:
+          - name: type
+            value: "ERROR"
+          - name: code
+            type: int
+          - name: message
+            type: String
+
+    broadcast:
+      description: "SEND 성공 후 동일 채팅방 구독 세션 전체에 broadcast됩니다."
+      dto: ChatMessageBroadcast
+      fields:
+        - name: messageId
+          type: Long
+          note: DB 저장 완료 후 채번된 id (클라이언트 재정렬 기준)
+        - name: roomId
+          type: Long
+        - name: senderId
+          type: Long
+        - name: content
+          type: String
+        - name: createdAt
+          type: LocalDateTime
+          note: DB 저장 시각 (ISO-8601)
+
+# ──────────────────────────────────────────────
+# 데이터 흐름
+# ──────────────────────────────────────────────
+  data_flow:
+    - step: 1
+      layer: Presentation (ChatWebSocketHandler)
+      action: >
+        WebSocketSession attributes에서 MemberPrincipal 추출 → userId 확보.
+        JSON 파싱 → WebSocketInboundMessage { type, roomId, content }.
+        type에 따라 분기 처리.
+
+    - step: 2
+      layer: Presentation (ChatWebSocketHandler) — SUBSCRIBE 분기
+      action: >
+        ChatRoomGetService.validateParticipant(roomId, userId) 호출.
+        방 미존재 시 40602, 미참여자 시 40604 ERROR 응답.
+        검증 통과 시 WebSocketSessionStore에 세션 등록 (구독 처리).
+
+    - step: 3
+      layer: Presentation (ChatWebSocketHandler) — SEND 분기
+      action: >
+        ChatRoomGetService.validateParticipant(roomId, userId) 호출 (방 존재 + 참여 권한).
+        WebSocketSessionStore.isSubscribed(roomId, session) 확인 → 미구독 시 40605 ERROR 응답.
+        검증 통과 시 ChatMessageUseCase.sendMessage(senderId, roomId, request) 호출.
+
+    - step: 4
+      layer: UseCase (ChatMessageUseCase)
+      action: >
+        ChatRoomGetService.getById(roomId)로 ChatRoom 조회.
+        status=CLOSED 검증 (CLOSED 시 40603).
+        ChatSaveService.save(senderId, chatRoom, content) 호출 (동기).
+        저장 완료 후 ChatMessageBroadcast 이벤트 발행 (ApplicationEventPublisher).
+
+    - step: 5
+      layer: Domain (ChatSaveService)
+      action: >
+        Chat.create(senderId, room, content) 생성.
+        ChatRepository.save() 동기 호출 → messageId 반환.
+        @Transactional 내에서 수행, 저장 실패 시 예외 전파 후 트랜잭션 롤백.
+
+    - step: 6
+      layer: Infrastructure (ChatMessagePublisher) — @TransactionalEventListener(AFTER_COMMIT)
+      action: >
+        트랜잭션 커밋 확정 후에만 실행.
+        Redis Pub/Sub channel "chat:room:{roomId}" 에 ChatMessageBroadcast JSON 발행.
+        RedisException 발생 시 WebSocketBroadcaster.broadcastToRoom() fallback 직접 호출.
+
+    - step: 7
+      layer: Infrastructure (ChatMessageSubscriber)
+      action: >
+        Redis 패턴 구독자(chat:room:*)가 메시지 수신 →
+        ChatMessageBroadcast 역직렬화 후 WebSocketBroadcaster.broadcastToRoom() 호출.
+
+    - step: 8
+      layer: Infrastructure (WebSocketBroadcaster)
+      action: >
+        WebSocketSessionStore에서 roomId에 구독된 세션 목록 조회.
+        열린 세션에만 TextMessage(JSON) 전송.
+        ConcurrentWebSocketSessionDecorator로 래핑되어 동시 전송 안전성 보장.
+
+  error_codes:
+    domain: chat
+    range: "406xx"
+    codes:
+      - code: 40602
+        name: CHAT_ROOM_NOT_FOUND
+        message: "채팅방을 찾을 수 없습니다."
+        http: 404
+        trigger: roomId에 해당하는 ChatRoom 미존재 또는 soft delete된 경우
+        note: FEAT-CHAT-001에서 정의된 공용 코드 재사용
+      - code: 40603
+        name: CHAT_ROOM_CLOSED
+        message: "종료된 채팅방에는 메시지를 전송할 수 없습니다."
+        http: 400
+        trigger: ChatRoom.status = CLOSED
+      - code: 40604
+        name: NOT_CHAT_PARTICIPANT
+        message: "채팅방 참여자가 아닙니다."
+        http: 403
+        trigger: senderId가 ChatRoomParticipant에 없거나 soft delete된 경우
+      - code: 40605
+        name: NOT_SUBSCRIBED
+        message: "먼저 해당 채팅방을 구독해야 합니다."
+        http: 400
+        trigger: SEND 시 해당 세션이 roomId를 구독하지 않은 경우
+
+# ──────────────────────────────────────────────
+# 테스트 전략
+# ──────────────────────────────────────────────
+testing_strategy:
+  happy_path:
+    - "유효한 SUBSCRIBE → 구독 등록 확인, ERROR 메시지 미수신 확인"
+    - "구독 후 SEND → Chat 엔티티 DB 저장 확인, 동일 방 구독 세션 전체 broadcast 확인"
+    - "탭 A, B 동시 구독 → 탭 A SEND 시 탭 B도 ChatMessageBroadcast 수신 확인"
+    - "이모지/특수문자/긴 메시지 → 문자 깨짐 없이 수신 및 DB TEXT 타입 저장 확인"
+    - "연속 메시지 전송 시 messageId 오름차순 보장 확인"
+
+  edge_cases:
+    - "존재하지 않는 roomId 구독 시도 → ERROR 40602"
+    - "미참여 방 구독 시도 → ERROR 40604"
+    - "구독 없이 SEND → ERROR 40605"
+    - "status=CLOSED 채팅방 SEND → ERROR 40603"
+    - "존재하지 않는 roomId SEND → ERROR 40602"
+    - "Redis 다운 시 WebSocketBroadcaster fallback 경로로 broadcast 전달 확인"
+    - "ChatRepository.save() 실패 → 트랜잭션 롤백, broadcast 미발행 확인"
+
+  unit_test_targets:
+    - "ChatMessageUseCase: CLOSED 방 예외 분기 (Mock Service)"
+    - "ChatMessagePublisher: Redis 정상 시 publish 호출, 장애 시 fallback 전환 검증"
+    - "ChatRoomGetService.validateParticipant: 방 미존재 → 40602, 미참여 → 40604"
+    - "WebSocketSessionStore.isSubscribed: 구독/미구독 상태 정확성 검증"
+
+# ──────────────────────────────────────────────
+# 주의사항
+# ──────────────────────────────────────────────
+notes:
+  - "메시지 이력 조회 API (GET /api/v1/chat/rooms/{roomId}/messages) 는 별도 스펙 작성 필요."
+  - "읽음 처리 (ChatRoomParticipant.last_read_message_id 갱신) 는 별도 스펙 작성 필요."
+  - "다중 인스턴스 배포 시 각 인스턴스가 Redis Pub/Sub 구독자로 등록되어야 broadcast 정상 동작."
+  - "WebSocket 인증 실패 (JWT 만료/변조) 시 핸드셰이크 단계에서 거부됨."
+  - "WebSocketSessionRegistry는 userId → sessionId 매핑을 Redis에 보관 (Last-Connection-Wins). 세션 강제 종료는 미구현."
+  - "STOMP 전환 시: @EnableWebSocketMessageBroker 기반 StompWebSocketConfig 추가 후 WebSocketBroadcaster → StompBroadcaster 교체."

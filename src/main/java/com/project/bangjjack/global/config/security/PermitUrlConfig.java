@@ -13,6 +13,7 @@ public class PermitUrlConfig {
                 "/v3/api-docs/**",
                 "/swagger-ui/**",
                 "/swagger-resources/**",
+                "/ws/chat/**"
                 "/actuator/health",
                 "/actuator/health/**"
         };

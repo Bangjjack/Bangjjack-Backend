@@ -38,3 +38,10 @@ jwt:
   access:
     secret: ${JWT_ACCESS}
     expiration-seconds: 259200
+
+logging:
+  level:
+    com.project.bangjjack.global.config.websocket: DEBUG
+    com.project.bangjjack.domain.chat: DEBUG
+    org.springframework.web.socket: DEBUG
+    org.springframework.messaging.simp: DEBUG

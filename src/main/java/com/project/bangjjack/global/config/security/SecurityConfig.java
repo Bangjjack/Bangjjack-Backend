@@ -3,6 +3,7 @@ package com.project.bangjjack.global.config.security;
 import com.project.bangjjack.global.config.security.oauth2.CustomOAuth2FailureHandler;
 import com.project.bangjjack.global.config.security.oauth2.CustomOAuth2SuccessHandler;
 import com.project.bangjjack.global.config.security.oauth2.CustomOAuth2UserService;
+import com.project.bangjjack.global.config.websocket.WebSocketDiagnosticFilter;
 import com.project.bangjjack.global.jwt.JwtAuthenticationFilter;
 import com.project.bangjjack.global.jwt.JwtAuthenticator;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.session.DisableEncodeUrlFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -55,6 +57,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(permitUrlConfig.publicUrls()).permitAll()
                         .anyRequest().authenticated())
+                .addFilterBefore(new WebSocketDiagnosticFilter(), DisableEncodeUrlFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtAuthenticator),
                         UsernamePasswordAuthenticationFilter.class);
 
