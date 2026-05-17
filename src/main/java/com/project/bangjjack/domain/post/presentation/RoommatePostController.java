@@ -2,7 +2,9 @@ package com.project.bangjjack.domain.post.presentation;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.MatchRateResponse;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
+import com.project.bangjjack.domain.post.application.usecase.MatchAnalysisUseCase;
 import com.project.bangjjack.domain.post.application.usecase.RoommatePostUseCase;
 import com.project.bangjjack.domain.post.presentation.response.PostResponseCode;
 import com.project.bangjjack.global.annotation.CurrentMemberId;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 public class RoommatePostController {
 
     private final RoommatePostUseCase roommatePostUseCase;
+    private final MatchAnalysisUseCase matchAnalysisUseCase;
 
     @Operation(summary = "룸메이트 모집글 작성", description = "온보딩, 체크리스트, 선호도 등록을 완료한 사용자가 모집글을 작성합니다.")
     @PostMapping
@@ -57,5 +60,13 @@ public class RoommatePostController {
             @PathVariable Long postId) {
         roommatePostUseCase.deletePost(memberId, postId);
         return CommonResponse.success(PostResponseCode.POST_DELETED);
+    }
+
+    @Operation(summary = "룸메이트 매칭률 분석", description = "요청자와 모집글 작성자의 체크리스트·선호도 데이터를 AI 분석 API에 전달하여 매칭률, 잘 맞는 항목, 영향 큰 요소를 반환합니다. 본인 글은 분석 불가하며, 양측 모두 체크리스트·선호도 등록이 완료되어 있어야 합니다.")
+    @GetMapping("/{postId}/match-rate")
+    public CommonResponse<MatchRateResponse> getMatchRate(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long postId) {
+        return CommonResponse.success(PostResponseCode.MATCH_RATE_ANALYZED, matchAnalysisUseCase.analyzeMatchRate(memberId, postId));
     }
 }
