@@ -1,5 +1,12 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.postOwnedBy;
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.sharedLifestyleFor;
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.userWithId;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
@@ -13,8 +20,12 @@ import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.Recycling;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
 import com.project.bangjjack.domain.user.domain.entity.User;
+import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,18 +34,19 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.postOwnedBy;
-import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.sharedLifestyleFor;
-import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.userWithId;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.BDDMockito.given;
-
 @ExtendWith(MockitoExtension.class)
 class RoommatePostUseCaseUpdateTest {
 
     @Mock
+    private UserGetService userGetService;
+    @Mock
     private RoommatePostGetService roommatePostGetService;
+    @Mock
+    private RoommatePostCreateService roommatePostCreateService;
+    @Mock
+    private RoommatePostDeleteService roommatePostDeleteService;
+    @Mock
+    private RoommatePostUpdateService roommatePostUpdateService;
 
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;
@@ -92,7 +104,8 @@ class RoommatePostUseCaseUpdateTest {
                     .willThrow(PostNotFoundException.class);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.updatePost(1L, nonExistentPostId, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
+            assertThatThrownBy(() -> roommatePostUseCase.updatePost(1L, nonExistentPostId,
+                    validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostNotFoundException.class);
         }
 
@@ -108,7 +121,8 @@ class RoommatePostUseCaseUpdateTest {
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.updatePost(requesterId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
+            assertThatThrownBy(
+                    () -> roommatePostUseCase.updatePost(requesterId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostUpdateForbiddenException.class);
         }
 
@@ -123,7 +137,8 @@ class RoommatePostUseCaseUpdateTest {
             given(roommatePostGetService.getById(1L)).willReturn(closedPost);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
+            assertThatThrownBy(
+                    () -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 1)))
                     .isInstanceOf(PostNotEditableException.class);
         }
 
@@ -138,7 +153,8 @@ class RoommatePostUseCaseUpdateTest {
             given(roommatePostGetService.getById(1L)).willReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 2)))
+            assertThatThrownBy(
+                    () -> roommatePostUseCase.updatePost(userId, 1L, validUpdateRequest(RoomSize.TWO_PERSON, 2)))
                     .isInstanceOf(InvalidRecruitMemberCountException.class);
         }
     }
