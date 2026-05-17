@@ -1,5 +1,7 @@
 package com.project.bangjjack.domain.bookmark.domain.service;
 
+import com.project.bangjjack.domain.bookmark.application.exception.BookmarkNotFoundException;
+import com.project.bangjjack.domain.bookmark.domain.entity.PostBookmark;
 import com.project.bangjjack.domain.bookmark.domain.repository.BookmarkRepository;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -14,5 +16,10 @@ public class BookmarkGetService {
 
     public boolean existsActiveBookmark(User user, RoommatePost post) {
         return bookmarkRepository.existsByUserAndPostAndDeletedFalse(user, post);
+    }
+
+    public PostBookmark getActiveBookmark(Long userId, Long postId) {
+        return bookmarkRepository.findActiveBookmark(userId, postId)
+                .orElseThrow(BookmarkNotFoundException::new);
     }
 }
