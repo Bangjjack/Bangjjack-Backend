@@ -6,6 +6,8 @@ import com.project.bangjjack.domain.bookmark.domain.repository.BookmarkRepositor
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -21,5 +23,9 @@ public class BookmarkGetService {
     public PostBookmark getActiveBookmark(Long userId, Long postId) {
         return bookmarkRepository.findActiveBookmark(userId, postId)
                 .orElseThrow(BookmarkNotFoundException::new);
+    }
+
+    public Slice<PostBookmark> getBookmarkedPosts(Long userId, Pageable pageable) {
+        return bookmarkRepository.findBookmarkedPosts(userId, pageable);
     }
 }
