@@ -1,6 +1,6 @@
 # Feature Specification: AI 기반 룸메이트 매칭률 분석
 # Status: Draft
-# Last Updated: 2026-05-18 (revised: PII 보호 — AI 클라이언트 요청/응답 body 로깅 정책 변경)
+# Last Updated: 2026-05-18 (revised: PII 보호 — AI 클라이언트 요청 body 로깅 완전 제거)
 
 meta:
   id: FEAT-011
@@ -220,7 +220,6 @@ configuration:
         base-url: "http://ceprj.gachon.ac.kr:60007"
         connect-timeout: 3000      # ms
         read-timeout: 5000         # ms
-        log-request-body: false    # 기본값. local 프로파일에서만 true로 오버라이드
   binding_class:
     name: AiMatchApiProperties
     annotation: "@ConfigurationProperties(prefix = \"ai.match-api\")"
@@ -228,7 +227,6 @@ configuration:
       - baseUrl: String
       - connectTimeout: int (ms)
       - readTimeout: int (ms)
-      - logRequestBody: boolean   # PII 보호용 토글
 
 # ============================================================
 # 구성 요소 (Domain Port / Adapter / UseCase)
@@ -287,8 +285,11 @@ components:
       - "응답 body null → AiServiceUnavailableException"
     logging_policy:
       request_body:
-        production: "method + URI + body 바이트 길이만 기록 (PII 보호)"
-        local: "ai.match-api.log-request-body=true로 풀 body 로깅 허용 (개발 편의)"
+        rule: "모든 환경에서 body 내용 로깅 금지 — method + URI + body 바이트 길이만 기록"
+        reason: >
+          요청 body에 사용자 민감정보(gender, sleep_habits, smoking, noise_sensitivity, priority 등)가 포함되어
+          GDPR/CCPA/개인정보보호법상 데이터 최소화 원칙에 위배될 수 있음. 환경 토글로도 코드 경로 자체를 남기지 않음.
+          디버깅 필요 시 단위 테스트(AiMatchRequestSerializationTest) 또는 DB 상태로 페이로드 재구성 가능.
       error_response:
         rule: "응답 body 절대 로깅 금지 — status 코드만 기록"
         reason: >
@@ -396,10 +397,10 @@ notes:
     외부 AI 호출(matchAnalysisPort.analyze)은 트랜잭션 밖에서 실행. 외부 API 지연(최대 ~8초) 동안 DB
     커넥션이 점유되는 안티패턴 제거. UseCase 자체에는 @Transactional 미적용.
   - >
-    [PII 보호] AI 클라이언트 로깅 정책 — 운영 환경에서는 요청 body 내용을 로깅하지 않고
-    (메서드·URI·바이트 길이만), 에러 응답 body도 절대 로깅하지 않음 (status 코드만).
-    AI 서버 응답이 우리 요청을 echo back 하는 경우 사용자 민감정보가 로그로 새는 것을 방지.
-    로컬 개발 시에만 application-local.yaml의 ai.match-api.log-request-body=true로 풀 로깅 활성화.
+    [PII 보호] AI 클라이언트 로깅 정책 — 모든 환경에서 요청 body 내용을 로깅하지 않음
+    (메서드·URI·바이트 길이만 기록). 에러 응답 body도 절대 로깅하지 않음 (status 코드만).
+    환경 토글로 가변화하지 않음 — GDPR/CCPA/개인정보보호법상 데이터 최소화 원칙에 따라
+    PII 로깅 코드 경로 자체를 코드베이스에서 제거. 로컬 디버깅은 단위 테스트나 DB 상태 확인으로 대체.
   - "AI API 응답 필드 그대로 노출하지 않음. matchedFeatures/topInfluentialFeatures → matchedAttributes/recommendedTopics 로 네이밍 변경 + 한국어 라벨 변환."
   - "third_priority는 현재 AI 모델 미사용이지만 RoommatePreference.priority3 값을 그대로 전달 (확장 대비)."
   - "FEATURE_LABELS 매핑은 30개 키 전부 Java 상수로 포팅. api/labels.py와 동기화 필요 시 PR 리뷰 시점에 확인."

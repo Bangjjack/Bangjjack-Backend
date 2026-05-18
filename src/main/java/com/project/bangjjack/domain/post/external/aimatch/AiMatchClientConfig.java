@@ -9,7 +9,6 @@ import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
 @Slf4j
@@ -26,19 +25,14 @@ public class AiMatchClientConfig {
         return RestClient.builder()
                 .baseUrl(properties.baseUrl())
                 .requestFactory(new BufferingClientHttpRequestFactory(requestFactory))
-                .requestInterceptor(loggingInterceptor(properties.logRequestBody()))
+                .requestInterceptor(loggingInterceptor())
                 .build();
     }
 
-    private ClientHttpRequestInterceptor loggingInterceptor(boolean logRequestBody) {
+    private ClientHttpRequestInterceptor loggingInterceptor() {
         return (request, body, execution) -> {
-            if (logRequestBody) {
-                log.info("AI match API request: {} {} body={}",
-                        request.getMethod(), request.getURI(), new String(body, StandardCharsets.UTF_8));
-            } else {
-                log.info("AI match API request: {} {} (body {} bytes)",
-                        request.getMethod(), request.getURI(), body.length);
-            }
+            log.info("AI match API request: {} {} (body {} bytes)",
+                    request.getMethod(), request.getURI(), body.length);
             return execution.execute(request, body);
         };
     }

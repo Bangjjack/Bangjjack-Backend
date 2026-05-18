@@ -6,7 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AiMatchApiProperties(
         String baseUrl,
         int connectTimeout,
-        int readTimeout,
-        boolean logRequestBody
+        int readTimeout
 ) {
 }
