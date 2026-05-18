@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.application.application.usecase;
 
 import com.project.bangjjack.domain.application.application.dto.response.CreateRoommateApplicationResponse;
 import com.project.bangjjack.domain.application.application.exception.AlreadyAppliedPendingException;
+import com.project.bangjjack.domain.application.application.exception.ApplicantAlreadyInGroupException;
 import com.project.bangjjack.domain.application.application.exception.ApplicationPreconditionNotMetException;
 import com.project.bangjjack.domain.application.application.exception.CannotApplyToOwnPostException;
 import com.project.bangjjack.domain.application.application.exception.OwnOpenPostExistsForApplicantException;
@@ -9,6 +10,8 @@ import com.project.bangjjack.domain.application.application.exception.PostNotOpe
 import com.project.bangjjack.domain.application.domain.entity.RoommateApplication;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationCreateService;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationGetService;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
@@ -42,6 +45,7 @@ public class RoommateApplicationUseCase {
     private final ChatRoomGetService chatRoomGetService;
     private final ChatRoomCreateService chatRoomCreateService;
     private final ChatSaveService chatSaveService;
+    private final RoommateGroupMemberGetService roommateGroupMemberGetService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -69,6 +73,10 @@ public class RoommateApplicationUseCase {
 
         if (roommateApplicationGetService.existsPendingByPostIdAndApplicantId(postId, userId)) {
             throw new AlreadyAppliedPendingException();
+        }
+
+        if (roommateGroupMemberGetService.existsByUserIdAndRole(userId, GroupMemberRole.MEMBER)) {
+            throw new ApplicantAlreadyInGroupException();
         }
 
         String directRoomKey = chatRoomCreateService.createDirectKey(userId, authorId);

@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.application.application.usecase;
 
 import com.project.bangjjack.domain.application.application.dto.response.CreateRoommateApplicationResponse;
 import com.project.bangjjack.domain.application.application.exception.AlreadyAppliedPendingException;
+import com.project.bangjjack.domain.application.application.exception.ApplicantAlreadyInGroupException;
 import com.project.bangjjack.domain.application.application.exception.ApplicationPreconditionNotMetException;
 import com.project.bangjjack.domain.application.application.exception.CannotApplyToOwnPostException;
 import com.project.bangjjack.domain.application.application.exception.OwnOpenPostExistsForApplicantException;
@@ -20,6 +21,8 @@ import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
@@ -72,6 +75,9 @@ class RoommateApplicationUseCaseCreateTest {
 
     @Mock
     private ChatSaveService chatSaveService;
+
+    @Mock
+    private RoommateGroupMemberGetService roommateGroupMemberGetService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -349,6 +355,27 @@ class RoommateApplicationUseCaseCreateTest {
                     .isInstanceOf(AlreadyAppliedPendingException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());
+        }
+
+        @Test
+        @DisplayName("신청자가 이미 다른 RoommateGroup의 MEMBER 역할이면 ApplicantAlreadyInGroupException이 발생한다")
+        void 신청자_다른_그룹_MEMBER_보유_시_예외() {
+            User applicant = fullyRegisteredUser();
+            ReflectionTestUtils.setField(applicant, "id", APPLICANT_ID);
+            User author = author();
+            RoommatePost post = openPost(author);
+
+            given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
+            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
+            given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
+            given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(true);
+
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+                    .isInstanceOf(ApplicantAlreadyInGroupException.class);
+
+            then(roommateApplicationCreateService).should(never()).createApplication(any());
+            then(chatSaveService).should(never()).save(any(), any(), any());
         }
     }
 }
