@@ -52,7 +52,7 @@ public class ChatMessageUseCase {
     }
 
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
-        chatRoomGetService.getByIdAndValidateParticipant(roomId, currentUserId);
+        chatRoomGetService.validateParticipant(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 
