@@ -12,7 +12,7 @@ overview:
   summary: >
     인증된 사용자가 자신이 북마크한 룸메이트 모집글 목록을 조회한다.
     본인 북마크만 조회 가능(완전 비공개). 삭제된 게시글은 제외, 마감(CLOSED) 게시글은 포함.
-    최근 북마크 등록순(bookmark.createdAt DESC) 정렬, Slice 페이지네이션 사용.
+    최근 북마크 등록순(bookmark.updatedAt DESC) 정렬, Slice 페이지네이션 사용.
   user_story: >
     As a 인증된 사용자, I want to 내가 북마크한 모집글만 모아보고,
     so that 관심 있는 게시글을 한눈에 관리할 수 있다.
@@ -65,7 +65,7 @@ technical_spec:
             note: "OPEN | CLOSED — 마감 게시글도 목록에 유지"
           - name: bookmarkedAt
             type: LocalDateTime
-            note: "북마크 등록 시각 (PostBookmark.createdAt)"
+            note: "북마크 등록/재활성화 시각 (PostBookmark.updatedAt)"
 
   data_flow:
     - step: 1
@@ -78,7 +78,7 @@ technical_spec:
       layer: Domain Service (BookmarkGetService)
       action: >
         BookmarkRepository 조회: post_bookmarks.deleted=false AND JOIN roommate_posts WHERE deleted=false.
-        정렬: post_bookmarks.created_at DESC.
+        정렬: post_bookmarks.updated_at DESC.
     - step: 4
       layer: UseCase (BookmarkUseCase)
       action: "Slice<PostBookmark> → Slice<BookmarkedPostResponse> 변환 후 반환"
@@ -98,7 +98,7 @@ technical_spec:
       - name: BookmarkRepository
         type: "Spring Data JPA + QueryDSL (BookmarkRepositoryImpl)"
         key_queries:
-          - "findBookmarkedPosts(userId, pageable): Slice<PostBookmark> JOIN roommate_posts WHERE deleted=false, bookmark.created_at DESC"
+          - "findBookmarkedPosts(userId, pageable): Slice<PostBookmark> JOIN roommate_posts WHERE deleted=false, bookmark.updated_at DESC"
     response_code:
       - name: BOOKMARKED_POST_LIST_FOUND
         code: 200
@@ -109,7 +109,7 @@ technical_spec:
 
   pagination:
     type: Slice (Spring Data)
-    sort: "post_bookmarks.created_at DESC (최근 북마크순)"
+    sort: "post_bookmarks.updated_at DESC (최근 북마크순)"
     note: "count 쿼리 없이 hasNext만 반환. SliceResponse<T>는 content(List), hasNext(boolean) 포함."
 
   validation_rules:
