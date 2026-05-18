@@ -9,15 +9,20 @@ import com.project.bangjjack.domain.application.application.exception.PostNotOpe
 import com.project.bangjjack.domain.application.domain.entity.RoommateApplication;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationCreateService;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationGetService;
+import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,12 +33,16 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class RoommateApplicationUseCase {
 
+    private static final String APPLICATION_CHAT_MESSAGE = "룸메이트 신청을 보냈습니다.";
+
     private final UserGetService userGetService;
     private final RoommatePostGetService roommatePostGetService;
     private final RoommateApplicationGetService roommateApplicationGetService;
     private final RoommateApplicationCreateService roommateApplicationCreateService;
     private final ChatRoomGetService chatRoomGetService;
     private final ChatRoomCreateService chatRoomCreateService;
+    private final ChatSaveService chatSaveService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public CreateRoommateApplicationResponse createApplication(Long userId, Long postId) {
@@ -71,6 +80,10 @@ public class RoommateApplicationUseCase {
         RoommateApplication saved = roommateApplicationCreateService.createApplication(
                 RoommateApplication.create(post, applicant)
         );
+
+        Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE);
+        eventPublisher.publishEvent(new ChatMessageSentEvent(
+                chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
 
         return CreateRoommateApplicationResponse.from(saved, chatRoom.getId(), isNewChatRoom);
     }

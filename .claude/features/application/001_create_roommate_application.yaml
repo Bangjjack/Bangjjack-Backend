@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 신청 요청 보내기
 # Status: Draft
-# Last Updated: 2026-05-18 (request body 제거; RoommateApplication-ChatRoom FK 제거 — 채팅방은 (applicant, author) 유저 쌍에서 derivable한 side effect)
+# Last Updated: 2026-05-18 (request body 제거; RoommateApplication-ChatRoom FK 제거; 신청 시 신청자 명의 채팅 메시지 자동 전송 + WebSocket broadcast)
 
 meta:
   id: FEAT-013
@@ -22,6 +22,7 @@ overview:
   goals:
     - 특정 OPEN 모집글에 PENDING 상태 신청 생성
     - 신청자와 모집글 작성자 간 1:1 채팅방 자동 연결 (없으면 생성)
+    - 신청 시 신청자 명의로 "룸메이트 신청을 보냈습니다." 고정 문구 채팅 자동 전송 + WebSocket broadcast
     - 사전 등록 정보(온보딩/체크리스트/선호도) 미완료자 신청 차단
     - 본인 게시글 신청 차단
     - 본인의 OPEN 모집글이 존재하는 사용자(작성자 역할)의 신청 차단
@@ -106,6 +107,12 @@ technical_spec:
       layer: Infrastructure (RoommateApplicationRepository)
       action: "save(application)로 신청 영속화"
     - step: 12
+      layer: Domain Service (ChatSaveService)
+      action: "ChatSaveService.save(applicantId, chatRoom, \"룸메이트 신청을 보냈습니다.\") 호출 → Chat 엔티티 영속화. senderId는 신청자(applicant) ID."
+    - step: 13
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "ApplicationEventPublisher로 ChatMessageSentEvent(roomId, ChatMessageBroadcast.from(chat, roomId)) 발행 → chat 도메인의 WebSocketBroadcaster가 자동으로 실시간 송신."
+    - step: 14
       layer: Response
       action: "CreateRoommateApplicationResponse.from(application, chatRoom.getId(), isNewChatRoom) 생성 후 201 CREATED, CommonResponse<…> 반환. chatRoomId는 step 9에서 확보한 ChatRoom 인스턴스에서 직접 전달."
 
@@ -139,6 +146,10 @@ technical_spec:
         action: "Read or Create"
         fields: "신규 채팅방 생성 시 2건(신청자, 작성자) saveAll"
         note: "chat 도메인 위임"
+      - name: Chat
+        action: Create
+        fields: "user_id=applicantId, room_id=chatRoom.id, content=\"룸메이트 신청을 보냈습니다.\""
+        note: "신청자 명의로 고정 문구 채팅 1건 자동 생성. ChatSaveService.save() 호출 후 ChatMessageSentEvent 발행."
 
   entity_proposal:
     name: RoommateApplication
@@ -220,20 +231,26 @@ technical_spec:
     - "동일 (postId, applicantId)에 PENDING 신청이 이미 존재하면 신청 불가. REJECTED 처리된 이전 신청은 재신청 허용."
     - "수락(다음 스펙)되더라도 모집글 status는 자동 변경되지 않음. 작성자가 수동 마감."
     - "신청 생성 시 신청자-작성자 간 1:1 채팅방이 없으면 ChatRoom 도메인 서비스를 통해 함께 생성, 있으면 기존 방 재사용 (응답에 chatRoomId만 포함, RoommateApplication에는 FK 저장 안 함)"
+    - "신청 생성 시 신청자(applicant) 명의로 고정 문구 \"룸메이트 신청을 보냈습니다.\" 채팅 1건 자동 전송. ChatMessageSentEvent 발행으로 WebSocket 실시간 broadcast 수행."
     - "요청 본문 없음. 신청 시 사용자가 입력하는 메시지/본문 없음 (대화는 자동 생성되는 채팅방에서 진행)."
 
   dependencies:
     domain_services:
       - UserGetService.getById(userId)
       - RoommatePostGetService.getById(postId)
-      - RoommatePostGetService.existsOpenPostByUserId(userId)
-      - ChatRoomGetService.findDirectRoom(userIdA, userIdB) (또는 동등 메서드)
-      - ChatRoomCreateService.createDirectRoom(applicantId, authorId) — chat-room 001 스펙 재사용
+      - RoommatePostGetService.existsOpenPostByUser(applicant)
+      - ChatRoomGetService.findByDirectRoomKey(directRoomKey)
+      - ChatRoomCreateService.createDirectKey(userIdA, userIdB)
+      - ChatRoomCreateService.createDirectRoom(applicantId, authorId, directRoomKey) — chat-room 001 스펙 재사용
+      - ChatSaveService.save(senderId, chatRoom, content) — 신청 채팅 전송
       - RoommateApplicationGetService.existsPendingByPostIdAndApplicantId(postId, applicantId)
-      - RoommateApplicationRepository.save(application)
+      - RoommateApplicationCreateService.createApplication(application)
+    spring_infrastructure:
+      - ApplicationEventPublisher.publishEvent(ChatMessageSentEvent) — WebSocketBroadcaster가 listen
     constraint_check:
       - "UseCase는 Repository 직접 호출 금지. 반드시 Domain Service 경유 (essential-rules.yaml)."
       - "Domain Service ↔ Domain Service 직접 호출 금지. 필요 시 UseCase에서 조합."
+      - "UseCase ↔ UseCase 직접 호출 금지. ChatMessageUseCase.sendMessage()를 호출하지 않고 ChatSaveService + ApplicationEventPublisher로 분해 호출."
 
 # ============================================================
 # 테스트 전략
@@ -244,6 +261,8 @@ testing_strategy:
     - "신청자-작성자 간 채팅방이 없는 상태에서 신청 → ChatRoom 신규 생성, ChatRoomParticipant 2명 저장, isNewChatRoom=true 반환"
     - "신청자-작성자 간 채팅방이 이미 존재할 때 신청 → 기존 chatRoomId 반환, isNewChatRoom=false, 신규 채팅방/참여자 INSERT 없음 확인"
     - "이전 신청이 REJECTED 처리되어 있는 동일 모집글에 재신청 → 201, 새로운 RoommateApplication(PENDING) 생성"
+    - "신청 성공 시 신청자(applicant) senderId, 고정 문구 \"룸메이트 신청을 보냈습니다.\" 내용의 Chat 1건 저장 확인"
+    - "신청 성공 시 ChatMessageSentEvent가 1회 발행되며 broadcast.senderId=applicantId, content=고정 문구로 검증"
 
   edge_cases:
     - "신청자 isOnboarded=false → 400 APPLICATION_PRECONDITION_NOT_MET"
@@ -264,6 +283,8 @@ testing_strategy:
     - "기존 채팅방 존재 시 신규 생성하지 않고 재사용하는 분기 검증"
     - "신청자 본인 OPEN 모집글 존재 시 차단 분기 검증"
     - "PENDING 중복 신청 차단 분기 검증"
+    - "신청 성공 시 ChatSaveService.save(applicantId, chatRoom, 고정문구) 호출 검증"
+    - "신청 성공 시 ChatMessageSentEvent 발행 + ArgumentCaptor로 broadcast 필드 검증"
 
 # ============================================================
 # 주의사항
@@ -275,6 +296,8 @@ notes:
   - "RoommateApplication 엔티티는 새 도메인이므로 references/data-model/application/roommate-application.yaml 문서 추가 권장."
   - "ChatRoom 자동 생성은 chat 도메인의 ChatRoomCreateService.createDirectRoom() 재사용. 신규 로직 중복 구현 금지(Layered DDD: Domain Service 간 직접 호출 금지 규칙에 따라 UseCase에서 조합)."
   - "RoommateApplication ↔ ChatRoom FK는 의도적으로 두지 않는다. 채팅방은 신청의 side effect이며 (applicant, author) 유저 쌍에서 derivable. 추후 '이 신청의 채팅방으로 이동'이 필요하면 ChatRoom.generateDirectKey(applicantId, authorId)로 lookup."
+  - "신청 채팅 전송은 ChatMessageUseCase.sendMessage()를 직접 호출하지 않고 ChatSaveService.save() + ApplicationEventPublisher.publishEvent(ChatMessageSentEvent) 조합으로 처리. 이유: UseCase ↔ UseCase 직접 호출 금지(essential-rules.yaml). 채팅방 참가자 검증/CLOSED 검증은 신청 직후 시점에서는 trivially 통과하므로 ChatMessageUseCase의 검증 로직을 우회해도 안전."
+  - "고정 문구 \"룸메이트 신청을 보냈습니다.\"는 RoommateApplicationUseCase.APPLICATION_CHAT_MESSAGE 상수로 관리. 추후 i18n/메시지 카탈로그가 도입되면 이관."
   - "수락 시 모집글 자동 마감 정책은 적용하지 않는다 (작성자 수동 마감)."
   - "REJECTED 이후 재신청은 허용한다. PENDING 동시 존재만 차단 대상."
   - "동시성: 동일 (postId, applicantId) PENDING 중복 차단의 강건성 확보를 위해 (post_id, applicant_id, status='PENDING') 조건부 유니크 또는 @Transactional + 사전 조회 + 실패 시 재시도 정책 중 택1. 본 스펙에서는 사전 조회 + 트랜잭션 처리로 시작."

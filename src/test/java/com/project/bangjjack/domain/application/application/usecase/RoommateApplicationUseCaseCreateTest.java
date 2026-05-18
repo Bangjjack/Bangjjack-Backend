@@ -10,9 +10,12 @@ import com.project.bangjjack.domain.application.domain.entity.ApplicationStatus;
 import com.project.bangjjack.domain.application.domain.entity.RoommateApplication;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationCreateService;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationGetService;
+import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
@@ -27,9 +30,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -65,6 +70,12 @@ class RoommateApplicationUseCaseCreateTest {
     @Mock
     private ChatRoomCreateService chatRoomCreateService;
 
+    @Mock
+    private ChatSaveService chatSaveService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private RoommateApplicationUseCase roommateApplicationUseCase;
 
@@ -73,6 +84,8 @@ class RoommateApplicationUseCaseCreateTest {
     private static final Long POST_ID = 100L;
     private static final Long CHAT_ROOM_ID = 500L;
     private static final Long APPLICATION_ID = 999L;
+    private static final Long CHAT_ID = 7777L;
+    private static final String APPLICATION_CHAT_MESSAGE = "룸메이트 신청을 보냈습니다.";
 
     private User fullyRegisteredUser() {
         User user = User.create("provider-applicant", "신청자", "applicant@gachon.ac.kr", null);
@@ -115,6 +128,15 @@ class RoommateApplicationUseCaseCreateTest {
                 });
     }
 
+    private void stubChatSaved(ChatRoom room) {
+        given(chatSaveService.save(eq(APPLICANT_ID), eq(room), eq(APPLICATION_CHAT_MESSAGE)))
+                .willAnswer(invocation -> {
+                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+                    ReflectionTestUtils.setField(chat, "id", CHAT_ID);
+                    return chat;
+                });
+    }
+
     @Nested
     @DisplayName("룸메이트 신청 생성 시")
     class CreateApplication {
@@ -139,6 +161,7 @@ class RoommateApplicationUseCaseCreateTest {
             given(chatRoomCreateService.createDirectRoom(eq(APPLICANT_ID), eq(AUTHOR_ID), anyString()))
                     .willReturn(newRoom);
             stubApplicantSaved();
+            stubChatSaved(newRoom);
 
             // when
             CreateRoommateApplicationResponse response =
@@ -152,6 +175,7 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             assertThat(response.isNewChatRoom()).isTrue();
             then(chatRoomCreateService).should().createDirectRoom(eq(APPLICANT_ID), eq(AUTHOR_ID), anyString());
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE);
         }
 
         @Test
@@ -172,6 +196,7 @@ class RoommateApplicationUseCaseCreateTest {
                     .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(existingRoom));
             stubApplicantSaved();
+            stubChatSaved(existingRoom);
 
             // when
             CreateRoommateApplicationResponse response =
@@ -181,6 +206,44 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.isNewChatRoom()).isFalse();
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             then(chatRoomCreateService).should(never()).createDirectRoom(anyLong(), anyLong(), anyString());
+            then(chatSaveService).should().save(APPLICANT_ID, existingRoom, APPLICATION_CHAT_MESSAGE);
+        }
+
+        @Test
+        @DisplayName("신청 생성 시 신청자 명의로 고정 문구 채팅이 저장되고 broadcast 이벤트가 발행된다")
+        void 신청_채팅_저장_및_브로드캐스트_이벤트_발행() {
+            // given
+            User applicant = fullyRegisteredUser();
+            ReflectionTestUtils.setField(applicant, "id", APPLICANT_ID);
+            User author = author();
+            RoommatePost post = openPost(author);
+            ChatRoom newRoom = chatRoom();
+
+            given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
+            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
+            given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
+            given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
+                    .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
+            given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.empty());
+            given(chatRoomCreateService.createDirectRoom(eq(APPLICANT_ID), eq(AUTHOR_ID), anyString()))
+                    .willReturn(newRoom);
+            stubApplicantSaved();
+            stubChatSaved(newRoom);
+
+            // when
+            roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID);
+
+            // then
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE);
+
+            ArgumentCaptor<ChatMessageSentEvent> captor = ArgumentCaptor.forClass(ChatMessageSentEvent.class);
+            then(eventPublisher).should().publishEvent(captor.capture());
+            ChatMessageSentEvent event = captor.getValue();
+            assertThat(event.roomId()).isEqualTo(CHAT_ROOM_ID);
+            assertThat(event.broadcast().messageId()).isEqualTo(CHAT_ID);
+            assertThat(event.broadcast().senderId()).isEqualTo(APPLICANT_ID);
+            assertThat(event.broadcast().content()).isEqualTo(APPLICATION_CHAT_MESSAGE);
         }
 
         @Test
