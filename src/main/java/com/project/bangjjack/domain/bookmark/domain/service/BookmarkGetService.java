@@ -18,12 +18,8 @@ public class BookmarkGetService {
 
     private final BookmarkRepository bookmarkRepository;
 
-    public boolean existsActiveBookmark(Long userId, Long postId) {
-        return bookmarkRepository.existsByUserIdAndPostIdAndDeletedFalse(userId, postId);
-    }
-
     public Optional<PostBookmark> findBookmark(Long userId, Long postId) {
-        return bookmarkRepository.findFirstByUserIdAndPostIdOrderByIdDesc(userId, postId);
+        return bookmarkRepository.findByUserIdAndPostId(userId, postId);
     }
 
     public PostBookmark getActiveBookmark(Long userId, Long postId) {
