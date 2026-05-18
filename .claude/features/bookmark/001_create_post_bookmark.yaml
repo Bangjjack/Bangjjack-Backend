@@ -79,10 +79,16 @@ technical_spec:
         message: "이미 북마크한 게시글입니다."
         trigger: "동일 (userId, postId) 활성 북마크가 이미 존재할 때"
         note: "Bookmark 도메인 신규 코드 — check_error_codes.py 실행 필수"
+      - code: 40803
+        name: CANNOT_BOOKMARK_OWN_POST
+        status: 403 FORBIDDEN
+        message: "본인이 작성한 게시글은 북마크할 수 없습니다."
+        trigger: "postId에 해당하는 게시글 작성자와 요청 userId가 동일할 때"
 
   validation_rules:
     - "인증된 사용자(MEMBER)만 북마크 가능"
     - "deleted=true인 게시글 북마크 불가 → 404 POST_NOT_FOUND"
+    - "본인이 작성한 게시글 북마크 불가 → 403 CANNOT_BOOKMARK_OWN_POST"
     - "동일 게시글 중복 북마크 불가 → 409 ALREADY_BOOKMARKED"
     - "OPEN / CLOSED 상태 무관하게 북마크 가능 (마감 게시글도 북마크 허용)"
 
@@ -96,7 +102,9 @@ testing_strategy:
   edge_cases:
     - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "deleted=true 게시글 → 404 POST_NOT_FOUND"
+    - "본인이 작성한 게시글 → 403 CANNOT_BOOKMARK_OWN_POST"
     - "이미 북마크한 게시글 재등록 → 409 ALREADY_BOOKMARKED"
+    - "soft-delete된 북마크 재등록 → 201 CREATED (reactivate)"
     - "존재하지 않는 userId (JWT 변조) → 404 USER_NOT_FOUND (40203)"
 
 # ============================================================
