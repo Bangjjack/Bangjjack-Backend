@@ -26,14 +26,19 @@ public class AiMatchClientConfig {
         return RestClient.builder()
                 .baseUrl(properties.baseUrl())
                 .requestFactory(new BufferingClientHttpRequestFactory(requestFactory))
-                .requestInterceptor(loggingInterceptor())
+                .requestInterceptor(loggingInterceptor(properties.logRequestBody()))
                 .build();
     }
 
-    private ClientHttpRequestInterceptor loggingInterceptor() {
+    private ClientHttpRequestInterceptor loggingInterceptor(boolean logRequestBody) {
         return (request, body, execution) -> {
-            log.info("AI match API request: {} {} body={}",
-                    request.getMethod(), request.getURI(), new String(body, StandardCharsets.UTF_8));
+            if (logRequestBody) {
+                log.info("AI match API request: {} {} body={}",
+                        request.getMethod(), request.getURI(), new String(body, StandardCharsets.UTF_8));
+            } else {
+                log.info("AI match API request: {} {} (body {} bytes)",
+                        request.getMethod(), request.getURI(), body.length);
+            }
             return execution.execute(request, body);
         };
     }

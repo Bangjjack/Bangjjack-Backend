@@ -44,3 +44,4 @@ ai:
     base-url: ${AI_MATCH_API_BASE_URL}
     connect-timeout: 3000
     read-timeout: 5000
+    log-request-body: true

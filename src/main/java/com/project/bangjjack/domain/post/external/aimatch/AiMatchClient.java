@@ -57,7 +57,7 @@ public class AiMatchClient implements MatchAnalysisPort {
             }
             return response;
         } catch (HttpStatusCodeException e) {
-            log.error("AI match API failed: status={}, body={}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.error("AI match API failed: status={}", e.getStatusCode());
             throw new AiServiceUnavailableException();
         } catch (RestClientException e) {
             log.error("AI match API call failed", e);

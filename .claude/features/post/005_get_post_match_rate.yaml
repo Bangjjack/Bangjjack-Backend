@@ -1,6 +1,6 @@
 # Feature Specification: AI 기반 룸메이트 매칭률 분석
 # Status: Draft
-# Last Updated: 2026-05-18 (revised: DB tx 경계와 외부 AI 호출 분리 — MatchAnalysisDataLoader 도입)
+# Last Updated: 2026-05-18 (revised: PII 보호 — AI 클라이언트 요청/응답 body 로깅 정책 변경)
 
 meta:
   id: FEAT-011
@@ -218,11 +218,17 @@ configuration:
     ai:
       match-api:
         base-url: "http://ceprj.gachon.ac.kr:60007"
-        connect-timeout: 3000   # ms
-        read-timeout: 5000      # ms
+        connect-timeout: 3000      # ms
+        read-timeout: 5000         # ms
+        log-request-body: false    # 기본값. local 프로파일에서만 true로 오버라이드
   binding_class:
     name: AiMatchApiProperties
     annotation: "@ConfigurationProperties(prefix = \"ai.match-api\")"
+    fields:
+      - baseUrl: String
+      - connectTimeout: int (ms)
+      - readTimeout: int (ms)
+      - logRequestBody: boolean   # PII 보호용 토글
 
 # ============================================================
 # 구성 요소 (Domain Port / Adapter / UseCase)
@@ -279,6 +285,15 @@ components:
       - "타임아웃 / IOException → AiServiceUnavailableException"
       - "응답 코드 != 2xx → AiServiceUnavailableException"
       - "응답 body null → AiServiceUnavailableException"
+    logging_policy:
+      request_body:
+        production: "method + URI + body 바이트 길이만 기록 (PII 보호)"
+        local: "ai.match-api.log-request-body=true로 풀 body 로깅 허용 (개발 편의)"
+      error_response:
+        rule: "응답 body 절대 로깅 금지 — status 코드만 기록"
+        reason: >
+          AI 서버가 4xx 응답 시 우리 요청 데이터(gender, sleep_habits 등 민감정보)를
+          echo back 할 가능성이 있어 PII 누출 경로가 됨.
     note: >
       AiMatchRequest/Response/UserPayload는 본 어댑터 내부 구현 디테일로만 사용 (external.aimatch.dto).
       UseCase 및 다른 계층은 이들 DTO에 절대 의존하지 않음.
@@ -380,6 +395,11 @@ notes:
     [트랜잭션 경계] DB 조회는 MatchAnalysisDataLoader의 @Transactional(readOnly = true) 안에서만 수행하고,
     외부 AI 호출(matchAnalysisPort.analyze)은 트랜잭션 밖에서 실행. 외부 API 지연(최대 ~8초) 동안 DB
     커넥션이 점유되는 안티패턴 제거. UseCase 자체에는 @Transactional 미적용.
+  - >
+    [PII 보호] AI 클라이언트 로깅 정책 — 운영 환경에서는 요청 body 내용을 로깅하지 않고
+    (메서드·URI·바이트 길이만), 에러 응답 body도 절대 로깅하지 않음 (status 코드만).
+    AI 서버 응답이 우리 요청을 echo back 하는 경우 사용자 민감정보가 로그로 새는 것을 방지.
+    로컬 개발 시에만 application-local.yaml의 ai.match-api.log-request-body=true로 풀 로깅 활성화.
   - "AI API 응답 필드 그대로 노출하지 않음. matchedFeatures/topInfluentialFeatures → matchedAttributes/recommendedTopics 로 네이밍 변경 + 한국어 라벨 변환."
   - "third_priority는 현재 AI 모델 미사용이지만 RoommatePreference.priority3 값을 그대로 전달 (확장 대비)."
   - "FEATURE_LABELS 매핑은 30개 키 전부 Java 상수로 포팅. api/labels.py와 동기화 필요 시 PR 리뷰 시점에 확인."
