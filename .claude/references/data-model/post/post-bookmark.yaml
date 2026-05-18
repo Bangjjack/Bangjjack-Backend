@@ -19,8 +19,8 @@ columns:
       fk: roommate_posts.id
       description: "북마크된 게시글 FK"
 
-indexes:
-  - "(user_id, post_id) — 활성 북마크 중복 방지는 애플리케이션 레이어 처리"
+constraints:
+  - "(user_id, post_id) UNIQUE — DB 레벨 중복 방지. 동일 (user, post) 쌍은 row가 하나만 존재."
 
 relationships:
   - type: ManyToOne
@@ -37,5 +37,5 @@ business_logic:
   - "softDelete(): → BaseEntity 위임 (북마크 해제)"
 
 notes:
-  - "소프트 딜리트 사용. 재북마크 시 신규 레코드 생성, 이전 deleted 레코드 공존 허용."
+  - "소프트 딜리트 사용. 재북마크 시 기존 레코드 재활성화 (deleted=false). 신규 row 생성 없음."
   - "활성 북마크 조회 시 반드시 deleted=false 조건 포함."

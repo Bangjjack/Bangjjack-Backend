@@ -65,7 +65,7 @@ technical_spec:
     repository:
       - name: BookmarkRepository
         methods:
-          - "findByUserIdAndPostIdAndDeletedFalse(userId, postId): Optional<PostBookmark>"
+          - "findActiveBookmark(userId, postId): Optional<PostBookmark>"
     response_code:
       - name: BOOKMARK_DELETED
         code: 204
@@ -104,4 +104,4 @@ testing_strategy:
 notes:
   - "게시글 삭제 여부(PostRepository) 별도 조회 없음. 북마크 존재 여부만 확인."
   - "다른 사용자의 북마크 접근 시 403이 아닌 404 반환 (존재 자체를 노출하지 않음)."
-  - "소프트 딜리트 사용 — 재등록 시 신규 PostBookmark 레코드 생성."
+  - "소프트 딜리트 사용 — 재등록 시 기존 레코드 재활성화 (deleted=false). 신규 row 삽입 없음."
