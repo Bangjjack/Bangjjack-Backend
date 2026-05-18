@@ -53,7 +53,7 @@ public class ChatRoomController {
     public CommonResponse<ChatMessagePageResponse> getMessages(
             @CurrentMemberId Long currentMemberId,
             @PathVariable Long roomId,
-            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) @Min(1) Long cursor,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int size) {
         ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentMemberId, roomId, cursor, size);
         return CommonResponse.success(ChatRoomResponseCode.CHAT_ROOM_MESSAGES_FOUND, response);
