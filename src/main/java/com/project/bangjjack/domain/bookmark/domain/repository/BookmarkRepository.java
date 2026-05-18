@@ -18,6 +18,6 @@ public interface BookmarkRepository extends JpaRepository<PostBookmark, Long> {
     @Query("SELECT b FROM PostBookmark b WHERE b.user.id = :userId AND b.post.id = :postId AND b.deleted = false")
     Optional<PostBookmark> findActiveBookmark(@Param("userId") Long userId, @Param("postId") Long postId);
 
-    @Query("SELECT b FROM PostBookmark b JOIN FETCH b.post p WHERE b.user.id = :userId AND b.deleted = false AND p.deleted = false ORDER BY b.createdAt DESC")
+    @Query("SELECT b FROM PostBookmark b JOIN FETCH b.post p WHERE b.user.id = :userId AND b.deleted = false AND p.deleted = false ORDER BY b.updatedAt DESC")
     Slice<PostBookmark> findBookmarkedPosts(@Param("userId") Long userId, Pageable pageable);
 }

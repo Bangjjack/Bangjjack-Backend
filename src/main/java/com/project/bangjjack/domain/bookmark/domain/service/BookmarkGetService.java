@@ -4,8 +4,10 @@ import com.project.bangjjack.domain.bookmark.application.exception.BookmarkNotFo
 import com.project.bangjjack.domain.bookmark.domain.entity.PostBookmark;
 import com.project.bangjjack.domain.bookmark.domain.repository.BookmarkRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -30,6 +32,7 @@ public class BookmarkGetService {
     }
 
     public Slice<PostBookmark> getBookmarkedPosts(Long userId, Pageable pageable) {
-        return bookmarkRepository.findBookmarkedPosts(userId, pageable);
+        return bookmarkRepository.findBookmarkedPosts(userId,
+                PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
     }
 }
