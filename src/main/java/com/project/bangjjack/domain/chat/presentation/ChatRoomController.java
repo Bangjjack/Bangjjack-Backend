@@ -45,7 +45,10 @@ public class ChatRoomController {
         return CommonResponse.success(responseCode, response);
     }
 
-    @Operation(summary = "채팅 메시지 조회", description = "채팅방의 메시지를 커서 기반 페이지네이션으로 조회합니다.")
+    @Operation(
+            summary = "채팅 메시지 조회",
+            description = "채팅방의 메시지를 커서 기반 페이지네이션으로 조회합니다. \n첫 페이지 조회 시 cursor는 생략하며, 다음 페이지 조회 시 이전 응답의 nextCursor 값을 cursor로 사용합니다."
+    )
     @GetMapping("/{roomId}/messages")
     public CommonResponse<ChatMessagePageResponse> getMessages(
             @CurrentMemberId Long currentMemberId,
