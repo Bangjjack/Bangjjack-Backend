@@ -1,0 +1,419 @@
+# Feature Specification: AI 기반 룸메이트 매칭률 분석
+# Status: Draft
+# Last Updated: 2026-05-18 (revised: OPEN 상태 모집글만 매칭 분석 대상 — 조회 단계에서 status 필터링)
+
+meta:
+  id: FEAT-011
+  title: AI 기반 룸메이트 매칭률 분석
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    인증된 사용자가 특정 룸메이트 모집글 작성자와의 매칭률을 AI 분석 API로 조회한다.
+    요청자(나)와 모집글 작성자의 체크리스트/우선순위 선호도 데이터를 외부 AI API에 전달하여
+    매칭 점수, 공통 잘 맞는 항목, 매칭에 영향이 큰 요소 Top3를 한국어 라벨로 응답한다.
+  user_story: >
+    As a 체크리스트·선호도 등록 완료 사용자, I want to 특정 모집글 작성자와 나의 매칭률을 분석받고,
+    so that 지원 여부 판단 또는 대화 주제 선정에 활용할 수 있다.
+  goals:
+    - postId 기준 모집글 작성자와 요청자의 매칭률 분석
+    - 외부 AI 분석 API(/match-detail) 연동 및 응답 가공
+    - matchedFeatures / topInfluentialFeatures 키를 한국어 라벨로 변환하여 응답
+    - 본인 글 매칭 분석 차단 (의미 없음 방지)
+    - OPEN 상태인 모집글에 대해서만 분석 가능 (마감된 글은 매칭 의미 없음 — 조회 단계에서 필터링)
+    - 양측 모두 체크리스트·선호도 등록 완료 상태에서만 분석 가능
+
+# ============================================================
+# 외부 의존성 (AI 분석 API)
+# ============================================================
+external_dependencies:
+  ai_match_api:
+    base_url: "http://ceprj.gachon.ac.kr:60007"
+    endpoint: POST /match-detail
+    swagger: "http://ceprj.gachon.ac.kr:60007/docs"
+    request_content_type: application/json
+    request_body_shape:
+      user_a:
+        # DB ENUM 값을 그대로 전달 (별도 변환 없음). 필드명은 snake_case.
+        gender: "User.gender (MALE | FEMALE)"
+        bedtime: "LifestyleChecklist.bedtime"
+        wake_up_time: "LifestyleChecklist.wakeUpTime"
+        call_habit: "LifestyleChecklist.callHabit"
+        cleaning_cycle: "LifestyleChecklist.cleaningCycle"
+        dorm_stay_time: "LifestyleChecklist.dormStayTime"
+        noise_sensitivity: "LifestyleChecklist.noiseSensitivity"
+        smoking: "LifestyleChecklist.smoking"
+        sleep_habits: "List<SleepHabit> (복수)"
+        first_priority: "RoommatePreference.priority1"
+        second_priority: "RoommatePreference.priority2"
+        third_priority: "RoommatePreference.priority3 (현재 모델 미사용, 확장용 — 그대로 전달)"
+      user_b: "동일 구조 (모집글 작성자 데이터)"
+    response_shape:
+      matchRate: "Integer/Float — 최종 매칭 점수"
+      matchedFeatures: "List<String> — 공통으로 잘 맞는 피처 키 (비어있을 수 있음)"
+      topInfluentialFeatures: "List<String> — 매칭에 가장 영향 큰 요소 Top3 피처 키"
+    label_mapping:
+      source: "api/labels.py FEATURE_LABELS"
+      strategy: >
+        FEATURE_LABELS 매핑을 Java enum 또는 상수 Map으로 포팅하여
+        matchedFeatures / topInfluentialFeatures 키를 한국어 라벨로 변환.
+        매핑에 없는 키는 키 그대로 반환 (서버 무중단).
+    timeout:
+      connect: 3s
+      read: 5s
+      note: "외부 API 응답 지연 가능성 대비. 초과 시 502 AI_SERVICE_UNAVAILABLE."
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/posts/{postId}/match-rate
+      summary: 룸메이트 모집글 작성자와의 AI 매칭률 분석 조회
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: postId
+            type: Long
+            required: true
+            note: "매칭 분석 대상 모집글 ID"
+        dto: "(없음)"
+        fields: []
+      response:
+        dto: MatchRateResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<MatchRateResponse>
+        response_code: PostResponseCode.MATCH_RATE_ANALYZED
+        fields:
+          - name: matchRate
+            type: Integer
+            note: "AI 분석 결과 최종 매칭 점수 (외부 API 응답 그대로)"
+          - name: matchedAttributes
+            type: List<String>
+            note: "공통으로 잘 맞는 항목 (한국어 라벨). 빈 리스트 가능. matchedFeatures → to_labels 변환 결과."
+          - name: recommendedTopics
+            type: List<String>
+            note: "매칭에 가장 영향 큰 요소 Top3 (한국어 라벨). topInfluentialFeatures → to_labels 변환 결과."
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommatePostController)
+      action: "@CurrentMemberId로 JWT userId 추출, @PathVariable postId 수신 후 MatchAnalysisUseCase.analyzeMatchRate(userId, postId) 호출"
+    - step: 2
+      layer: Application Loader (MatchAnalysisDataLoader)
+      action: >
+        DB 조회 + 검증을 단일 @Transactional(readOnly = true) 경계 안에서 수행:
+          1) RoommatePostGetService.getOpenById(postId) — status=OPEN + deleted=false 조건으로 조회.
+             없거나 CLOSED면 POST_NOT_FOUND (매칭 의미 없는 모집글은 외부 시각상 미존재와 동일 처리).
+          2) 본인 글 차단 — post.getUser().getId().equals(userId)면 SELF_MATCH_NOT_ALLOWED
+          3) UserGetService.getById(userId) — 요청자 조회 (실패 시 USER_NOT_FOUND)
+          4) 양측 LifestyleChecklist + SleepHabits 조회 (없으면 CHECKLIST_NOT_REGISTERED)
+          5) 양측 RoommatePreference 조회 (없으면 PREFERENCE_NOT_REGISTERED)
+          6) MatchAnalysisProfile/Command 조립
+        loadCommand() 반환과 동시에 트랜잭션 종료 — 외부 AI 호출 전에 DB 커넥션을 반환.
+      transaction: true (readOnly)
+    - step: 3
+      layer: UseCase (MatchAnalysisUseCase)
+      action: >
+        DataLoader가 반환한 MatchAnalysisCommand를 그대로 포트에 전달. UseCase 자체는 @Transactional 없음
+        (DB I/O가 없으므로 트랜잭션 불필요).
+    - step: 4
+      layer: Domain Port (MatchAnalysisPort) → External Adapter (AiMatchClient)
+      action: >
+        matchAnalysisPort.analyze(command) 호출 — DB 트랜잭션 밖에서 실행.
+        어댑터(AiMatchClient)가 내부에서 MatchAnalysisProfile → AiMatchUserPayload 변환,
+        POST {ai.match-api.base-url}/match-detail 호출, AiMatchResponse → MatchAnalysisResult 변환까지 수행.
+        connect 3s / read 5s 타임아웃. 응답 코드 2xx 아니거나 타임아웃 시 AI_SERVICE_UNAVAILABLE.
+    - step: 5
+      layer: UseCase (MatchAnalysisUseCase)
+      action: "MatchAnalysisResult의 matchedFeatures / topInfluentialFeatures를 FeatureLabelConverter.toLabels()로 한국어 라벨 변환"
+    - step: 6
+      layer: UseCase (MatchAnalysisUseCase)
+      action: "MatchRateResponse.of(matchRate, matchedLabels, topInfluentialLabels) 생성 후 반환"
+    - step: 7
+      layer: Response
+      action: "200 OK, CommonResponse<MatchRateResponse> 반환"
+
+  request_body_to_ai:
+    serialization: snake_case (Jackson @JsonNaming(SnakeCaseStrategy.class) 또는 @JsonProperty)
+    example: |
+      {
+        "user_a": {
+          "gender": "MALE",
+          "bedtime": "BETWEEN_24_2",
+          "wake_up_time": "BETWEEN_8_10",
+          "call_habit": "WHISPER",
+          "cleaning_cycle": "ONCE_OR_TWICE_A_WEEK",
+          "dorm_stay_time": "MOSTLY_INSIDE",
+          "noise_sensitivity": "SLIGHTLY_SENSITIVE",
+          "smoking": "NON_SMOKER",
+          "sleep_habits": ["TOSS_AND_TURN", "SNORING"],
+          "first_priority": "BEDTIME",
+          "second_priority": "CLEANING_HABIT",
+          "third_priority": "NOISE_SENSITIVITY"
+        },
+        "user_b": { "...": "..." }
+      }
+
+  response_dto_structure:
+    MatchRateResponse:
+      note: >
+        static factory method from(int matchRate, List<String> matchedLabels, List<String> recommendedLabels) 사용.
+        matchedAttributes는 빈 리스트 가능 (AI 응답에서 matchedFeatures가 비어있는 케이스 존재).
+
+  caching:
+    enabled: false
+    note: "초기 구현에서는 캐싱 없이 매 요청마다 AI API 호출. 추후 성능/비용 이슈 발생 시 Redis 캐싱 도입 검토."
+
+  error_codes:
+    domain_range: "407xx (Post 도메인) — 신규 코드는 check_error_codes.py 실행 후 확정"
+    codes:
+      - code: 40704
+        name: POST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "모집글을 찾을 수 없습니다."
+        trigger: "postId에 해당하는 모집글이 없거나, deleted=true이거나, status != OPEN(CLOSED)인 경우"
+        note: >
+          기존 코드 재사용 (FEAT-010). 매칭 분석 컨텍스트에서는 CLOSED 모집글도
+          "매칭 대상 없음"으로 간주하여 POST_NOT_FOUND로 통합 응답 — 별도 에러코드 없이
+          조회 단계(RoommatePostGetService.getOpenById)에서 필터링.
+      - code: 40708
+        name: SELF_MATCH_NOT_ALLOWED
+        status: 409 CONFLICT
+        message: "본인이 작성한 모집글에는 매칭 분석을 요청할 수 없습니다."
+        trigger: "요청자 userId == post.user.id 인 경우"
+      - code: 40709
+        name: CHECKLIST_NOT_REGISTERED
+        status: 409 CONFLICT
+        message: "매칭 분석을 위해 양측 모두 생활습관 체크리스트 등록이 필요합니다."
+        trigger: "요청자 또는 작성자의 LifestyleChecklist 미등록"
+        note: "응답 본문에 어느 쪽(self/other)이 미등록인지 식별 가능한 detail 추가 검토"
+      - code: 40710
+        name: PREFERENCE_NOT_REGISTERED
+        status: 409 CONFLICT
+        message: "매칭 분석을 위해 양측 모두 룸메이트 선호도 등록이 필요합니다."
+        trigger: "요청자 또는 작성자의 RoommatePreference 미등록"
+      - code: 40711
+        name: AI_SERVICE_UNAVAILABLE
+        status: 502 BAD_GATEWAY
+        message: "AI 매칭 분석 서비스에 일시적으로 접근할 수 없습니다. 잠시 후 다시 시도해주세요."
+        trigger: "외부 AI API 타임아웃 / 5xx 응답 / 네트워크 오류"
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드"
+
+  validation_rules:
+    - "deleted=true인 모집글은 매칭 분석 불가. POST_NOT_FOUND."
+    - "PostStatus != OPEN(CLOSED)인 모집글은 매칭 분석 불가. POST_NOT_FOUND (조회 단계에서 필터링)."
+    - "본인이 작성한 모집글은 분석 불가. SELF_MATCH_NOT_ALLOWED."
+    - "요청자/작성자 모두 LifestyleChecklist 등록 필수. 미등록 시 CHECKLIST_NOT_REGISTERED."
+    - "요청자/작성자 모두 RoommatePreference 등록 필수. 미등록 시 PREFERENCE_NOT_REGISTERED."
+    - "AI API 호출 실패(타임아웃·5xx)는 AI_SERVICE_UNAVAILABLE로 표준화하여 502 응답."
+    - "라벨 매핑에 없는 피처 키는 키 그대로 응답 (서버 무중단 원칙)."
+
+# ============================================================
+# 설정 (application.yml)
+# ============================================================
+configuration:
+  application_yml:
+    ai:
+      match-api:
+        base-url: "http://ceprj.gachon.ac.kr:60007"
+        connect-timeout: 3000      # ms
+        read-timeout: 5000         # ms
+  binding_class:
+    name: AiMatchApiProperties
+    annotation: "@ConfigurationProperties(prefix = \"ai.match-api\")"
+    fields:
+      - baseUrl: String
+      - connectTimeout: int (ms)
+      - readTimeout: int (ms)
+
+# ============================================================
+# 구성 요소 (Domain Port / Adapter / UseCase)
+# ============================================================
+components:
+  MatchAnalysisPort:
+    package: "domain.post.domain.port.match"
+    type: "Domain Interface (Port)"
+    method: "MatchAnalysisResult analyze(MatchAnalysisCommand command)"
+    note: >
+      UseCase가 인프라/외부 API에 직접 의존하지 않도록 도메인 계층에 정의한 포트.
+      AiMatchClient가 본 포트를 구현 (DIP). 향후 다른 AI 백엔드로 교체 시 어댑터만 추가.
+
+  MatchAnalysisCommand:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - requester: MatchAnalysisProfile
+      - author: MatchAnalysisProfile
+    note: "포트 입력. 인프라 DTO 대신 도메인 객체만 포함."
+
+  MatchAnalysisProfile:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - user: User
+      - checklist: LifestyleChecklist
+      - sleepHabits: List<LifestyleChecklistSleepHabit>
+      - preference: RoommatePreference
+    note: "요청자/작성자 각각의 매칭 분석 입력 단위."
+
+  MatchAnalysisResult:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - matchRate: int
+      - matchedFeatures: List<String>      # 피처 키 (라벨 미변환 상태)
+      - topInfluentialFeatures: List<String>
+    note: "포트 출력. 라벨 변환은 UseCase에서 FeatureLabelConverter로 수행."
+
+  AiMatchClient:
+    package: "domain.post.external.aimatch"
+    type: "External Adapter (implements MatchAnalysisPort)"
+    impl: "Spring RestClient (블로킹)"
+    rationale: >
+      제3자가 운영하는 AI 분석 서버(ceprj.gachon.ac.kr:60007) 연동이므로
+      system-design.yaml의 분류상 external/ 영역에 속함.
+      (infrastructure/는 우리가 통제하는 시스템 — Redis 등 — 전용)
+    responsibility: >
+      - MatchAnalysisProfile → AiMatchUserPayload 변환 (내부 캡슐화)
+      - POST /match-detail 호출
+      - AiMatchResponse → MatchAnalysisResult 변환
+    error_handling:
+      - "타임아웃 / IOException → AiServiceUnavailableException"
+      - "응답 코드 != 2xx → AiServiceUnavailableException"
+      - "응답 body null → AiServiceUnavailableException"
+    logging_policy:
+      request_body:
+        rule: "모든 환경에서 body 내용 로깅 금지 — method + URI + body 바이트 길이만 기록"
+        reason: >
+          요청 body에 사용자 민감정보(gender, sleep_habits, smoking, noise_sensitivity, priority 등)가 포함되어
+          GDPR/CCPA/개인정보보호법상 데이터 최소화 원칙에 위배될 수 있음. 환경 토글로도 코드 경로 자체를 남기지 않음.
+          디버깅 필요 시 단위 테스트(AiMatchRequestSerializationTest) 또는 DB 상태로 페이로드 재구성 가능.
+      error_response:
+        rule: "응답 body 절대 로깅 금지 — status 코드만 기록"
+        reason: >
+          AI 서버가 4xx 응답 시 우리 요청 데이터(gender, sleep_habits 등 민감정보)를
+          echo back 할 가능성이 있어 PII 누출 경로가 됨.
+    note: >
+      AiMatchRequest/Response/UserPayload는 본 어댑터 내부 구현 디테일로만 사용 (external.aimatch.dto).
+      UseCase 및 다른 계층은 이들 DTO에 절대 의존하지 않음.
+
+  FeatureLabelConverter:
+    package: "domain.post.domain.service"
+    impl: "Map<String, String> 상수 (api/labels.py FEATURE_LABELS 포팅)"
+    method: "List<String> toLabels(List<String> featureKeys)"
+    fallback: "매핑 없는 키는 키 그대로 반환"
+    note: >
+      30개 피처 키 — diff_/match_ 그룹 전체 포함.
+      향후 라벨 톤 변경 시 한 곳만 수정.
+
+  MatchAnalysisDataLoader:
+    package: "domain.post.application.loader"
+    type: "Application Helper (@Component, @Transactional 격리용)"
+    method: "MatchAnalysisCommand loadCommand(Long userId, Long postId)"
+    transaction: "@Transactional(readOnly = true) — 메서드 레벨"
+    dependencies:
+      - RoommatePostGetService
+      - UserGetService
+      - ChecklistGetService
+      - RoommatePreferenceGetService
+    rationale: >
+      외부 AI 호출(최대 ~8초) 동안 DB 커넥션·트랜잭션이 점유되는 것을 막기 위해
+      DB 조회 단계를 UseCase에서 분리. Spring AOP 프록시가 같은 빈 내부 호출에는
+      걸리지 않으므로 반드시 별도 빈으로 분리해야 @Transactional이 적용됨.
+    note: "loadCommand() 반환 시점에 트랜잭션 종료. 이후 외부 호출은 트랜잭션 밖에서 실행."
+
+  MatchAnalysisUseCase:
+    package: "domain.post.application.usecase"
+    dependencies:
+      - MatchAnalysisDataLoader  # ← DB 조회/검증 (트랜잭션 경계)
+      - MatchAnalysisPort        # ← 외부 AI 호출 추상화 (트랜잭션 밖)
+      - FeatureLabelConverter    # ← 응답 라벨 변환
+    transaction: "없음 (UseCase 자체는 DB I/O가 없음)"
+    note: >
+      "NO Layer Skipping" 규칙 준수: UseCase는 Infrastructure/External 패키지 import 금지.
+      DB 트랜잭션과 외부 AI 호출을 분리하여 커넥션 풀이 외부 API 지연에 영향받지 않도록 함.
+
+# ============================================================
+# 데이터베이스 영향
+# ============================================================
+database:
+  entities:
+    - name: RoommatePost
+      action: Read
+      fields: "postId, user_id, status (= OPEN 조건 필터), deleted (= false 조건 필터)"
+    - name: User
+      action: Read
+      fields: "id, gender (요청자/작성자 양측)"
+    - name: LifestyleChecklist
+      action: Read
+      fields: "bedtime, wake_up_time, call_habit, cleaning_cycle, dorm_stay_time, noise_sensitivity, smoking (요청자/작성자 양측)"
+    - name: LifestyleChecklistSleepHabit
+      action: Read
+      fields: "sleep_habit (요청자/작성자 양측, 복수)"
+    - name: RoommatePreference
+      action: Read
+      fields: "priority_1, priority_2, priority_3 (요청자/작성자 양측)"
+  note: "신규 테이블/컬럼 없음. 모든 조회는 readOnly 트랜잭션."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "양측 체크리스트·선호도 등록 완료 + 본인 글 아님 → 200 OK, matchRate/matchedAttributes/recommendedTopics 반환"
+    - "matchedFeatures 비어있는 AI 응답 → matchedAttributes = [] 로 정상 반환"
+    - "topInfluentialFeatures 3건 → 한국어 라벨로 변환되어 응답 (e.g. \"취침 시간\", \"청소 빈도\", \"흡연 습관\")"
+    - "FEATURE_LABELS에 없는 키 → 키 그대로 응답에 포함 (예외 발생 X)"
+    - "sleep_habits 복수 항목이 AI 요청 본문에 배열로 전달됨"
+  edge_cases:
+    - "존재하지 않는 postId → 404 POST_NOT_FOUND"
+    - "삭제된 postId → 404 POST_NOT_FOUND"
+    - "마감된(CLOSED) 모집글 postId → 404 POST_NOT_FOUND (조회 단계 status 필터링)"
+    - "본인 글 postId → 409 SELF_MATCH_NOT_ALLOWED"
+    - "요청자 체크리스트 미등록 → 409 CHECKLIST_NOT_REGISTERED"
+    - "작성자 체크리스트 미등록 → 409 CHECKLIST_NOT_REGISTERED"
+    - "요청자 선호도 미등록 → 409 PREFERENCE_NOT_REGISTERED"
+    - "작성자 선호도 미등록 → 409 PREFERENCE_NOT_REGISTERED"
+    - "AI API 타임아웃 → 502 AI_SERVICE_UNAVAILABLE"
+    - "AI API 5xx 응답 → 502 AI_SERVICE_UNAVAILABLE"
+    - "JWT 변조 userId → 404 USER_NOT_FOUND"
+  integration:
+    - "AiMatchClient는 MockWebServer 또는 RestClient.builder().requestFactory(...) 로 격리 테스트"
+    - "FeatureLabelConverter는 단위 테스트로 30개 피처 키 매핑 검증"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - >
+    [아키텍처] UseCase는 외부 어댑터(AiMatchClient)에 직접 의존하지 않고 도메인 포트(MatchAnalysisPort)에만 의존.
+    AiMatchRequest/Response/UserPayload는 어댑터 내부 캡슐화. system-design.yaml의 "NO Layer Skipping" 규칙 준수.
+  - >
+    [패키지 분류] AiMatchClient는 통제 불가능한 제3자 AI 서버 연동이므로 external/ 영역에 배치.
+    infrastructure/ 는 우리가 통제하는 시스템(Redis 등) 전용으로 유지.
+  - >
+    [트랜잭션 경계] DB 조회는 MatchAnalysisDataLoader의 @Transactional(readOnly = true) 안에서만 수행하고,
+    외부 AI 호출(matchAnalysisPort.analyze)은 트랜잭션 밖에서 실행. 외부 API 지연(최대 ~8초) 동안 DB
+    커넥션이 점유되는 안티패턴 제거. UseCase 자체에는 @Transactional 미적용.
+  - >
+    [PII 보호] AI 클라이언트 로깅 정책 — 모든 환경에서 요청 body 내용을 로깅하지 않음
+    (메서드·URI·바이트 길이만 기록). 에러 응답 body도 절대 로깅하지 않음 (status 코드만).
+    환경 토글로 가변화하지 않음 — GDPR/CCPA/개인정보보호법상 데이터 최소화 원칙에 따라
+    PII 로깅 코드 경로 자체를 코드베이스에서 제거. 로컬 디버깅은 단위 테스트나 DB 상태 확인으로 대체.
+  - "AI API 응답 필드 그대로 노출하지 않음. matchedFeatures/topInfluentialFeatures → matchedAttributes/recommendedTopics 로 네이밍 변경 + 한국어 라벨 변환."
+  - "third_priority는 현재 AI 모델 미사용이지만 RoommatePreference.priority3 값을 그대로 전달 (확장 대비)."
+  - "FEATURE_LABELS 매핑은 30개 키 전부 Java 상수로 포팅. api/labels.py와 동기화 필요 시 PR 리뷰 시점에 확인."
+  - "라벨 톤(\"취침 시간\" vs \"취침 시간이 비슷해요\")은 백엔드는 명사구만 전달. 문맥 조합은 프론트가 수행."
+  - "AI API base-url은 환경변수/프로파일로 분리 (dev/prod 분기 대비). 실서비스 배포 전 HTTPS 여부 확인 필요."
+  - "AI API 응답 스키마는 Swagger(http://ceprj.gachon.ac.kr:60007/docs) 기준으로 DTO 작성. 응답 필드 추가 시 무시(@JsonIgnoreProperties(ignoreUnknown=true)) 정책 적용."
+  - "check_error_codes.py 실행하여 40708~40711 코드 범위 가용성 확인."
+  - "캐싱 미적용. 동일 요청 반복 시 외부 API 호출 비용 발생. 트래픽 증가 시 Redis 단기 캐시(예: 10분) 도입 검토."
+  - "체크리스트/선호도 미등록 응답 시 어느 쪽(self/other)이 부족한지 detail에 포함하면 프론트 UX 개선 가능 — 정책 결정 후 반영."
