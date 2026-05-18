@@ -25,7 +25,7 @@ public class BookmarkController {
 
     private final BookmarkUseCase bookmarkUseCase;
 
-    @Operation(summary = "북마크 등록", description = "모집글을 북마크로 저장합니다. 이미 북마크한 게시글이면 409를 반환합니다.")
+    @Operation(summary = "북마크 등록", description = "모집글을 북마크로 저장합니다. 이미 북마크한 게시글이면 409를 반환합니다.\n 본인이 작성한 게시글은 북마크할 수 없습니다.")
     @PostMapping("/{postId}/bookmarks")
     @ResponseStatus(HttpStatus.CREATED)
     public CommonResponse<Void> createBookmark(
@@ -38,11 +38,10 @@ public class BookmarkController {
     @Operation(summary = "북마크 해제", description = "등록한 북마크를 해제합니다. 북마크가 없으면 404를 반환합니다.")
     @DeleteMapping("/{postId}/bookmarks")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public CommonResponse<Void> deleteBookmark(
+    public void deleteBookmark(
             @CurrentMemberId Long memberId,
             @PathVariable Long postId) {
         bookmarkUseCase.deleteBookmark(memberId, postId);
-        return CommonResponse.success(BookmarkResponseCode.BOOKMARK_DELETED);
     }
 
     @Operation(summary = "내 북마크 목록 조회", description = "북마크한 모집글 목록을 최근 북마크순으로 조회합니다.")
