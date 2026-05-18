@@ -17,7 +17,7 @@ overview:
   goals:
     - 참여자만 메시지 조회 가능 (비참여자 접근 차단)
     - 커서 기반 페이지네이션 (무한 스크롤 / 시간 기준 역순 조회)
-    - Chat 엔티티의 기존 복합 인덱스(room_id, created_at) 활용
+    - Chat 엔티티의 (room_id, id) 복합 인덱스 활용
     - 페이지네이션 응답에 다음 페이지 여부 및 커서 포함
 
 # ──────────────────────────────────────────────
@@ -76,37 +76,39 @@ technical_spec:
       layer: Presentation (ChatRoomController)
       action: >
         JWT에서 currentMemberId 추출, @PathVariable roomId / @RequestParam cursor?, size 수신.
-        ChatRoomUseCase.getMessages(currentMemberId, roomId, cursor, size) 호출
+        ChatMessageUseCase.getMessages(currentMemberId, roomId, cursor, size) 호출
 
     - step: 2
-      layer: UseCase (ChatRoomUseCase)
+      layer: UseCase (ChatMessageUseCase)
       action: >
-        chatRoomGetService.getByIdAndValidateParticipant(roomId, currentMemberId) 호출
+        chatRoomGetService.validateParticipant(roomId, currentUserId) 호출
         → 채팅방 존재 확인 + 참여자 검증 (실패 시 각각 예외).
-        chatMessageGetService.getMessages(roomId, cursor, size) 호출 후 ChatMessagePageResponse 반환
+        chatMessageGetService.getMessages(roomId, cursor, size) 호출.
+        fetched.size() > size 이면 hasNext=true, nextCursor = content 마지막 항목의 id.
+        ChatMessagePageResponse.of(messages, nextCursor, hasNext) 반환
 
     - step: 3
       layer: Domain Service (ChatMessageGetService — 신규)
       action: >
-        ChatRepository.findByCursorPage(roomId, cursor, size + 1) 호출.
-        조회 결과가 size + 1개이면 hasNext=true, nextCursor = 마지막 항목의 id.
-        실제 반환 리스트는 앞 size개만 포함
+        cursor가 null이면 Long.MAX_VALUE로 대체.
+        ChatRepository.findByCursorPage(roomId, cursorId, PageRequest.of(0, size + 1)) 호출.
+        raw List<Chat> 반환 (페이지네이션 계산은 UseCase 책임)
 
     - step: 4
       layer: Repository (ChatRepository)
       action: >
         @Query로 커서 기반 쿼리 실행.
-        cursor가 null이면 WHERE room_id = :roomId ORDER BY id DESC LIMIT :limit.
-        cursor가 있으면 WHERE room_id = :roomId AND id < :cursor ORDER BY id DESC LIMIT :limit.
-        기존 복합 인덱스(room_id, created_at) 대신 id 기반 커서 사용 → PK 단일 인덱스 활용
+        WHERE room_id = :roomId AND id < :cursorId ORDER BY id DESC LIMIT :limit.
+        (cursor=null 시 서비스에서 Long.MAX_VALUE로 대체되므로 단일 쿼리로 처리)
+        (room_id, id) 복합 인덱스 활용 → room_id 필터 + id 범위 스캔을 인덱스 스캔으로 처리
 
     - step: 5
       layer: Response
       action: CommonResponse<ChatMessagePageResponse> 200 반환
 
   index_note: >
-    Chat 엔티티에 IDX_chat_room_id_created_at (room_id, created_at) 인덱스가 이미 존재.
-    커서를 PK(id)로 사용하면 PK 인덱스를 활용하므로 더 효율적.
+    Chat 엔티티에 IDX_chat_room_id (room_id, id) 복합 인덱스 사용.
+    (room_id, created_at) 인덱스는 ORDER BY id DESC 시 filesort가 발생하여 (room_id, id)로 교체.
     커서를 createdAt으로 사용하면 동일 시각 메시지가 복수일 때 누락/중복 발생 위험 → id 커서 채택.
 
   validation_rules:
@@ -134,7 +136,7 @@ technical_spec:
       - name: Chat
         action: Read
         fields: "id, senderId, content, createdAt"
-        index: "PK(id) 활용 (cursor 기반 탐색)"
+        index: "(room_id, id) 복합 인덱스 활용"
       - name: ChatRoom
         action: Read
         fields: "id (존재 확인)"
