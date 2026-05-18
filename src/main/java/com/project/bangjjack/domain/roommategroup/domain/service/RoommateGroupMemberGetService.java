@@ -14,4 +14,8 @@ public class RoommateGroupMemberGetService {
     public boolean existsByUserIdAndRole(Long userId, GroupMemberRole role) {
         return roommateGroupMemberRepository.existsByUserIdAndRoleAndDeletedFalse(userId, role);
     }
+
+    public long countByGroupIdAndRole(Long groupId, GroupMemberRole role) {
+        return roommateGroupMemberRepository.countByGroupIdAndRoleAndDeletedFalse(groupId, role);
+    }
 }
