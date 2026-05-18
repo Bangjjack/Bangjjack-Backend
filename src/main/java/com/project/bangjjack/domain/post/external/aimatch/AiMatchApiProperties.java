@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.post.infrastructure.aimatch;
+package com.project.bangjjack.domain.post.external.aimatch;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

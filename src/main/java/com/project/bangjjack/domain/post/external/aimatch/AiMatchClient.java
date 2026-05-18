@@ -1,13 +1,13 @@
-package com.project.bangjjack.domain.post.infrastructure.aimatch;
+package com.project.bangjjack.domain.post.external.aimatch;
 
 import com.project.bangjjack.domain.post.application.exception.AiServiceUnavailableException;
 import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisCommand;
 import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisPort;
 import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisProfile;
 import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisResult;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchRequest;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchResponse;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchUserPayload;
+import com.project.bangjjack.domain.post.external.aimatch.dto.AiMatchRequest;
+import com.project.bangjjack.domain.post.external.aimatch.dto.AiMatchResponse;
+import com.project.bangjjack.domain.post.external.aimatch.dto.AiMatchUserPayload;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;

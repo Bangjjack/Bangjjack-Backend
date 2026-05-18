@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.post.infrastructure.aimatch;
+package com.project.bangjjack.domain.post.external.aimatch;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

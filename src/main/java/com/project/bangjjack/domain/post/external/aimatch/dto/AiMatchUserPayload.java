@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.post.infrastructure.aimatch.dto;
+package com.project.bangjjack.domain.post.external.aimatch.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.project.bangjjack.domain.checklist.domain.entity.Bedtime;
