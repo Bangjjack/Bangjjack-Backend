@@ -1,6 +1,6 @@
 # Feature Specification: AI 기반 룸메이트 매칭률 분석
 # Status: Draft
-# Last Updated: 2026-05-17
+# Last Updated: 2026-05-17 (revised: MatchAnalysisPort 도입으로 UseCase/Infra 디커플링)
 
 meta:
   id: FEAT-011
@@ -115,15 +115,20 @@ technical_spec:
       transaction: true (readOnly)
     - step: 5
       layer: UseCase (MatchAnalysisUseCase)
-      action: "MatchDetailRequest.of(requester, post 작성자) 조립 — user_a/user_b 각각 ENUM 값 그대로 매핑"
-    - step: 6
-      layer: Infrastructure (AiMatchClient)
       action: >
-        외부 AI API 호출: POST {ai.match-api.base-url}/match-detail.
+        도메인 객체 조립 — MatchAnalysisProfile.of(user, checklist, sleepHabits, preference)로
+        요청자/작성자 각각의 프로필을 만든 뒤 MatchAnalysisCommand.of(requesterProfile, authorProfile)로 묶음.
+        UseCase는 인프라 DTO(AiMatchRequest/Response/UserPayload)에 의존하지 않음.
+    - step: 6
+      layer: Domain Port (MatchAnalysisPort) → Infrastructure Adapter (AiMatchClient)
+      action: >
+        matchAnalysisPort.analyze(command) 호출. 어댑터(AiMatchClient)가 내부에서
+        MatchAnalysisProfile → AiMatchUserPayload 변환, POST {ai.match-api.base-url}/match-detail 호출,
+        AiMatchResponse → MatchAnalysisResult 변환까지 수행.
         connect 3s / read 5s 타임아웃. 응답 코드 2xx 아니거나 타임아웃 시 AI_SERVICE_UNAVAILABLE.
     - step: 7
       layer: UseCase (MatchAnalysisUseCase)
-      action: "응답의 matchedFeatures / topInfluentialFeatures를 FeatureLabelConverter.toLabels()로 한국어 라벨 변환"
+      action: "MatchAnalysisResult의 matchedFeatures / topInfluentialFeatures를 FeatureLabelConverter.toLabels()로 한국어 라벨 변환"
     - step: 8
       layer: UseCase (MatchAnalysisUseCase)
       action: "MatchRateResponse.from(matchRate, matchedLabels, topInfluentialLabels) 생성 후 반환"
@@ -222,20 +227,62 @@ configuration:
     annotation: "@ConfigurationProperties(prefix = \"ai.match-api\")"
 
 # ============================================================
-# 구성 요소 (Infrastructure)
+# 구성 요소 (Domain Port / Adapter / UseCase)
 # ============================================================
 components:
+  MatchAnalysisPort:
+    package: "domain.post.domain.port.match"
+    type: "Domain Interface (Port)"
+    method: "MatchAnalysisResult analyze(MatchAnalysisCommand command)"
+    note: >
+      UseCase가 인프라/외부 API에 직접 의존하지 않도록 도메인 계층에 정의한 포트.
+      AiMatchClient가 본 포트를 구현 (DIP). 향후 다른 AI 백엔드로 교체 시 어댑터만 추가.
+
+  MatchAnalysisCommand:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - requester: MatchAnalysisProfile
+      - author: MatchAnalysisProfile
+    note: "포트 입력. 인프라 DTO 대신 도메인 객체만 포함."
+
+  MatchAnalysisProfile:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - user: User
+      - checklist: LifestyleChecklist
+      - sleepHabits: List<LifestyleChecklistSleepHabit>
+      - preference: RoommatePreference
+    note: "요청자/작성자 각각의 매칭 분석 입력 단위."
+
+  MatchAnalysisResult:
+    package: "domain.post.domain.port.match"
+    type: "Domain Value Object (record)"
+    fields:
+      - matchRate: int
+      - matchedFeatures: List<String>      # 피처 키 (라벨 미변환 상태)
+      - topInfluentialFeatures: List<String>
+    note: "포트 출력. 라벨 변환은 UseCase에서 FeatureLabelConverter로 수행."
+
   AiMatchClient:
-    package: "infra.match"
-    impl: "Spring RestClient 또는 WebClient (블로킹)"
-    method: "MatchDetailResponse callMatchDetail(MatchDetailRequest request)"
+    package: "domain.post.infrastructure.aimatch"
+    type: "Infrastructure Adapter (implements MatchAnalysisPort)"
+    impl: "Spring RestClient (블로킹)"
+    responsibility: >
+      - MatchAnalysisProfile → AiMatchUserPayload 변환 (내부 캡슐화)
+      - POST /match-detail 호출
+      - AiMatchResponse → MatchAnalysisResult 변환
     error_handling:
       - "타임아웃 / IOException → AiServiceUnavailableException"
       - "응답 코드 != 2xx → AiServiceUnavailableException"
-    note: "외부 호출 격리. UseCase는 이 클라이언트만 의존."
+      - "응답 body null → AiServiceUnavailableException"
+    note: >
+      AiMatchRequest/Response/UserPayload는 본 어댑터 내부 구현 디테일로만 사용.
+      UseCase 및 다른 계층은 이들 DTO에 절대 의존하지 않음.
 
   FeatureLabelConverter:
-    package: "domain.match"
+    package: "domain.post.domain.service"
     impl: "Map<String, String> 상수 (api/labels.py FEATURE_LABELS 포팅)"
     method: "List<String> toLabels(List<String> featureKeys)"
     fallback: "매핑 없는 키는 키 그대로 반환"
@@ -244,15 +291,18 @@ components:
       향후 라벨 톤 변경 시 한 곳만 수정.
 
   MatchAnalysisUseCase:
-    package: "application.match" 또는 "application.post"
+    package: "domain.post.application.usecase"
     dependencies:
       - RoommatePostGetService
       - UserGetService
       - ChecklistGetService (LifestyleChecklist + SleepHabits 조회)
-      - PreferenceGetService (RoommatePreference 조회)
-      - AiMatchClient
+      - RoommatePreferenceGetService (RoommatePreference 조회)
+      - MatchAnalysisPort   # ← 인프라(AiMatchClient)가 아닌 도메인 포트만 의존
       - FeatureLabelConverter
     transaction: "@Transactional(readOnly = true)"
+    note: >
+      "NO Layer Skipping" 규칙 준수: UseCase는 Infrastructure 패키지 import 금지.
+      외부 AI 호출은 MatchAnalysisPort를 통해 추상화.
 
 # ============================================================
 # 데이터베이스 영향
@@ -305,6 +355,9 @@ testing_strategy:
 # 주의사항
 # ============================================================
 notes:
+  - >
+    [아키텍처] UseCase는 인프라 어댑터(AiMatchClient)에 직접 의존하지 않고 도메인 포트(MatchAnalysisPort)에만 의존.
+    AiMatchRequest/Response/UserPayload는 어댑터 내부 캡슐화. system-design.yaml의 "NO Layer Skipping" 규칙 준수.
   - "AI API 응답 필드 그대로 노출하지 않음. matchedFeatures/topInfluentialFeatures → matchedAttributes/recommendedTopics 로 네이밍 변경 + 한국어 라벨 변환."
   - "third_priority는 현재 AI 모델 미사용이지만 RoommatePreference.priority3 값을 그대로 전달 (확장 대비)."
   - "FEATURE_LABELS 매핑은 30개 키 전부 Java 상수로 포팅. api/labels.py와 동기화 필요 시 PR 리뷰 시점에 확인."

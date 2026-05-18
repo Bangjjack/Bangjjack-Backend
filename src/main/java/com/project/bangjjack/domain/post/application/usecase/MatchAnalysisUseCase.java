@@ -10,12 +10,12 @@ import com.project.bangjjack.domain.post.application.exception.ChecklistNotRegis
 import com.project.bangjjack.domain.post.application.exception.PreferenceNotRegisteredException;
 import com.project.bangjjack.domain.post.application.exception.SelfMatchNotAllowedException;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisCommand;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisPort;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisProfile;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisResult;
 import com.project.bangjjack.domain.post.domain.service.FeatureLabelConverter;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.AiMatchClient;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchRequest;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchResponse;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchUserPayload;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +33,7 @@ public class MatchAnalysisUseCase {
     private final RoommatePostGetService roommatePostGetService;
     private final ChecklistGetService checklistGetService;
     private final RoommatePreferenceGetService roommatePreferenceGetService;
-    private final AiMatchClient aiMatchClient;
+    private final MatchAnalysisPort matchAnalysisPort;
     private final FeatureLabelConverter featureLabelConverter;
 
     public MatchRateResponse analyzeMatchRate(Long userId, Long postId) {
@@ -46,24 +46,26 @@ public class MatchAnalysisUseCase {
 
         User requester = userGetService.getById(userId);
 
-        AiMatchUserPayload requesterPayload = buildPayload(requester);
-        AiMatchUserPayload authorPayload = buildPayload(author);
+        MatchAnalysisProfile requesterProfile = buildProfile(requester);
+        MatchAnalysisProfile authorProfile = buildProfile(author);
 
-        AiMatchResponse aiResponse = aiMatchClient.callMatchDetail(AiMatchRequest.of(requesterPayload, authorPayload));
+        MatchAnalysisResult result = matchAnalysisPort.analyze(
+                MatchAnalysisCommand.of(requesterProfile, authorProfile)
+        );
 
         return MatchRateResponse.of(
-                aiResponse.matchRate(),
-                featureLabelConverter.toLabels(aiResponse.matchedFeatures()),
-                featureLabelConverter.toLabels(aiResponse.topInfluentialFeatures())
+                result.matchRate(),
+                featureLabelConverter.toLabels(result.matchedFeatures()),
+                featureLabelConverter.toLabels(result.topInfluentialFeatures())
         );
     }
 
-    private AiMatchUserPayload buildPayload(User user) {
+    private MatchAnalysisProfile buildProfile(User user) {
         LifestyleChecklist checklist = checklistGetService.findByUser(user)
                 .orElseThrow(ChecklistNotRegisteredException::new);
         List<LifestyleChecklistSleepHabit> sleepHabits = checklistGetService.findSleepHabitsByChecklist(checklist);
         RoommatePreference preference = roommatePreferenceGetService.findByUser(user)
                 .orElseThrow(PreferenceNotRegisteredException::new);
-        return AiMatchUserPayload.of(user, checklist, sleepHabits, preference);
+        return MatchAnalysisProfile.of(user, checklist, sleepHabits, preference);
     }
 }

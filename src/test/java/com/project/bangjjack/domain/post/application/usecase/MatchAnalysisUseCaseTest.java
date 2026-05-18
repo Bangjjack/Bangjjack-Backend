@@ -24,11 +24,11 @@ import com.project.bangjjack.domain.post.application.exception.PreferenceNotRegi
 import com.project.bangjjack.domain.post.application.exception.SelfMatchNotAllowedException;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisCommand;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisPort;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisResult;
 import com.project.bangjjack.domain.post.domain.service.FeatureLabelConverter;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.AiMatchClient;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchRequest;
-import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchResponse;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
@@ -65,7 +65,7 @@ class MatchAnalysisUseCaseTest {
     @Mock
     private RoommatePreferenceGetService roommatePreferenceGetService;
     @Mock
-    private AiMatchClient aiMatchClient;
+    private MatchAnalysisPort matchAnalysisPort;
     @Mock
     private FeatureLabelConverter featureLabelConverter;
 
@@ -136,8 +136,8 @@ class MatchAnalysisUseCaseTest {
             given(checklistGetService.findSleepHabitsByChecklist(authorChecklist)).willReturn(List.of());
             given(roommatePreferenceGetService.findByUser(requester)).willReturn(Optional.of(preferenceFor(requester)));
             given(roommatePreferenceGetService.findByUser(author)).willReturn(Optional.of(preferenceFor(author)));
-            given(aiMatchClient.callMatchDetail(any(AiMatchRequest.class)))
-                    .willReturn(new AiMatchResponse(82, List.of("diff_sleep_time"), List.of("match_smoking", "diff_clean_freq", "match_prio1_sleep")));
+            given(matchAnalysisPort.analyze(any(MatchAnalysisCommand.class)))
+                    .willReturn(new MatchAnalysisResult(82, List.of("diff_sleep_time"), List.of("match_smoking", "diff_clean_freq", "match_prio1_sleep")));
             given(featureLabelConverter.toLabels(List.of("diff_sleep_time"))).willReturn(List.of("취침 시간"));
             given(featureLabelConverter.toLabels(List.of("match_smoking", "diff_clean_freq", "match_prio1_sleep")))
                     .willReturn(List.of("흡연 습관", "청소 빈도", "1순위: 수면 패턴"));
@@ -172,8 +172,8 @@ class MatchAnalysisUseCaseTest {
             given(checklistGetService.findSleepHabitsByChecklist(authorChecklist)).willReturn(List.of());
             given(roommatePreferenceGetService.findByUser(requester)).willReturn(Optional.of(preferenceFor(requester)));
             given(roommatePreferenceGetService.findByUser(author)).willReturn(Optional.of(preferenceFor(author)));
-            given(aiMatchClient.callMatchDetail(any(AiMatchRequest.class)))
-                    .willReturn(new AiMatchResponse(50, List.of(), List.of("match_prio2_clean")));
+            given(matchAnalysisPort.analyze(any(MatchAnalysisCommand.class)))
+                    .willReturn(new MatchAnalysisResult(50, List.of(), List.of("match_prio2_clean")));
             given(featureLabelConverter.toLabels(List.of())).willReturn(List.of());
             given(featureLabelConverter.toLabels(List.of("match_prio2_clean"))).willReturn(List.of("2순위: 청결도"));
 
@@ -301,7 +301,7 @@ class MatchAnalysisUseCaseTest {
             given(checklistGetService.findSleepHabitsByChecklist(authorChecklist)).willReturn(List.of());
             given(roommatePreferenceGetService.findByUser(requester)).willReturn(Optional.of(preferenceFor(requester)));
             given(roommatePreferenceGetService.findByUser(author)).willReturn(Optional.of(preferenceFor(author)));
-            given(aiMatchClient.callMatchDetail(any(AiMatchRequest.class)))
+            given(matchAnalysisPort.analyze(any(MatchAnalysisCommand.class)))
                     .willThrow(AiServiceUnavailableException.class);
 
             // when & then

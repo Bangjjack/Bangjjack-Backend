@@ -1,8 +1,13 @@
 package com.project.bangjjack.domain.post.infrastructure.aimatch;
 
 import com.project.bangjjack.domain.post.application.exception.AiServiceUnavailableException;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisCommand;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisPort;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisProfile;
+import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisResult;
 import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchRequest;
 import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchResponse;
+import com.project.bangjjack.domain.post.infrastructure.aimatch.dto.AiMatchUserPayload;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -12,7 +17,7 @@ import org.springframework.web.client.RestClientException;
 
 @Slf4j
 @Component
-public class AiMatchClient {
+public class AiMatchClient implements MatchAnalysisPort {
 
     private static final String MATCH_DETAIL_PATH = "/match-detail";
 
@@ -22,7 +27,22 @@ public class AiMatchClient {
         this.aiMatchRestClient = aiMatchRestClient;
     }
 
-    public AiMatchResponse callMatchDetail(AiMatchRequest request) {
+    @Override
+    public MatchAnalysisResult analyze(MatchAnalysisCommand command) {
+        AiMatchRequest request = AiMatchRequest.of(toPayload(command.requester()), toPayload(command.author()));
+        AiMatchResponse response = callMatchDetail(request);
+        return MatchAnalysisResult.of(
+                response.matchRate(),
+                response.matchedFeatures(),
+                response.topInfluentialFeatures()
+        );
+    }
+
+    private AiMatchUserPayload toPayload(MatchAnalysisProfile profile) {
+        return AiMatchUserPayload.of(profile.user(), profile.checklist(), profile.sleepHabits(), profile.preference());
+    }
+
+    private AiMatchResponse callMatchDetail(AiMatchRequest request) {
         try {
             AiMatchResponse response = aiMatchRestClient.post()
                     .uri(MATCH_DETAIL_PATH)
