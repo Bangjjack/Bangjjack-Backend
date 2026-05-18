@@ -10,6 +10,7 @@ public class PermitUrlConfig {
                 "/oauth2/authorization/**",
                 "/auth/login/**",
                 "/api/v1/auth/token",
+                "/api/v1/dev/**",
                 "/v3/api-docs/**",
                 "/swagger-ui/**",
                 "/swagger-resources/**",
