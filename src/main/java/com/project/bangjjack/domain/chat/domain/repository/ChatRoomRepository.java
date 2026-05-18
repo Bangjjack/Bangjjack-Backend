@@ -11,4 +11,9 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
 
     @Query("SELECT cr FROM ChatRoom cr WHERE cr.directRoomKey = :directRoomKey AND cr.deleted = false")
     Optional<ChatRoom> findByDirectRoomKey(@Param("directRoomKey") String directRoomKey);
+
+    @Query("SELECT cr FROM ChatRoom cr WHERE cr.id = :id AND cr.deleted = false")
+    Optional<ChatRoom> findByIdAndDeletedFalse(@Param("id") Long id);
+
+    boolean existsByIdAndDeletedFalse(Long id);
 }

@@ -2,12 +2,16 @@ package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
+import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
 import com.project.bangjjack.domain.post.application.exception.InvalidRecruitMemberCountException;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
-import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.exception.PostDeleteForbiddenException;
+import com.project.bangjjack.domain.post.domain.entity.RoomSize;
+import com.project.bangjjack.domain.user.domain.entity.Campus;
+import com.project.bangjjack.global.common.response.SliceResponse;
+import org.springframework.data.domain.Pageable;
 import com.project.bangjjack.domain.post.application.exception.PostNotEditableException;
 import com.project.bangjjack.domain.post.application.exception.PostUpdateForbiddenException;
 import com.project.bangjjack.domain.post.application.exception.PostWritePreconditionNotMetException;
@@ -72,6 +76,13 @@ public class RoommatePostUseCase {
         );
 
         roommatePostCreateService.createPost(post, sharedLifestyle);
+    }
+
+    public SliceResponse<RoommatePostSummaryResponse> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
+        return SliceResponse.from(
+                roommatePostGetService.getPostList(campus, roomSize, pageable)
+                        .map(RoommatePostSummaryResponse::from)
+        );
     }
 
     public RoommatePostDetailResponse getPostDetail(Long userId, Long postId) {

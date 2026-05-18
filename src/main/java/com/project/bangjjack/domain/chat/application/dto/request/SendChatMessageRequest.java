@@ -1,0 +1,11 @@
+package com.project.bangjjack.domain.chat.application.dto.request;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record SendChatMessageRequest(
+        @NotBlank(message = "메시지 내용을 입력해주세요.")
+        @Size(max = 1000, message = "메시지는 최대 1000자까지 입력 가능합니다.")
+        String content
+) {
+}
