@@ -54,3 +54,6 @@ management:
   endpoint:
     health:
       show-details: never
+
+dev:
+  secret: ${DEV_SECRET}

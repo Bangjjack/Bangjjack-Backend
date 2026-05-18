@@ -10,7 +10,7 @@ public class PermitUrlConfig {
                 "/oauth2/authorization/**",
                 "/auth/login/**",
                 "/api/v1/auth/token",
-                "/api/v1/dev/**",
+                "/api/v1/dev/**", // TODO: dev 환경에서만 해당 경로 허용하도록 확장
                 "/v3/api-docs/**",
                 "/swagger-ui/**",
                 "/swagger-resources/**",
