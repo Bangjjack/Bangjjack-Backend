@@ -78,7 +78,7 @@ class ChatMessageUseCaseGetMessagesTest {
             assertThat(response.messages()).hasSize(1);
             assertThat(response.hasNext()).isFalse();
             assertThat(response.nextCursor()).isNull();
-            then(chatRoomGetService).should().getByIdAndValidateParticipant(roomId, currentUserId);
+            then(chatRoomGetService).should().validateParticipant(roomId, currentUserId);
         }
 
         @Test
@@ -145,7 +145,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 999L;
 
             doThrow(new ChatRoomNotFoundException())
-                    .when(chatRoomGetService).getByIdAndValidateParticipant(roomId, currentUserId);
+                    .when(chatRoomGetService).validateParticipant(roomId, currentUserId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(currentUserId, roomId, null, 30))
@@ -160,7 +160,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 10L;
 
             doThrow(new NotChatParticipantException())
-                    .when(chatRoomGetService).getByIdAndValidateParticipant(roomId, outsiderId);
+                    .when(chatRoomGetService).validateParticipant(roomId, outsiderId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(outsiderId, roomId, null, 30))
