@@ -28,7 +28,7 @@ public record BookmarkedPostResponse(
                 post.getRoomSize(),
                 post.getRecruitMemberCount(),
                 post.getStatus(),
-                bookmark.getCreatedAt()
+                bookmark.getUpdatedAt()
         );
     }
 }
