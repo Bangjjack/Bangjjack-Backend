@@ -51,3 +51,6 @@ logging:
     com.project.bangjjack.domain.chat: DEBUG
     org.springframework.web.socket: DEBUG
     org.springframework.messaging.simp: DEBUG
+
+dev:
+  secret: ${DEV_SECRET:local-dev-secret}
