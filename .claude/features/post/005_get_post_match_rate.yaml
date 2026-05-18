@@ -1,6 +1,6 @@
 # Feature Specification: AI 기반 룸메이트 매칭률 분석
 # Status: Draft
-# Last Updated: 2026-05-18 (revised: PII 보호 — AI 클라이언트 요청 body 로깅 완전 제거)
+# Last Updated: 2026-05-18 (revised: OPEN 상태 모집글만 매칭 분석 대상 — 조회 단계에서 status 필터링)
 
 meta:
   id: FEAT-011
@@ -21,6 +21,7 @@ overview:
     - 외부 AI 분석 API(/match-detail) 연동 및 응답 가공
     - matchedFeatures / topInfluentialFeatures 키를 한국어 라벨로 변환하여 응답
     - 본인 글 매칭 분석 차단 (의미 없음 방지)
+    - OPEN 상태인 모집글에 대해서만 분석 가능 (마감된 글은 매칭 의미 없음 — 조회 단계에서 필터링)
     - 양측 모두 체크리스트·선호도 등록 완료 상태에서만 분석 가능
 
 # ============================================================
@@ -104,7 +105,8 @@ technical_spec:
       layer: Application Loader (MatchAnalysisDataLoader)
       action: >
         DB 조회 + 검증을 단일 @Transactional(readOnly = true) 경계 안에서 수행:
-          1) RoommatePostGetService.getById(postId) — 없으면 POST_NOT_FOUND
+          1) RoommatePostGetService.getOpenById(postId) — status=OPEN + deleted=false 조건으로 조회.
+             없거나 CLOSED면 POST_NOT_FOUND (매칭 의미 없는 모집글은 외부 시각상 미존재와 동일 처리).
           2) 본인 글 차단 — post.getUser().getId().equals(userId)면 SELF_MATCH_NOT_ALLOWED
           3) UserGetService.getById(userId) — 요청자 조회 (실패 시 USER_NOT_FOUND)
           4) 양측 LifestyleChecklist + SleepHabits 조회 (없으면 CHECKLIST_NOT_REGISTERED)
@@ -172,8 +174,11 @@ technical_spec:
         name: POST_NOT_FOUND
         status: 404 NOT_FOUND
         message: "모집글을 찾을 수 없습니다."
-        trigger: "postId에 해당하는 모집글이 없거나 deleted=true인 경우"
-        note: "기존 코드 재사용 (FEAT-010)"
+        trigger: "postId에 해당하는 모집글이 없거나, deleted=true이거나, status != OPEN(CLOSED)인 경우"
+        note: >
+          기존 코드 재사용 (FEAT-010). 매칭 분석 컨텍스트에서는 CLOSED 모집글도
+          "매칭 대상 없음"으로 간주하여 POST_NOT_FOUND로 통합 응답 — 별도 에러코드 없이
+          조회 단계(RoommatePostGetService.getOpenById)에서 필터링.
       - code: 40708
         name: SELF_MATCH_NOT_ALLOWED
         status: 409 CONFLICT
@@ -204,6 +209,7 @@ technical_spec:
 
   validation_rules:
     - "deleted=true인 모집글은 매칭 분석 불가. POST_NOT_FOUND."
+    - "PostStatus != OPEN(CLOSED)인 모집글은 매칭 분석 불가. POST_NOT_FOUND (조회 단계에서 필터링)."
     - "본인이 작성한 모집글은 분석 불가. SELF_MATCH_NOT_ALLOWED."
     - "요청자/작성자 모두 LifestyleChecklist 등록 필수. 미등록 시 CHECKLIST_NOT_REGISTERED."
     - "요청자/작성자 모두 RoommatePreference 등록 필수. 미등록 시 PREFERENCE_NOT_REGISTERED."
@@ -342,7 +348,7 @@ database:
   entities:
     - name: RoommatePost
       action: Read
-      fields: "postId, user_id, deleted"
+      fields: "postId, user_id, status (= OPEN 조건 필터), deleted (= false 조건 필터)"
     - name: User
       action: Read
       fields: "id, gender (요청자/작성자 양측)"
@@ -370,6 +376,7 @@ testing_strategy:
   edge_cases:
     - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "삭제된 postId → 404 POST_NOT_FOUND"
+    - "마감된(CLOSED) 모집글 postId → 404 POST_NOT_FOUND (조회 단계 status 필터링)"
     - "본인 글 postId → 409 SELF_MATCH_NOT_ALLOWED"
     - "요청자 체크리스트 미등록 → 409 CHECKLIST_NOT_REGISTERED"
     - "작성자 체크리스트 미등록 → 409 CHECKLIST_NOT_REGISTERED"

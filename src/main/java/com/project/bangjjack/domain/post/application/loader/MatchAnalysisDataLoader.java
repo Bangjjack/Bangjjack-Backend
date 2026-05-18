@@ -31,7 +31,7 @@ public class MatchAnalysisDataLoader {
 
     @Transactional(readOnly = true)
     public MatchAnalysisCommand loadCommand(Long userId, Long postId) {
-        RoommatePost post = roommatePostGetService.getById(postId);
+        RoommatePost post = roommatePostGetService.getOpenById(postId);
         User author = post.getUser();
 
         if (author.getId().equals(userId)) {

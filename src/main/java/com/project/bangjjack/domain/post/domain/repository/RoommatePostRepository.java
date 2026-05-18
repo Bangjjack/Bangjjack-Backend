@@ -15,4 +15,7 @@ public interface RoommatePostRepository extends JpaRepository<RoommatePost, Long
 
     @Query("SELECT p FROM RoommatePost p JOIN FETCH p.user WHERE p.id = :postId AND p.deleted = false")
     Optional<RoommatePost> findWithUserByIdAndDeletedFalse(@Param("postId") Long postId);
+
+    @Query("SELECT p FROM RoommatePost p JOIN FETCH p.user WHERE p.id = :postId AND p.status = :status AND p.deleted = false")
+    Optional<RoommatePost> findWithUserByIdAndStatusAndDeletedFalse(@Param("postId") Long postId, @Param("status") PostStatus status);
 }

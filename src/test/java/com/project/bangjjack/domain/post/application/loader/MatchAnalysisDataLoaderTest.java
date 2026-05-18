@@ -117,7 +117,7 @@ class MatchAnalysisDataLoaderTest {
             LifestyleChecklist requesterChecklist = checklistFor(requester);
             LifestyleChecklist authorChecklist = checklistFor(author);
 
-            given(roommatePostGetService.getById(postId)).willReturn(post);
+            given(roommatePostGetService.getOpenById(postId)).willReturn(post);
             given(userGetService.getById(requesterId)).willReturn(requester);
             given(checklistGetService.findByUser(requester)).willReturn(Optional.of(requesterChecklist));
             given(checklistGetService.findByUser(author)).willReturn(Optional.of(authorChecklist));
@@ -144,7 +144,7 @@ class MatchAnalysisDataLoaderTest {
             Long postId = 10L;
             User user = userWithId(userId);
             RoommatePost post = postOwnedBy(user);
-            given(roommatePostGetService.getById(postId)).willReturn(post);
+            given(roommatePostGetService.getOpenById(postId)).willReturn(post);
 
             // when & then
             assertThatThrownBy(() -> matchAnalysisDataLoader.loadCommand(userId, postId))
@@ -157,7 +157,20 @@ class MatchAnalysisDataLoaderTest {
             // given
             Long requesterId = 1L;
             Long postId = 999L;
-            given(roommatePostGetService.getById(postId)).willThrow(PostNotFoundException.class);
+            given(roommatePostGetService.getOpenById(postId)).willThrow(PostNotFoundException.class);
+
+            // when & then
+            assertThatThrownBy(() -> matchAnalysisDataLoader.loadCommand(requesterId, postId))
+                    .isInstanceOf(PostNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("OPEN 상태가 아닌 모집글이면 PostNotFoundException이 발생한다")
+        void 마감된_모집글_조회_시_예외_발생() {
+            // given
+            Long requesterId = 1L;
+            Long postId = 10L;
+            given(roommatePostGetService.getOpenById(postId)).willThrow(PostNotFoundException.class);
 
             // when & then
             assertThatThrownBy(() -> matchAnalysisDataLoader.loadCommand(requesterId, postId))
@@ -175,7 +188,7 @@ class MatchAnalysisDataLoaderTest {
             User author = userWithId(authorId);
             RoommatePost post = postOwnedBy(author);
 
-            given(roommatePostGetService.getById(postId)).willReturn(post);
+            given(roommatePostGetService.getOpenById(postId)).willReturn(post);
             given(userGetService.getById(requesterId)).willReturn(requester);
             given(checklistGetService.findByUser(requester)).willReturn(Optional.empty());
 
@@ -196,7 +209,7 @@ class MatchAnalysisDataLoaderTest {
             RoommatePost post = postOwnedBy(author);
             LifestyleChecklist requesterChecklist = checklistFor(requester);
 
-            given(roommatePostGetService.getById(postId)).willReturn(post);
+            given(roommatePostGetService.getOpenById(postId)).willReturn(post);
             given(userGetService.getById(requesterId)).willReturn(requester);
             given(checklistGetService.findByUser(requester)).willReturn(Optional.of(requesterChecklist));
             given(checklistGetService.findSleepHabitsByChecklist(requesterChecklist)).willReturn(List.of());
@@ -220,7 +233,7 @@ class MatchAnalysisDataLoaderTest {
             RoommatePost post = postOwnedBy(author);
             LifestyleChecklist requesterChecklist = checklistFor(requester);
 
-            given(roommatePostGetService.getById(postId)).willReturn(post);
+            given(roommatePostGetService.getOpenById(postId)).willReturn(post);
             given(userGetService.getById(requesterId)).willReturn(requester);
             given(checklistGetService.findByUser(requester)).willReturn(Optional.of(requesterChecklist));
             given(checklistGetService.findSleepHabitsByChecklist(requesterChecklist)).willReturn(List.of());
