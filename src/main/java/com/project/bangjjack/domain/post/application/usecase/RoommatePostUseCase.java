@@ -21,6 +21,10 @@ import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateServic
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberCreateService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +41,8 @@ public class RoommatePostUseCase {
     private final RoommatePostCreateService roommatePostCreateService;
     private final RoommatePostDeleteService roommatePostDeleteService;
     private final RoommatePostUpdateService roommatePostUpdateService;
+    private final RoommateGroupCreateService roommateGroupCreateService;
+    private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
 
     @Transactional
     public void createPost(Long userId, CreateRoommatePostRequest request) {
@@ -76,6 +82,9 @@ public class RoommatePostUseCase {
         );
 
         roommatePostCreateService.createPost(post, sharedLifestyle);
+
+        RoommateGroup group = roommateGroupCreateService.createGroup(post);
+        roommateGroupMemberCreateService.addMember(group, user, GroupMemberRole.LEADER);
     }
 
     public SliceResponse<RoommatePostSummaryResponse> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
