@@ -10,7 +10,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "post_bookmarks")
+@Table(name = "post_bookmarks", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "post_id"})
+})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
