@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 신청 요청 보내기
 # Status: Draft
-# Last Updated: 2026-05-18 (request body 제거: 신청 시 메시지 입력 없음)
+# Last Updated: 2026-05-18 (request body 제거; RoommateApplication-ChatRoom FK 제거 — 채팅방은 (applicant, author) 유저 쌍에서 derivable한 side effect)
 
 meta:
   id: FEAT-013
@@ -101,23 +101,23 @@ technical_spec:
       action: "ChatRoomGetService로 (userId, post.user.id) 기준 directRoomKey 조회 → 존재 시 기존 chatRoom 사용 (isNewChatRoom=false), 없으면 ChatRoomCreateService.createDirectRoom(userId, post.user.id) 호출 (isNewChatRoom=true)"
     - step: 10
       layer: Domain (RoommateApplication Entity)
-      action: "RoommateApplication.create(post, applicant, chatRoom) 정적 팩토리 메서드 호출 → status=PENDING 으로 초기화"
+      action: "RoommateApplication.create(post, applicant) 정적 팩토리 메서드 호출 → status=PENDING 으로 초기화. ChatRoom은 엔티티에 보관하지 않음 (필요 시 (applicantId, authorId)로 derive)"
     - step: 11
       layer: Infrastructure (RoommateApplicationRepository)
       action: "save(application)로 신청 영속화"
     - step: 12
       layer: Response
-      action: "CreateRoommateApplicationResponse.from(application, isNewChatRoom) 생성 후 201 CREATED, CommonResponse<…> 반환"
+      action: "CreateRoommateApplicationResponse.from(application, chatRoom.getId(), isNewChatRoom) 생성 후 201 CREATED, CommonResponse<…> 반환. chatRoomId는 step 9에서 확보한 ChatRoom 인스턴스에서 직접 전달."
 
   response_dto_structure:
     CreateRoommateApplicationResponse:
-      note: "static factory method from(RoommateApplication, boolean isNewChatRoom) 사용"
+      note: "static factory method from(RoommateApplication, Long chatRoomId, boolean isNewChatRoom) 사용"
       source_fields:
         - "applicationId ← application.getId()"
         - "postId ← application.getPost().getId()"
         - "applicantId ← application.getApplicant().getId()"
         - "status ← application.getStatus()"
-        - "chatRoomId ← application.getChatRoom().getId()"
+        - "chatRoomId ← UseCase가 확보한 ChatRoom 인스턴스의 id를 파라미터로 전달 (application에는 chatRoom 참조 없음)"
         - "isNewChatRoom ← 파라미터로 전달"
         - "createdAt ← application.getCreatedAt()"
 
@@ -125,12 +125,16 @@ technical_spec:
     entities:
       - name: RoommateApplication
         action: Create
-        fields: "post_id, applicant_id (user_id FK), chat_room_id (FK, nullable=false), status=PENDING"
-        note: "신규 도메인 엔티티. 별도 references/data-model/application/roommate-application.yaml 작성 권장."
+        fields: "post_id, applicant_id (user_id FK), status=PENDING"
+        note: |
+          신규 도메인 엔티티. 별도 references/data-model/application/roommate-application.yaml 작성 권장.
+          ChatRoom과의 FK는 의도적으로 보유하지 않음 — 채팅방은 (applicantId, authorId) 유저 쌍의 함수이며
+          ChatRoom.directRoomKey로 idempotent하게 derive 가능. Application은 어떤 모집글에 대한 의사 표현일 뿐
+          채팅방 소유권을 갖지 않는다.
       - name: ChatRoom
         action: "Read or Create"
         fields: "direct_room_key 기준 조회. 없으면 createDirect()"
-        note: "기존 chat 도메인 서비스 재사용. 직접 신규 로직 구현 금지."
+        note: "기존 chat 도메인 서비스 재사용. Application 생성의 side effect로 보장만 함 (FK 저장 없음)."
       - name: ChatRoomParticipant
         action: "Read or Create"
         fields: "신규 채팅방 생성 시 2건(신청자, 작성자) saveAll"
@@ -145,7 +149,6 @@ technical_spec:
     columns:
       - post_id: { type: BIGINT, nullable: false, fk: "roommate_posts.id", description: "신청 대상 모집글 FK" }
       - applicant_id: { type: BIGINT, nullable: false, fk: "users.id", description: "신청자 User FK" }
-      - chat_room_id: { type: BIGINT, nullable: false, fk: "chat_room.id", description: "신청자-작성자 간 연결 채팅방 FK" }
       - status: { type: VARCHAR(15), nullable: false, default: PENDING, enum: ApplicationStatus, description: "신청 상태 (PENDING / ACCEPTED / REJECTED)" }
     indexes:
       - { name: IDX_application_post_id, columns: [post_id], type: INDEX }
@@ -154,9 +157,10 @@ technical_spec:
     relationships:
       - { type: ManyToOne, target: RoommatePost, fk: post_id, fetch: LAZY }
       - { type: ManyToOne, target: User, fk: applicant_id, fetch: LAZY }
-      - { type: ManyToOne, target: ChatRoom, fk: chat_room_id, fetch: LAZY }
+    relationship_notes:
+      - "ChatRoom과의 직접 연관관계는 두지 않는다. 이유: 채팅방은 (applicant, author) 유저 쌍의 함수로 derivable하며, Application은 모집글에 대한 의사 표현이지 채팅방 소유 주체가 아니다. 동일 유저 쌍이 다른 모집글에 재신청해도 같은 채팅방을 가리키므로 FK는 새 정보를 주지 않고 강결합만 유발한다."
     business_logic:
-      - "create(post, applicant, chatRoom): 정적 팩토리 메서드. status=PENDING 초기화."
+      - "create(post, applicant): 정적 팩토리 메서드. status=PENDING 초기화."
       - "accept(): status = ACCEPTED (다음 스펙: 신청 수락에서 사용)"
       - "reject(): status = REJECTED (다음 스펙: 신청 거절에서 사용)"
       - "softDelete(): → BaseEntity 위임"
@@ -215,7 +219,7 @@ technical_spec:
     - "신청자가 본인 명의의 OPEN 모집글 작성자이면 신청 불가 (작성자/신청자 역할 동시 보유 금지)"
     - "동일 (postId, applicantId)에 PENDING 신청이 이미 존재하면 신청 불가. REJECTED 처리된 이전 신청은 재신청 허용."
     - "수락(다음 스펙)되더라도 모집글 status는 자동 변경되지 않음. 작성자가 수동 마감."
-    - "신청 생성 시 신청자-작성자 간 1:1 채팅방이 없으면 ChatRoom 도메인 서비스를 통해 함께 생성, 있으면 기존 방 재사용"
+    - "신청 생성 시 신청자-작성자 간 1:1 채팅방이 없으면 ChatRoom 도메인 서비스를 통해 함께 생성, 있으면 기존 방 재사용 (응답에 chatRoomId만 포함, RoommateApplication에는 FK 저장 안 함)"
     - "요청 본문 없음. 신청 시 사용자가 입력하는 메시지/본문 없음 (대화는 자동 생성되는 채팅방에서 진행)."
 
   dependencies:
@@ -270,6 +274,7 @@ notes:
   - "core/system-design.yaml 의 api.error_codes.domains에 'application: 408xx' 추가 필요 (스펙 합의 후 별도 PR)."
   - "RoommateApplication 엔티티는 새 도메인이므로 references/data-model/application/roommate-application.yaml 문서 추가 권장."
   - "ChatRoom 자동 생성은 chat 도메인의 ChatRoomCreateService.createDirectRoom() 재사용. 신규 로직 중복 구현 금지(Layered DDD: Domain Service 간 직접 호출 금지 규칙에 따라 UseCase에서 조합)."
+  - "RoommateApplication ↔ ChatRoom FK는 의도적으로 두지 않는다. 채팅방은 신청의 side effect이며 (applicant, author) 유저 쌍에서 derivable. 추후 '이 신청의 채팅방으로 이동'이 필요하면 ChatRoom.generateDirectKey(applicantId, authorId)로 lookup."
   - "수락 시 모집글 자동 마감 정책은 적용하지 않는다 (작성자 수동 마감)."
   - "REJECTED 이후 재신청은 허용한다. PENDING 동시 존재만 차단 대상."
   - "동시성: 동일 (postId, applicantId) PENDING 중복 차단의 강건성 확보를 위해 (post_id, applicant_id, status='PENDING') 조건부 유니크 또는 @Transactional + 사전 조회 + 실패 시 재시도 정책 중 택1. 본 스펙에서는 사전 조회 + 트랜잭션 처리로 시작."

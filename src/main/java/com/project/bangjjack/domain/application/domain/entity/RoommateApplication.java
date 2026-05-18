@@ -1,6 +1,5 @@
 package com.project.bangjjack.domain.application.domain.entity;
 
-import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.global.common.entity.BaseEntity;
@@ -32,16 +31,12 @@ public class RoommateApplication extends BaseEntity {
     @JoinColumn(name = "applicant_id", nullable = false)
     private User applicant;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "chat_room_id", nullable = false)
-    private ChatRoom chatRoom;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 15)
     private ApplicationStatus status;
 
-    public static RoommateApplication create(RoommatePost post, User applicant, ChatRoom chatRoom) {
-        return new RoommateApplication(post, applicant, chatRoom, ApplicationStatus.PENDING);
+    public static RoommateApplication create(RoommatePost post, User applicant) {
+        return new RoommateApplication(post, applicant, ApplicationStatus.PENDING);
     }
 
     public void accept() {

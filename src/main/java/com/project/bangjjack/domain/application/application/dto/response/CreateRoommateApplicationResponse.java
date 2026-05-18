@@ -14,13 +14,13 @@ public record CreateRoommateApplicationResponse(
         boolean isNewChatRoom,
         LocalDateTime createdAt
 ) {
-    public static CreateRoommateApplicationResponse from(RoommateApplication application, boolean isNewChatRoom) {
+    public static CreateRoommateApplicationResponse from(RoommateApplication application, Long chatRoomId, boolean isNewChatRoom) {
         return new CreateRoommateApplicationResponse(
                 application.getId(),
                 application.getPost().getId(),
                 application.getApplicant().getId(),
                 application.getStatus(),
-                application.getChatRoom().getId(),
+                chatRoomId,
                 isNewChatRoom,
                 application.getCreatedAt()
         );

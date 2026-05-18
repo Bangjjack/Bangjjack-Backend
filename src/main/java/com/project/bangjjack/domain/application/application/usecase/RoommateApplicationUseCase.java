@@ -69,9 +69,9 @@ public class RoommateApplicationUseCase {
                 () -> chatRoomCreateService.createDirectRoom(userId, authorId, directRoomKey));
 
         RoommateApplication saved = roommateApplicationCreateService.createApplication(
-                RoommateApplication.create(post, applicant, chatRoom)
+                RoommateApplication.create(post, applicant)
         );
 
-        return CreateRoommateApplicationResponse.from(saved, isNewChatRoom);
+        return CreateRoommateApplicationResponse.from(saved, chatRoom.getId(), isNewChatRoom);
     }
 }
