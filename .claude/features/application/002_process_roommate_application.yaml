@@ -1,0 +1,230 @@
+# Feature Specification: 룸메이트 신청 수락/거절
+# Status: Draft
+# Last Updated: 2026-05-19
+
+meta:
+  id: FEAT-014
+  title: 룸메이트 신청 수락/거절
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    모집글 작성자가 PENDING 신청을 ACCEPTED 또는 REJECTED로 처리한다.
+    수락 시 신청자를 RoommateGroup의 MEMBER로 추가하고, 모든 처리에 대해 채팅방에 작성자 명의 안내 채팅이 자동 전송된다.
+    ACCEPTED/REJECTED는 종착 상태이며, 모집글 status는 자동 변경되지 않는다 (작성자 수동 마감).
+  user_story: >
+    As a 모집글 작성자, I want to 신청을 수락 또는 거절하고,
+    so that 룸메이트 결정이 그룹/채팅방에 즉시 반영된다.
+  goals:
+    - PENDING → ACCEPTED / REJECTED 전이 (종착 상태)
+    - 수락 시 RoommateGroup MEMBER 추가 (정원·중복 소속 검증)
+    - 수락/거절 시 작성자 명의 안내 채팅 자동 전송 + WebSocket broadcast
+    - 모집글 status 자동 변경 없음, 다른 PENDING 신청도 자동 처리 없음
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: PATCH
+      path: /api/v1/applications/{applicationId}
+      summary: 룸메이트 신청 수락/거절 처리
+      auth: MEMBER (Bearer Token, 필수 — 모집글 작성자만 허용)
+      request:
+        path_variable:
+          - name: applicationId
+            type: Long
+            required: true
+            note: "처리 대상 신청 ID"
+        dto: ProcessRoommateApplicationRequest
+        fields:
+          - name: status
+            type: ApplicationStatus
+            required: true
+            validation: "@NotNull, ACCEPTED | REJECTED (PENDING 불가)"
+            note: "전이 목표 상태. PENDING은 거부 → INVALID_TARGET_STATUS"
+      response:
+        dto: ProcessRoommateApplicationResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<ProcessRoommateApplicationResponse>
+        response_code: ApplicationResponseCode.APPLICATION_PROCESSED
+        fields:
+          - name: applicationId
+            type: Long
+          - name: postId
+            type: Long
+          - name: applicantId
+            type: Long
+          - name: status
+            type: String (Enum)
+            note: "ACCEPTED 또는 REJECTED"
+          - name: chatRoomId
+            type: Long
+            note: "안내 채팅이 전송된 1:1 채팅방 ID"
+          - name: groupId
+            type: Long
+            note: "수락 시 신청자가 합류한 RoommateGroup ID. 거절 시 null."
+          - name: currentGroupMemberCount
+            type: Integer
+            note: "수락 후 MEMBER 카운트 (LEADER 제외). 거절 시 null."
+          - name: processedAt
+            type: LocalDateTime
+            note: "처리 시각 (application.updatedAt)"
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommateApplicationController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable applicationId 수신, @Valid 요청 검증 후 RoommateApplicationUseCase.processApplication(userId, applicationId, request) 호출"
+    - step: 2
+      layer: UseCase (RoommateApplicationUseCase)
+      transaction: true
+      action: "RoommateApplicationGetService.getWithPostAndUserById(applicationId)로 신청 + 모집글 + 작성자 fetch join 조회 (없거나 deleted=true이면 APPLICATION_NOT_FOUND)"
+    - step: 3
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "application.getPost().getUser().getId() == userId 검증 → 작성자가 아니면 APPLICATION_PROCESS_FORBIDDEN"
+    - step: 4
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "application.getStatus() == PENDING 검증 → 이미 처리된 상태이면 INVALID_APPLICATION_STATUS"
+    - step: 5
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "[ACCEPTED 분기] RoommateGroupGetService.getByPostId(postId)로 그룹 조회 (없으면 시스템 무결성 오류 ROOMMATE_GROUP_NOT_FOUND)"
+    - step: 6
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "[ACCEPTED 분기] RoommateGroupMemberGetService.countByGroupIdAndRole(group.id, MEMBER) < post.recruitMemberCount 검증 → 미충족 시 RECRUIT_LIMIT_REACHED"
+    - step: 7
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "[ACCEPTED 분기] RoommateGroupMemberGetService.existsByUserIdAndRole(applicantId, MEMBER) 검증 → 이미 다른 그룹 MEMBER이면 APPLICANT_ALREADY_IN_GROUP"
+    - step: 8
+      layer: Domain (RoommateApplication Entity)
+      action: "request.status() == ACCEPTED 이면 application.accept(), REJECTED 이면 application.reject() 호출 (더티 체킹으로 status 갱신)"
+    - step: 9
+      layer: Domain Service (RoommateGroupMemberCreateService)
+      action: "[ACCEPTED 분기] RoommateGroupMemberCreateService.addMember(group, applicant, MEMBER) 호출"
+    - step: 10
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "ChatRoomCreateService.createDirectKey(applicantId, authorId) → ChatRoomGetService.findByDirectRoomKey(...). 001에서 보장되었으므로 없으면 ChatRoomNotFoundException (chat 406xx)"
+    - step: 11
+      layer: Domain Service (ChatSaveService)
+      action: "ChatSaveService.save(authorId, chatRoom, content) 호출. content는 ACCEPTED → APPLICATION_ACCEPTED_MESSAGE, REJECTED → APPLICATION_REJECTED_MESSAGE"
+    - step: 12
+      layer: UseCase (RoommateApplicationUseCase)
+      action: "ApplicationEventPublisher로 ChatMessageSentEvent(roomId, ChatMessageBroadcast.from(chat, roomId)) 발행 → WebSocketBroadcaster 자동 송신"
+    - step: 13
+      layer: Response
+      action: "ProcessRoommateApplicationResponse.from(application, chatRoom.getId(), groupId|null, currentGroupMemberCount|null) 생성 후 200 OK, CommonResponse<…> 반환. 거절 시 groupId/currentGroupMemberCount는 null."
+
+  database:
+    entities:
+      - name: RoommateApplication
+        action: Update
+        fields: "status (PENDING → ACCEPTED 또는 REJECTED), updatedAt"
+        note: "JPA 더티 체킹으로 갱신. 추가 컬럼 변경 없음."
+      - name: RoommateGroupMember
+        action: Create
+        fields: "group_id, user_id=applicantId, role=MEMBER"
+        note: "ACCEPTED 분기에서만 추가. 거절 시 변경 없음. 그룹 자체는 모집글 작성 시 이미 생성됨."
+      - name: Chat
+        action: Create
+        fields: "user_id=authorId (작성자 명의), room_id=chatRoom.id, content=고정 문구"
+        note: "ChatSaveService.save() 호출 후 ChatMessageSentEvent 발행."
+
+  message_constants:
+    note: "RoommateApplicationUseCase 내부 상수로 관리. 신청 생성 안내 문구(001)와 동일 패턴."
+    constants:
+      - "APPLICATION_ACCEPTED_MESSAGE = \"룸메이트 신청을 수락했습니다.\""
+      - "APPLICATION_REJECTED_MESSAGE = \"룸메이트 신청을 거절했습니다.\""
+
+  error_codes:
+    domain_range: "408xx (Application 도메인, 002에서 추가)"
+    note: "신규 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
+    codes:
+      - code: 40806
+        name: APPLICATION_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "신청을 찾을 수 없습니다."
+        trigger: "applicationId 미존재 또는 deleted=true"
+      - code: 40807
+        name: APPLICATION_PROCESS_FORBIDDEN
+        status: 403 FORBIDDEN
+        message: "신청을 처리할 권한이 없습니다."
+        trigger: "요청자가 application.post.user.id와 다름"
+      - code: 40808
+        name: INVALID_APPLICATION_STATUS
+        status: 409 CONFLICT
+        message: "이미 처리된 신청은 다시 처리할 수 없습니다."
+        trigger: "application.status != PENDING"
+      - code: 40809
+        name: INVALID_TARGET_STATUS
+        status: 400 BAD_REQUEST
+        message: "요청한 상태값이 유효하지 않습니다."
+        trigger: "요청 body의 status가 ACCEPTED/REJECTED 가 아닌 경우. Bean Validation으로 1차 차단."
+      - code: 40810
+        name: RECRUIT_LIMIT_REACHED
+        status: 409 CONFLICT
+        message: "모집 정원이 가득 차 더 이상 수락할 수 없습니다."
+        trigger: "수락 시점에 MEMBER 카운트 >= post.recruitMemberCount"
+      - code: 40811
+        name: APPLICANT_ALREADY_IN_GROUP
+        status: 409 CONFLICT
+        message: "신청자가 이미 다른 룸메이트 그룹에 소속되어 있습니다."
+        trigger: "신청자가 다른 RoommateGroup의 MEMBER 역할로 이미 등록된 경우. application/001에서 사전 차단되지만 수락 시점에서도 재검증."
+      - code: 40812
+        name: ROOMMATE_GROUP_NOT_FOUND
+        status: 500 INTERNAL_SERVER_ERROR
+        message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
+        trigger: "모집글 작성 시 그룹 자동 생성이 누락된 시스템 무결성 오류. 일반적으로 도달 불가."
+
+  validation_rules:
+    - "인증된 MEMBER만 호출 가능"
+    - "신청은 존재해야 하며 deleted=false 이어야 함 (없으면 APPLICATION_NOT_FOUND)"
+    - "요청자가 신청 대상 모집글의 작성자여야 함 (application.post.user.id == userId)"
+    - "application.status == PENDING 이어야 함. ACCEPTED/REJECTED 상태는 변경 불가 (상태 고정 정책)"
+    - "요청 body의 status는 ACCEPTED 또는 REJECTED 만 허용. PENDING/null/기타 enum 값은 거부"
+    - "[ACCEPTED 한정] 그룹의 MEMBER 역할 수 < post.recruitMemberCount (정원 초과 차단)"
+    - "[ACCEPTED 한정] 신청자가 다른 그룹의 MEMBER 역할로 이미 등록되어 있지 않음 (LEADER 역할 보유는 별도 허용)"
+    - "수락(ACCEPTED) 처리 후에도 모집글 status는 변경하지 않음 (작성자가 별도 마감 API로 마감)"
+    - "동일 모집글의 다른 PENDING 신청은 본 처리에서 건드리지 않음 (수동 처리 정책)"
+    - "처리 직후 작성자 명의로 안내 채팅 1건 자동 전송. ChatMessageSentEvent 발행으로 실시간 broadcast 수행"
+
+testing_strategy:
+  happy_path:
+    - "작성자가 PENDING 신청을 ACCEPTED로 처리 → 200, application.status=ACCEPTED 갱신 확인"
+    - "작성자가 PENDING 신청을 REJECTED로 처리 → 200, application.status=REJECTED 갱신 확인"
+    - "ACCEPTED 처리 시 RoommateGroupMember(role=MEMBER, user_id=applicantId) 1건 저장 확인"
+    - "ACCEPTED 처리 시 응답의 groupId, currentGroupMemberCount 정상 반환 확인"
+    - "REJECTED 처리 시 RoommateGroupMember 저장되지 않음 확인. 응답 groupId/currentGroupMemberCount=null 확인"
+    - "ACCEPTED 처리 시 \"룸메이트 신청을 수락했습니다.\" 채팅이 작성자(authorId) senderId로 저장 확인"
+    - "REJECTED 처리 시 \"룸메이트 신청을 거절했습니다.\" 채팅이 작성자(authorId) senderId로 저장 확인"
+    - "수락/거절 모두 ChatMessageSentEvent 1회 발행, broadcast.senderId=authorId, content=해당 문구로 검증"
+    - "ACCEPTED 처리 후 모집글 status는 변경되지 않음 확인 (수동 마감 정책)"
+    - "ACCEPTED 처리 후 같은 모집글의 다른 PENDING 신청은 영향 받지 않음 확인 (수동 처리 정책)"
+    - "사용자가 LEADER+MEMBER 겸직(본인 그룹 LEADER + 다른 그룹 MEMBER 수락) → 정상 허용"
+
+  edge_cases:
+    - "존재하지 않는 applicationId → 404 APPLICATION_NOT_FOUND"
+    - "이미 deleted=true 인 신청 → 404 APPLICATION_NOT_FOUND"
+    - "작성자가 아닌 사용자가 호출 → 403 APPLICATION_PROCESS_FORBIDDEN"
+    - "이미 ACCEPTED 상태 신청에 다시 ACCEPTED/REJECTED 요청 → 409 INVALID_APPLICATION_STATUS"
+    - "이미 REJECTED 상태 신청에 ACCEPTED/REJECTED 요청 → 409 INVALID_APPLICATION_STATUS"
+    - "body.status = PENDING → 400 INVALID_TARGET_STATUS (Bean Validation)"
+    - "body.status = null → 400 BAD_REQUEST (@NotNull)"
+    - "body.status = 알 수 없는 enum 값 → 400 BAD_REQUEST (역직렬화 실패)"
+    - "그룹 MEMBER 수 == post.recruitMemberCount 상태에서 추가 ACCEPTED → 409 RECRUIT_LIMIT_REACHED, application.status=PENDING 유지"
+    - "신청자가 이미 다른 그룹 MEMBER 상태에서 ACCEPTED → 409 APPLICANT_ALREADY_IN_GROUP, application.status=PENDING 유지"
+    - "REJECTED는 정원/중복 소속 검증을 거치지 않음 (ACCEPTED 분기 한정 검증)"
+    - "동시 요청으로 동일 신청에 두 요청 동시 도달 → 1건만 성공 (트랜잭션 + 추후 @Version 검토)"
+    - "정원 한계 동시성: 같은 모집글 두 ACCEPTED 동시 도달 → 1건만 성공 (group_id 비관적 락 또는 카운트 가드 추후 검토)"
+
+notes:
+  - "본 스펙은 '신청 수락/거절'만 다룬다. 신청자 본인의 신청 취소(CANCELED), 작성자의 모집글 수동 마감, 일괄 처리는 별도 스펙으로 분리."
+  - "상태 전이는 PENDING → ACCEPTED 또는 PENDING → REJECTED 만 허용. ACCEPTED/REJECTED는 종착 상태 (상태 고정 정책)."
+  - "수락 시 모집글 자동 마감 정책 미적용. recruitMemberCount 만큼 ACCEPTED 되더라도 모집글 status는 OPEN 유지. 작성자가 수동 마감 API로 마감 처리."
+  - "동일 모집글의 다른 PENDING 신청 자동 거절 정책 미적용. 작성자가 개별 처리. 추후 일괄 거절 정책 도입 시 본 스펙은 변경 없이 신규 스펙으로 확장."
+  - "정원 정책: post.recruitMemberCount = MEMBER 정원(LEADER 제외). 예: 3 → LEADER 1 + MEMBER 0~3, 그룹 총원 최대 4명."
+  - "사용자 1인 최대 보유 가능 역할: LEADER 1개 + MEMBER 1개 (총 2개 그룹 동시 소속 허용). LEADER 보유는 본인 OPEN 모집글 1개 정책과 직접 연결되고, MEMBER 보유는 중복 신청/수락 차단의 기준이 됨."
+  - "안내 채팅의 senderId는 작성자(authorId). 신청 생성 시 안내 채팅(senderId=applicantId)과 대비됨. 채팅방 안에서 '신청 → 수락/거절' 흐름이 시간순으로 자연스럽게 노출됨."
+  - "신청 생성 시점에 채팅방을 보장했으므로 본 단계에선 채팅방이 존재한다고 전제. 미존재 시 시스템 무결성 오류로 처리 — ChatRoomNotFoundException 재사용(chat 도메인 406xx)."
+  - "동시성: 동일 신청에 대한 ACCEPTED/REJECTED 동시 요청 대비. @Transactional 격리 수준(default REPEATABLE_READ on MySQL InnoDB)으로 dirty checking 갱신은 안전하나, 비즈니스적으로 한 번만 성공시키려면 application 엔티티에 @Version 추가(낙관적 락)도 검토 가능. 본 스펙은 우선 사전 조회 + 트랜잭션 처리로 시작."
+  - "신청 후 알림(푸시/이메일)은 본 스펙 범위 밖. 별도 알림 스펙에서 다룬다."
+  - "ApplicationErrorCode 408xx 신규 코드(40806~40812) 추가 시 check_error_codes.py 실행 필수."
