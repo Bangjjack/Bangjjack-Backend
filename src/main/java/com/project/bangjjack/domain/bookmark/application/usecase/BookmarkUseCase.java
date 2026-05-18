@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.bookmark.application.usecase;
 
 import com.project.bangjjack.domain.bookmark.application.dto.response.BookmarkedPostResponse;
 import com.project.bangjjack.domain.bookmark.application.exception.AlreadyBookmarkedException;
+import com.project.bangjjack.domain.bookmark.application.exception.CannotBookmarkOwnPostException;
 import com.project.bangjjack.domain.bookmark.domain.entity.PostBookmark;
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkCreateService;
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
@@ -29,6 +30,12 @@ public class BookmarkUseCase {
 
     @Transactional
     public void createBookmark(Long userId, Long postId) {
+        RoommatePost post = roommatePostGetService.getById(postId);
+
+        if (post.getUser().getId().equals(userId)) {
+            throw new CannotBookmarkOwnPostException();
+        }
+
         Optional<PostBookmark> existing = bookmarkGetService.findBookmark(userId, postId);
 
         if (existing.isPresent()) {
@@ -41,7 +48,6 @@ public class BookmarkUseCase {
         }
 
         User user = userGetService.getById(userId);
-        RoommatePost post = roommatePostGetService.getById(postId);
         bookmarkCreateService.save(PostBookmark.create(user, post));
     }
 
