@@ -26,6 +26,10 @@ public class BookmarkGetService {
                 .orElseThrow(BookmarkNotFoundException::new);
     }
 
+    public boolean existsActiveBookmark(Long userId, Long postId) {
+        return bookmarkRepository.existsByUserIdAndPostIdAndDeletedFalse(userId, postId);
+    }
+
     public Slice<PostBookmark> getBookmarkedPosts(Long userId, Pageable pageable) {
         return bookmarkRepository.findBookmarkedPosts(userId,
                 PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
