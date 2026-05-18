@@ -64,6 +64,6 @@ public class ChatMessageUseCase {
                 .map(ChatMessageResponse::from)
                 .toList();
 
-        return new ChatMessagePageResponse(messages, nextCursor, hasNext);
+        return ChatMessagePageResponse.of(messages, nextCursor, hasNext);
     }
 }
