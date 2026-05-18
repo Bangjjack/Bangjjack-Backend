@@ -40,4 +40,9 @@ public abstract class BaseEntity {
         this.deletedAt = LocalDateTime.now();
     }
 
+    public void reactivate() {
+        this.deleted = false;
+        this.deletedAt = null;
+    }
+
 }

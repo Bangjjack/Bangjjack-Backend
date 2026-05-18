@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.bookmark.application.usecase;
 
+import com.project.bangjjack.domain.bookmark.domain.entity.PostBookmark;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
@@ -23,5 +24,18 @@ class BookmarkFixture {
                 RoomSize.TWO_PERSON, 1, Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
         ReflectionTestUtils.setField(post, "id", id);
         return post;
+    }
+
+    static PostBookmark activeBookmarkWithId(Long id, User user, RoommatePost post) {
+        PostBookmark bookmark = PostBookmark.create(user, post);
+        ReflectionTestUtils.setField(bookmark, "id", id);
+        return bookmark;
+    }
+
+    static PostBookmark deletedBookmarkWithId(Long id, User user, RoommatePost post) {
+        PostBookmark bookmark = PostBookmark.create(user, post);
+        bookmark.softDelete();
+        ReflectionTestUtils.setField(bookmark, "id", id);
+        return bookmark;
     }
 }

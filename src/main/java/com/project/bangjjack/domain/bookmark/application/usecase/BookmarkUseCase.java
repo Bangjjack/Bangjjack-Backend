@@ -15,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -27,13 +29,19 @@ public class BookmarkUseCase {
 
     @Transactional
     public void createBookmark(Long userId, Long postId) {
-        User user = userGetService.getById(userId);
-        RoommatePost post = roommatePostGetService.getById(postId);
+        Optional<PostBookmark> existing = bookmarkGetService.findBookmark(userId, postId);
 
-        if (bookmarkGetService.existsActiveBookmark(user, post)) {
-            throw new AlreadyBookmarkedException();
+        if (existing.isPresent()) {
+            PostBookmark bookmark = existing.get();
+            if (!bookmark.isDeleted()) {
+                throw new AlreadyBookmarkedException();
+            }
+            bookmark.reactivate();
+            return;
         }
 
+        User user = userGetService.getById(userId);
+        RoommatePost post = roommatePostGetService.getById(postId);
         bookmarkCreateService.save(PostBookmark.create(user, post));
     }
 
