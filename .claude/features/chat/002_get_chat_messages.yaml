@@ -50,7 +50,7 @@ technical_spec:
       fields:
         - name: messages
           type: List<ChatMessageResponse>
-          note: "최신순 정렬 (createdAt DESC). 클라이언트는 역순으로 렌더링"
+          note: "최신순 정렬 (id DESC). 클라이언트는 역순으로 렌더링"
         - name: nextCursor
           type: Long
           nullable: true
@@ -165,7 +165,7 @@ testing_strategy:
     - "ChatMessageGetService: cursor=null 시 최신 N개 반환 검증"
     - "ChatMessageGetService: cursor 있을 때 해당 id 미만 메시지만 반환 검증"
     - "ChatMessageGetService: size+1 조회 후 hasNext 계산 로직 검증"
-    - "ChatRoomUseCase.getMessages: 참여자 검증 실패 시 예외 위임 확인"
+    - "ChatMessageUseCase.getMessages: 참여자 검증 실패 시 예외 위임 확인"
 
 # ──────────────────────────────────────────────
 # 확장성 노트
