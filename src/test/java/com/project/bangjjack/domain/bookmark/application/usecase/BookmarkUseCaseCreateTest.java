@@ -66,7 +66,7 @@ class BookmarkUseCaseCreateTest {
             assertThatCode(() -> bookmarkUseCase.createBookmark(userId, postId))
                     .doesNotThrowAnyException();
 
-            then(bookmarkCreateService).should().save(any());
+            then(bookmarkCreateService).should().createBookmark(any());
         }
 
         @Test
@@ -82,7 +82,7 @@ class BookmarkUseCaseCreateTest {
             assertThatThrownBy(() -> bookmarkUseCase.createBookmark(userId, postId))
                     .isInstanceOf(CannotBookmarkOwnPostException.class);
 
-            then(bookmarkCreateService).should(never()).save(any());
+            then(bookmarkCreateService).should(never()).createBookmark(any());
         }
 
         @Test
@@ -102,7 +102,7 @@ class BookmarkUseCaseCreateTest {
                     .doesNotThrowAnyException();
 
             assertThat(deletedBookmark.isDeleted()).isFalse();
-            then(bookmarkCreateService).should(never()).save(any());
+            then(bookmarkCreateService).should(never()).createBookmark(any());
         }
 
         @Test
@@ -121,7 +121,7 @@ class BookmarkUseCaseCreateTest {
             assertThatThrownBy(() -> bookmarkUseCase.createBookmark(userId, postId))
                     .isInstanceOf(AlreadyBookmarkedException.class);
 
-            then(bookmarkCreateService).should(never()).save(any());
+            then(bookmarkCreateService).should(never()).createBookmark(any());
         }
 
         @Test
@@ -135,7 +135,7 @@ class BookmarkUseCaseCreateTest {
             assertThatThrownBy(() -> bookmarkUseCase.createBookmark(userId, postId))
                     .isInstanceOf(PostNotFoundException.class);
 
-            then(bookmarkCreateService).should(never()).save(any());
+            then(bookmarkCreateService).should(never()).createBookmark(any());
         }
     }
 }

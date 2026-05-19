@@ -11,7 +11,7 @@ public class BookmarkCreateService {
 
     private final BookmarkRepository bookmarkRepository;
 
-    public void save(PostBookmark bookmark) {
+    public void createBookmark(PostBookmark bookmark) {
         bookmarkRepository.save(bookmark);
     }
 }

@@ -48,7 +48,7 @@ public class BookmarkUseCase {
         }
 
         User user = userGetService.getById(userId);
-        bookmarkCreateService.save(PostBookmark.create(user, post));
+        bookmarkCreateService.createBookmark(PostBookmark.create(user, post));
     }
 
     @Transactional
