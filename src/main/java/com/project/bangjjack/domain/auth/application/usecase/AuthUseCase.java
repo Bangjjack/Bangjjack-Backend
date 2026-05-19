@@ -48,6 +48,13 @@ public class AuthUseCase {
             throw new InvalidWsTokenException();
         }
         String[] parts = value.split(":", 2);
-        return MemberPrincipal.of(Long.parseLong(parts[0]), parts[1], Role.MEMBER);
+        if (parts.length < 2) {
+            throw new InvalidWsTokenException();
+        }
+        try {
+            return MemberPrincipal.of(Long.parseLong(parts[0]), parts[1], Role.MEMBER);
+        } catch (NumberFormatException e) {
+            throw new InvalidWsTokenException();
+        }
     }
 }
