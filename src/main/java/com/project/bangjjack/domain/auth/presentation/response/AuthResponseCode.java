@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum AuthResponseCode implements ResponseCodeInterface {
 
-    TOKEN_EXCHANGED(200, HttpStatus.OK, "토큰이 발급되었습니다.");
+    TOKEN_EXCHANGED(200, HttpStatus.OK, "토큰이 발급되었습니다."),
+    WS_TOKEN_ISSUED(201, HttpStatus.CREATED, "WebSocket 토큰이 발급되었습니다.");
 
     private final int code;
     private final HttpStatus status;
