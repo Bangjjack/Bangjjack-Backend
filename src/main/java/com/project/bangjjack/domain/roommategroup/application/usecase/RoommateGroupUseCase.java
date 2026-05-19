@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.MyRoommateGroupResponse;
+import com.project.bangjjack.domain.roommategroup.application.event.RoommateGroupDisbandedEvent;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
@@ -12,6 +13,7 @@ import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupDe
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,13 +31,14 @@ public class RoommateGroupUseCase {
     private final RoommateGroupDeleteService roommateGroupDeleteService;
     private final RoommatePostGetService roommatePostGetService;
     private final RoommatePostDeleteService roommatePostDeleteService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void leaveRoommateGroup(Long userId, Long groupId) {
         RoommateGroupMember membership = roommateGroupMemberGetService.getActiveMembership(groupId, userId);
 
         if (membership.getRole() == GroupMemberRole.LEADER) {
-            disbandGroup(membership.getGroup());
+            disbandGroup(membership.getGroup(), userId);
             return;
         }
 
@@ -43,15 +46,26 @@ public class RoommateGroupUseCase {
         membership.getGroup().getPost().open();
     }
 
-    private void disbandGroup(RoommateGroup group) {
+    private void disbandGroup(RoommateGroup group, Long leaderId) {
         List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersByGroupId(group.getId());
-        roommateGroupMemberDeleteService.deleteAll(members);
 
         RoommatePost post = group.getPost();
+        String postTitle = post.getTitle();
+        List<Long> memberIdsToNotify = members.stream()
+                .map(member -> member.getUser().getId())
+                .filter(id -> !id.equals(leaderId))
+                .toList();
+
+        roommateGroupMemberDeleteService.deleteAll(members);
+
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
         roommatePostDeleteService.deletePost(post, sharedLifestyle);
 
         roommateGroupDeleteService.delete(group);
+
+        if (!memberIdsToNotify.isEmpty()) {
+            eventPublisher.publishEvent(new RoommateGroupDisbandedEvent(leaderId, memberIdsToNotify, postTitle));
+        }
     }
 
     public List<MyRoommateGroupResponse> getMyRoommateGroups(Long userId) {

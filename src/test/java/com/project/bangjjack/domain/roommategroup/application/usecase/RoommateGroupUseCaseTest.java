@@ -7,6 +7,7 @@ import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteServic
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.MyRoommateGroupResponse;
+import com.project.bangjjack.domain.roommategroup.application.event.RoommateGroupDisbandedEvent;
 import com.project.bangjjack.domain.roommategroup.application.exception.RoommateGroupMembershipNotFoundException;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
@@ -22,9 +23,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 
@@ -56,6 +59,9 @@ class RoommateGroupUseCaseTest {
 
     @Mock
     private RoommatePostDeleteService roommatePostDeleteService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private RoommateGroupUseCase roommateGroupUseCase;
@@ -508,6 +514,82 @@ class RoommateGroupUseCaseTest {
             then(roommateGroupMemberDeleteService).should().delete(memberMembership);
             then(roommateGroupDeleteService).should(never()).delete(any());
             then(roommatePostDeleteService).should(never()).deletePost(any(), any());
+        }
+
+        @Test
+        @DisplayName("LEADER 탈퇴로 그룹이 해체되면 방장을 제외한 멤버에게 알림 이벤트가 발행된다")
+        void LEADER_탈퇴_시_해체_이벤트_발행() {
+            // given
+            RoommatePost post = mockPost(60L, "기숙사 룸메 구해요", RoomSize.THREE_PERSON, Dormitory.DORM_1, 2);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember leaderMembership = mockLeaveMembership(GroupMemberRole.LEADER, group);
+            User leader = mockUser(REQUESTER_ID, "리더", null);
+            User member1 = mockUser(2L, "멤버1", null);
+            User member2 = mockUser(3L, "멤버2", null);
+            List<RoommateGroupMember> activeMembers = List.of(
+                    mockMember(group, leader, GroupMemberRole.LEADER),
+                    mockMember(group, member1, GroupMemberRole.MEMBER),
+                    mockMember(group, member2, GroupMemberRole.MEMBER));
+            PostSharedLifestyle sharedLifestyle = mock(PostSharedLifestyle.class);
+
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(leaderMembership);
+            given(roommateGroupMemberGetService.getActiveMembersByGroupId(GROUP_ID))
+                    .willReturn(activeMembers);
+            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            ArgumentCaptor<RoommateGroupDisbandedEvent> captor =
+                    ArgumentCaptor.forClass(RoommateGroupDisbandedEvent.class);
+            then(eventPublisher).should().publishEvent(captor.capture());
+            RoommateGroupDisbandedEvent published = captor.getValue();
+            assertThat(published.leaderId()).isEqualTo(REQUESTER_ID);
+            assertThat(published.memberIds()).containsExactlyInAnyOrder(2L, 3L);
+            assertThat(published.postTitle()).isEqualTo("기숙사 룸메 구해요");
+        }
+
+        @Test
+        @DisplayName("LEADER 단독 그룹 해체 시 알릴 멤버가 없으면 이벤트가 발행되지 않는다")
+        void LEADER_단독_해체_이벤트_미발행() {
+            // given
+            RoommatePost post = mockPost(61L, "혼자 모집중", RoomSize.TWO_PERSON, Dormitory.DORM_1, 1);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember leaderMembership = mockLeaveMembership(GroupMemberRole.LEADER, group);
+            User leader = mockUser(REQUESTER_ID, "리더", null);
+            List<RoommateGroupMember> activeMembers = List.of(mockMember(group, leader, GroupMemberRole.LEADER));
+            PostSharedLifestyle sharedLifestyle = mock(PostSharedLifestyle.class);
+
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(leaderMembership);
+            given(roommateGroupMemberGetService.getActiveMembersByGroupId(GROUP_ID))
+                    .willReturn(activeMembers);
+            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(eventPublisher).should(never()).publishEvent(any(RoommateGroupDisbandedEvent.class));
+        }
+
+        @Test
+        @DisplayName("MEMBER 탈퇴 시에는 그룹 해체 이벤트가 발행되지 않는다")
+        void MEMBER_탈퇴_시_이벤트_미발행() {
+            // given
+            RoommatePost post = mock(RoommatePost.class);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, group);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(membership);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(eventPublisher).should(never()).publishEvent(any(RoommateGroupDisbandedEvent.class));
         }
     }
 }
