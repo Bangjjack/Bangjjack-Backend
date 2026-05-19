@@ -43,6 +43,9 @@ public class AuthUseCase {
     }
 
     public MemberPrincipal authenticateWsToken(String wsToken) {
+        if (wsToken == null || wsToken.isBlank()) {
+            throw new InvalidWsTokenException();
+        }
         String value = redisService.validateAndConsumeWsToken(wsToken);
         if (value == null) {
             throw new InvalidWsTokenException();

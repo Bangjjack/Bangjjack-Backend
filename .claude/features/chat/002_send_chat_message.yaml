@@ -37,33 +37,10 @@ technical_spec:
       브라우저 WebSocket API는 커스텀 헤더 전송이 불가하므로 핸드셰이크 JWT 검증 방식을 사용하지 않는다.
       대신 2-step 인증 방식을 사용한다.
       (1) REST API POST /api/v1/auth/ws-token 으로 단기 WS 토큰(Redis TTL 1분, 1회용) 발급.
-      (2) WebSocket 연결 직후 첫 메시지로 AUTH 타입을 전송하여 인증 완료.
-      인증 전 AUTH 외 다른 메시지 수신 시 POLICY_VIOLATION으로 연결 종료.
+      (2) ws://.../ws/chat?token={wsToken} 으로 WebSocket 연결. WsAuthHandshakeInterceptor가 핸드셰이크 시점에 토큰 검증.
+      토큰 누락/만료 시 HTTP 401로 핸드셰이크 거부 (연결 자체가 실패).
 
     message_types:
-      - type: AUTH
-        direction: client → server
-        description: >
-          WebSocket 연결 직후 첫 메시지로 전송하는 인증 메시지.
-          WS 토큰 검증 성공 시 MemberPrincipal을 세션 attributes에 저장하고 AUTH_SUCCESS 응답 반환.
-          토큰 누락/만료 시 POLICY_VIOLATION으로 연결 종료.
-        payload:
-          - name: type
-            value: "AUTH"
-          - name: token
-            type: String
-            required: true
-            description: "POST /api/v1/auth/ws-token 으로 발급받은 WS 전용 토큰"
-
-      - type: AUTH_SUCCESS
-        direction: server → client
-        description: AUTH 인증 성공 시 서버가 클라이언트에게 전송.
-        payload:
-          - name: type
-            value: "AUTH_SUCCESS"
-          - name: userId
-            type: Long
-
       - type: SUBSCRIBE
         direction: client → server
         description: 채팅방 구독 등록. 구독 전 참여 권한 검증 수행.
@@ -130,20 +107,20 @@ technical_spec:
 # ──────────────────────────────────────────────
   data_flow:
     - step: 1
-      layer: Presentation (ChatWebSocketHandler) — AUTH 분기
+      layer: Infrastructure (WsAuthHandshakeInterceptor) — 핸드셰이크 인증
       action: >
-        연결 직후 수신된 첫 메시지가 AUTH 타입인지 확인.
-        JSON 파싱 → WebSocketInboundMessage { type, roomId, content, token }.
-        type == AUTH 이면 handleAuth() 진입:
-          토큰 누락 시 POLICY_VIOLATION 종료.
-          이미 인증된 세션이면 ERROR 40609 응답 후 세션 유지.
-          AuthUseCase.authenticateWsToken(token) → Redis에서 ws:token:{uuid} 검증+삭제 → MemberPrincipal 반환.
-          인증 성공 시 session.attributes["principal"] 저장 + sessionRegistry 등록 + AUTH_SUCCESS 응답.
-          인증 실패(만료/유효하지 않은 토큰) 시 40102 에러 후 POLICY_VIOLATION 종료.
-        AUTH 외 다른 type이 먼저 도착하면 principal == null → POLICY_VIOLATION 종료.
+        HTTP 업그레이드 요청의 쿼리 파라미터 token 추출.
+        AuthUseCase.authenticateWsToken(token) → Redis에서 ws:token:{uuid} 검증+삭제 → MemberPrincipal 반환.
+        인증 성공 시 session.attributes["principal"] 저장 후 핸드셰이크 허용 (return true).
+        토큰 누락/만료/파싱 실패 시 HTTP 401 응답 후 핸드셰이크 거부 (return false).
 
     - step: 1-1
-      layer: Presentation (ChatWebSocketHandler) — 이후 메시지 분기
+      layer: Presentation (ChatWebSocketHandler) — 연결 확립
+      action: >
+        afterConnectionEstablished(): session.attributes["principal"]에서 MemberPrincipal 추출 → sessionRegistry 등록.
+
+    - step: 1-2
+      layer: Presentation (ChatWebSocketHandler) — 메시지 분기
       action: >
         WebSocketSession attributes에서 MemberPrincipal 추출 → userId 확보.
         type에 따라 SUBSCRIBE / UNSUBSCRIBE / SEND 분기 처리.
@@ -239,11 +216,6 @@ technical_spec:
         message: "메시지 타입이 없습니다."
         http: 400
         trigger: type 필드가 null인 메시지 수신
-      - code: 40609
-        name: ALREADY_WS_AUTHENTICATED
-        message: "이미 인증된 세션입니다."
-        http: 400
-        trigger: 이미 인증된 세션에서 AUTH 메시지를 중복 전송한 경우. 세션은 유지.
       - code: 50601
         name: WS_INTERNAL_ERROR
         message: "서버 내부 오류가 발생했습니다."
