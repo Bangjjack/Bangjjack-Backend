@@ -12,6 +12,7 @@ import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.global.common.response.SliceResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +49,11 @@ public class BookmarkUseCase {
         }
 
         User user = userGetService.getById(userId);
-        bookmarkCreateService.createBookmark(PostBookmark.create(user, post));
+        try {
+            bookmarkCreateService.createBookmark(PostBookmark.create(user, post));
+        } catch (DataIntegrityViolationException e) {
+            throw new AlreadyBookmarkedException();
+        }
     }
 
     @Transactional
