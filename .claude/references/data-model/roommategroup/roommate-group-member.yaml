@@ -28,10 +28,14 @@ columns:
       description: "LEADER (그룹장, 작성자) | MEMBER (수락된 신청자)"
 
 indexes:
-  - name: UQ_group_member_group_user
-    columns: [ group_id, user_id ]
+  - name: UQ_group_member_group_user_active
+    columns: [ group_id, user_id, deleted_at ]
     type: UNIQUE
-    note: "동일 그룹 내 동일 유저 중복 소속 금지"
+    note: |
+      활성(deleted_at = NULL) 멤버십의 중복만 차단. MySQL UNIQUE에서 NULL은 distinct로
+      취급되므로 (group_id, user_id, NULL) 행은 1개만 허용되고, 탈퇴(deleted_at = timestamp)
+      행은 다수 공존 가능 → 탈퇴 후 동일 그룹 재합류(INSERT) 허용.
+      활성 중복 방어는 비관적 락(getByPostIdForUpdate) + existsByUserIdAndRole 사전 검증으로 보조.
   - name: IDX_group_member_user_role
     columns: [ user_id, role ]
     type: INDEX
@@ -58,7 +62,7 @@ invariants:
   - "그룹당 role=MEMBER 멤버 수는 0 ~ 해당 그룹 post.recruitMemberCount."
   - "한 사용자는 LEADER 역할 최대 1개를 동시 보유할 수 있다. (본인 OPEN 모집글 1개 정책으로 자연스럽게 보장됨)"
   - "한 사용자는 MEMBER 역할 최대 1개를 동시 보유할 수 있다. (신청/수락 시점 검증으로 보장)"
-  - "한 사용자는 같은 그룹에 중복 소속될 수 없다 (group_id + user_id UNIQUE)."
+  - "한 사용자는 같은 그룹에 중복 활성 소속될 수 없다 (group_id + user_id + deleted_at UNIQUE; deleted_at=NULL 인 활성 행 1개 한정). 탈퇴(soft delete) 후 동일 그룹 재합류 가능."
 
 enums:
   GroupMemberRole:

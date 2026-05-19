@@ -133,7 +133,7 @@ technical_spec:
     - "탈퇴는 Soft Delete (deleted=true, deletedAt). Hard Delete 금지"
     - "탈퇴 후 연결 모집글 status == CLOSED → OPEN 복귀. status == OPEN → 변경 없음 (open() 멱등)"
     - "합류 근거 ACCEPTED 신청 레코드는 변경하지 않음 (이력 보존)"
-    - "재신청/재합류는 본 스펙 범위 밖. UNIQUE(group_id, user_id) 제약으로 동일 그룹 재합류 시 제약 위반 가능 — 별도 스펙에서 다룸"
+    - "탈퇴 후 동일 그룹 재합류 허용: UNIQUE(group_id, user_id, deleted_at) 제약으로 활성(NULL) 행은 1개만 허용되고 탈퇴 행은 다수 공존 가능 → 새 신청/수락 시 새 활성 행 INSERT 가능"
 
 # ============================================================
 # 구현 대상 파일 (Implementation Phase)
@@ -185,7 +185,7 @@ notes:
   - "스코프 확정: 본 스펙은 'MEMBER 탈퇴'만 다룬다. LEADER 탈퇴(=그룹 해체)는 별도 스펙. 사용자 확인 완료 (2026-05-19)."
   - "모집글 상태 부수효과 확정: 탈퇴로 빈자리 발생 시 CLOSED → OPEN 복귀. OPEN이면 변경 없음. 사용자 확인 완료 (2026-05-19)."
   - "신청 레코드 처리 확정: 합류 근거 ACCEPTED 신청은 불변(이력 보존). ApplicationStatus에 CANCELED 없음. 사용자 확인 완료 (2026-05-19)."
-  - "재합류 정책: 본 스펙 범위 밖(차단/미보장). UQ_group_member_group_user(group_id, user_id)에 deleted 미포함 → 탈퇴 후 동일 그룹 재합류(INSERT) 시 UNIQUE 제약 위반 가능. 재신청/재합류 허용은 별도 스펙에서 제약/재활성화 설계 필요. 사용자 확인 완료 (2026-05-19)."
+  - "재합류 정책: UNIQUE 제약을 UQ_group_member_group_user_active(group_id, user_id, deleted_at)로 변경하여 탈퇴 후 동일 그룹 재합류(신청 → 수락 → 새 활성 행 INSERT) 허용. 활성 중복은 deleted_at=NULL인 행 1개로 제한되며, application/002 수락 흐름의 비관적 락 + existsByUserIdAndRole 사전 검증으로 보조 방어. 사용자 확인 완료 (2026-05-19)."
   - "RoommatePost.open() 신규 도메인 메서드 추가 필요. 기존 close()(status=CLOSED)와 대칭. open()은 멱등(이미 OPEN이면 무변경)으로 정의해 호출부 분기 최소화."
   - "응답 래핑은 코드베이스 컨벤션(CommonResponse<Void> + ResponseCode, 예: 002 모집글 삭제 POST_DELETED)을 따른다. system-design.yaml의 DELETE:204 가이드보다 코드베이스 일관성을 우선."
   - "ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND 단일 코드로 '그룹 미존재 / 미소속 / 이미 탈퇴'를 통합 — 그룹 존재 여부 비노출(정보 누출 방지) 및 스펙 최소화."
