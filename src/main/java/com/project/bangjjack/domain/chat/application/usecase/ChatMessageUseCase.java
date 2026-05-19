@@ -38,6 +38,9 @@ public class ChatMessageUseCase {
 
     @Transactional
     public void sendMessage(Long senderId, Long roomId, SendChatMessageRequest request) {
+        if (request == null) {
+            throw new InvalidMessageContentException();
+        }
         // WebSocket은 @Valid 자동 적용 대상이 아니므로 수동 검증
         Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
         if (!violations.isEmpty()) {
