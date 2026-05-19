@@ -139,7 +139,7 @@ technical_spec:
     codes:
       - code: 40901
         name: ROOMMATE_GROUP_NOT_FOUND
-        status: 500 INTERNAL_SERVER_ERROR
+        status: 404 NOT_FOUND
         message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
         trigger: "기존 코드 (재사용). 본 기능에서 신규 트리거 없음."
       - code: 40902
