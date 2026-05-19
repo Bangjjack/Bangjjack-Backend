@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 public enum ChatRoomResponseCode implements ResponseCodeInterface {
 
     CHAT_ROOM_CREATED(201, HttpStatus.CREATED, "채팅방이 생성되었습니다."),
-    CHAT_ROOM_FOUND(200, HttpStatus.OK, "기존 채팅방을 반환합니다.");
+    CHAT_ROOM_FOUND(200, HttpStatus.OK, "기존 채팅방을 반환합니다."),
+    CHAT_ROOM_MESSAGES_FOUND(200, HttpStatus.OK, "채팅 메시지 목록을 반환합니다.");
 
     private final int code;
     private final HttpStatus status;

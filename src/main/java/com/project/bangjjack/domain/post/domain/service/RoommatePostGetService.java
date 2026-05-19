@@ -31,6 +31,16 @@ public class RoommatePostGetService {
                 .orElseThrow(PostNotFoundException::new);
     }
 
+    public RoommatePost getOpenById(Long postId) {
+        return roommatePostRepository.findWithUserByIdAndStatusAndDeletedFalse(postId, PostStatus.OPEN)
+                .orElseThrow(PostNotFoundException::new);
+    }
+
+    public RoommatePost getByIdForUpdate(Long postId) {
+        return roommatePostRepository.findByIdAndDeletedFalseForUpdate(postId)
+                .orElseThrow(PostNotFoundException::new);
+    }
+
     public PostSharedLifestyle getSharedLifestyleByPost(RoommatePost post) {
         return postSharedLifestyleRepository.findByPostAndDeletedFalse(post)
                 .orElseThrow(SharedLifestyleNotFoundException::new);

@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
     name = "chat",
-    indexes = @Index(name = "IDX_chat_room_id_created_at", columnList = "room_id, created_at")
+    indexes = @Index(name = "IDX_chat_room_id", columnList = "room_id, id")
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

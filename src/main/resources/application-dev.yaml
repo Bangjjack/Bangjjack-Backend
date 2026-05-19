@@ -40,6 +40,12 @@ jwt:
     secret: ${JWT_ACCESS}
     expiration-seconds: 259200
 
+ai:
+  match-api:
+    base-url: ${AI_MATCH_API_BASE_URL}
+    connect-timeout: 3000
+    read-timeout: 5000
+
 management:
   endpoints:
     web:
@@ -48,3 +54,6 @@ management:
   endpoint:
     health:
       show-details: never
+
+dev:
+  secret: ${DEV_SECRET}

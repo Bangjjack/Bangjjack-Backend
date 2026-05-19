@@ -1,0 +1,88 @@
+# RoommateApplication Entity
+# Last Updated: 2026-05-19
+
+entity: ROOMMATE_APPLICATION
+description: |
+  특정 룸메이트 모집글(RoommatePost)에 대한 신청. PENDING → ACCEPTED / REJECTED 상태 머신.
+  ACCEPTED/REJECTED 는 종착 상태로 더 이상 전이되지 않는다 (상태 고정 정책).
+  신청 생성 시 신청자-작성자 1:1 채팅방 보장 + 신청자 명의 안내 채팅이 자동 전송된다.
+  수락 시 신청자는 해당 모집글의 RoommateGroup에 MEMBER 역할로 추가된다.
+table: roommate_applications
+domain: Application
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - post_id:
+      type: BIGINT
+      nullable: false
+      fk: roommate_posts.id
+      description: "신청 대상 모집글 FK"
+  - applicant_id:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: "신청자 User FK"
+  - status:
+      type: VARCHAR(15)
+      nullable: false
+      default: PENDING
+      enum: ApplicationStatus
+      description: "신청 상태 (PENDING / ACCEPTED / REJECTED)"
+
+indexes:
+  - name: IDX_application_post_id
+    columns: [ post_id ]
+    type: INDEX
+    note: "모집글별 신청 목록 조회용"
+  - name: IDX_application_applicant_id
+    columns: [ applicant_id ]
+    type: INDEX
+    note: "사용자별 신청 목록 조회용"
+  - name: IDX_application_post_applicant_status
+    columns: [ post_id, applicant_id, status ]
+    type: INDEX
+    note: "PENDING 중복 신청 검증용 복합 인덱스"
+
+relationships:
+  - type: ManyToOne
+    target: RoommatePost
+    fk: post_id
+    fetch: LAZY
+    description: "신청 대상 모집글"
+  - type: ManyToOne
+    target: User
+    fk: applicant_id
+    fetch: LAZY
+    description: "신청자"
+
+relationship_notes:
+  - "ChatRoom과 직접 연관관계를 두지 않는다. 채팅방은 (applicant, post.user) 유저 쌍의 함수로 ChatRoom.directRoomKey에서 derivable. Application은 모집글에 대한 의사 표현이지 채팅방 소유 주체가 아님."
+  - "RoommateGroup과 직접 연관관계를 두지 않는다. 그룹은 모집글에 1:1로 붙어있으므로 application.post.id로 derivable. 수락 시 RoommateGroupMember가 생성될 뿐 Application 자체에는 group_id를 두지 않음."
+
+business_logic:
+  - "create(post, applicant): 정적 팩토리 메서드. status=PENDING 초기화."
+  - "accept(): status = ACCEPTED. application/002 스펙에서 사용."
+  - "reject(): status = REJECTED. application/002 스펙에서 사용."
+  - "softDelete(): → BaseEntity 위임"
+
+invariants:
+  - "신청은 모집글 작성자가 아닌 사용자만 생성 가능 (post.user.id != applicant.id)."
+  - "동일 (post_id, applicant_id)에 PENDING 상태 신청은 최대 1건 (REJECTED 처리된 이전 신청은 재신청 허용)."
+  - "신청은 PENDING 상태에서만 생성된다."
+  - "상태 전이는 PENDING → ACCEPTED 또는 PENDING → REJECTED 만 허용. ACCEPTED/REJECTED 는 종착 상태."
+
+enums:
+  ApplicationStatus:
+    values: [ PENDING, ACCEPTED, REJECTED ]
+    display:
+      PENDING: "대기중"
+      ACCEPTED: "수락됨"
+      REJECTED: "거절됨"
+    rules:
+      - "PENDING: 생성 직후 기본 상태. 작성자 처리 대기 중."
+      - "ACCEPTED: 작성자가 수락. RoommateGroup에 MEMBER로 합류."
+      - "REJECTED: 작성자가 거절. 동일 (post, applicant)로 재신청 가능."
+
+related_specs:
+  - ".claude/features/application/001_create_roommate_application.yaml — 신청 생성"
+  - ".claude/features/application/002_process_roommate_application.yaml — 수락/거절"

@@ -16,7 +16,11 @@ public enum PostErrorCode implements ErrorCodeInterface {
     POST_DELETE_FORBIDDEN(40705, HttpStatus.FORBIDDEN, "모집글을 삭제할 권한이 없습니다."),
     POST_UPDATE_FORBIDDEN(40706, HttpStatus.FORBIDDEN, "모집글을 수정할 권한이 없습니다."),
     POST_NOT_EDITABLE(40707, HttpStatus.UNPROCESSABLE_ENTITY, "마감된 모집글은 수정할 수 없습니다."),
-    SHARED_LIFESTYLE_NOT_FOUND(40708, HttpStatus.NOT_FOUND, "모집글의 공동생활 정보를 찾을 수 없습니다.");
+    SHARED_LIFESTYLE_NOT_FOUND(40708, HttpStatus.NOT_FOUND, "모집글의 공동생활 정보를 찾을 수 없습니다."),
+    SELF_MATCH_NOT_ALLOWED(40709, HttpStatus.CONFLICT, "본인이 작성한 모집글에는 매칭 분석을 요청할 수 없습니다."),
+    CHECKLIST_NOT_REGISTERED(40710, HttpStatus.CONFLICT, "매칭 분석을 위해 양측 모두 생활습관 체크리스트 등록이 필요합니다."),
+    PREFERENCE_NOT_REGISTERED(40711, HttpStatus.CONFLICT, "매칭 분석을 위해 양측 모두 룸메이트 선호도 등록이 필요합니다."),
+    AI_SERVICE_UNAVAILABLE(40712, HttpStatus.BAD_GATEWAY, "AI 매칭 분석 서비스에 일시적으로 접근할 수 없습니다. 잠시 후 다시 시도해주세요.");
 
     private final int code;
     private final HttpStatus status;

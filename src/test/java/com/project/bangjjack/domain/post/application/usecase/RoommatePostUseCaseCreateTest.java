@@ -12,6 +12,10 @@ import com.project.bangjjack.domain.post.domain.entity.Recycling;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberCreateService;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Gender;
@@ -44,6 +48,12 @@ class RoommatePostUseCaseCreateTest {
 
     @Mock
     private RoommatePostCreateService roommatePostCreateService;
+
+    @Mock
+    private RoommateGroupCreateService roommateGroupCreateService;
+
+    @Mock
+    private RoommateGroupMemberCreateService roommateGroupMemberCreateService;
 
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;
@@ -78,19 +88,23 @@ class RoommatePostUseCaseCreateTest {
     class CreatePost {
 
         @Test
-        @DisplayName("모든 사전 조건이 충족된 사용자가 유효한 요청을 보내면 예외 없이 모집글이 생성된다")
+        @DisplayName("모든 사전 조건이 충족된 사용자가 유효한 요청을 보내면 모집글과 함께 그룹·LEADER 멤버가 생성된다")
         void 유효한_요청으로_모집글_생성_성공() {
             // given
             Long userId = 1L;
             User user = fullyRegisteredUser();
+            RoommateGroup group = RoommateGroup.create(null);
             given(userGetService.getById(userId)).willReturn(user);
             given(roommatePostGetService.existsOpenPostByUser(user)).willReturn(false);
+            given(roommateGroupCreateService.createGroup(any())).willReturn(group);
 
             // when & then
             assertThatCode(() -> roommatePostUseCase.createPost(userId, validRequest(RoomSize.TWO_PERSON, 1)))
                     .doesNotThrowAnyException();
 
             then(roommatePostCreateService).should().createPost(any(), any());
+            then(roommateGroupCreateService).should().createGroup(any());
+            then(roommateGroupMemberCreateService).should().addMember(group, user, GroupMemberRole.LEADER);
         }
 
         @Test

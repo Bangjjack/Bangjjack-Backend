@@ -1,0 +1,52 @@
+# RoommateGroup Entity
+# Last Updated: 2026-05-19
+
+entity: ROOMMATE_GROUP
+description: |
+  룸메이트 그룹. 룸메이트 모집글(RoommatePost)당 정확히 1개 자동 생성되며,
+  작성자(LEADER) + 수락된 신청자들(MEMBER)을 묶는 aggregate 루트.
+  모집글 작성과 동일 트랜잭션 내에서 생성되며, 작성자가 LEADER 역할로 자동 등록된다.
+table: roommate_groups
+domain: RoommateGroup
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - post_id:
+      type: BIGINT
+      nullable: false
+      unique: true
+      fk: roommate_posts.id
+      description: "연결된 모집글 FK (1:1). UNIQUE 제약으로 모집글당 그룹 1개 보장."
+
+indexes:
+  - name: UQ_group_post_id
+    columns: [ post_id ]
+    type: UNIQUE
+    note: "모집글당 그룹 1개 보장"
+
+relationships:
+  - type: OneToOne
+    target: RoommatePost
+    fk: post_id
+    fetch: LAZY
+    description: "연결된 모집글. 모집글 작성 시 자동 페어링."
+  - type: OneToMany
+    target: RoommateGroupMember
+    mapped_by: group
+    cascade: ALL
+    orphan_removal: true
+    fetch: LAZY
+    description: "그룹 멤버 목록 (LEADER 1명 + MEMBER 0~N명)."
+
+business_logic:
+  - "create(post): 정적 팩토리 메서드. 모집글과 1:1 연결된 빈 그룹 생성. LEADER 등록은 별도 RoommateGroupMember.create() 호출 필요."
+  - "softDelete(): → BaseEntity 위임. 그룹 삭제 시 멤버도 cascade로 함께 삭제."
+
+invariants:
+  - "한 모집글에는 정확히 1개의 RoommateGroup이 존재 (post_id UNIQUE)."
+  - "그룹 생성은 모집글 작성과 동일 트랜잭션에서 이루어진다 (atomic)."
+  - "그룹은 모집글의 생명주기를 따른다 (모집글 soft delete 시 그룹/멤버도 함께)."
+
+related_specs:
+  - ".claude/features/post/001_create_roommate_post.yaml — 그룹 자동 생성 시점"
+  - ".claude/features/application/002_process_roommate_application.yaml — 수락 시 MEMBER 추가"

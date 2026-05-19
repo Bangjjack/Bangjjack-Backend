@@ -39,9 +39,18 @@ jwt:
     secret: ${JWT_ACCESS}
     expiration-seconds: 259200
 
+ai:
+  match-api:
+    base-url: ${AI_MATCH_API_BASE_URL}
+    connect-timeout: 3000
+    read-timeout: 5000
+
 logging:
   level:
     com.project.bangjjack.global.config.websocket: DEBUG
     com.project.bangjjack.domain.chat: DEBUG
     org.springframework.web.socket: DEBUG
     org.springframework.messaging.simp: DEBUG
+
+dev:
+  secret: ${DEV_SECRET:local-dev-secret}
