@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
+import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
@@ -37,6 +38,9 @@ class RoommatePostUseCaseGetDetailTest {
     private RoommatePostGetService roommatePostGetService;
 
     @Mock
+    private BookmarkGetService bookmarkGetService;
+
+    @Mock
     private RoommateGroupMemberGetService roommateGroupMemberGetService;
 
     @InjectMocks
@@ -64,6 +68,7 @@ class RoommatePostUseCaseGetDetailTest {
             List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
 
             // when
@@ -87,6 +92,7 @@ class RoommatePostUseCaseGetDetailTest {
             List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(bookmarkGetService.existsActiveBookmark(viewerId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
 
             // when
@@ -94,6 +100,44 @@ class RoommatePostUseCaseGetDetailTest {
 
             // then
             assertThat(response.isOwner()).isFalse();
+        }
+
+        @Test
+        @DisplayName("북마크한 게시글 조회 시 isBookmarked=true인 응답을 반환한다")
+        void 북마크한_게시글_조회_시_isBookmarked_true() {
+            // given
+            Long userId = 1L;
+            User owner = userWithId(userId);
+            RoommatePost post = postOwnedBy(owner);
+            PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(true);
+
+            // when
+            RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
+
+            // then
+            assertThat(response.isBookmarked()).isTrue();
+        }
+
+        @Test
+        @DisplayName("북마크하지 않은 게시글 조회 시 isBookmarked=false인 응답을 반환한다")
+        void 북마크하지_않은_게시글_조회_시_isBookmarked_false() {
+            // given
+            Long userId = 1L;
+            User owner = userWithId(userId);
+            RoommatePost post = postOwnedBy(owner);
+            PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
+
+            // when
+            RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
+
+            // then
+            assertThat(response.isBookmarked()).isFalse();
         }
 
         @Test

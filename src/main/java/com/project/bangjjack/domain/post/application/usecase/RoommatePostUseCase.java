@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
+import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
@@ -29,6 +30,7 @@ import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMe
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 
 import java.util.List;
+
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +49,7 @@ public class RoommatePostUseCase {
     private final RoommatePostUpdateService roommatePostUpdateService;
     private final RoommateGroupCreateService roommateGroupCreateService;
     private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
+    private final BookmarkGetService bookmarkGetService;
     private final RoommateGroupMemberGetService roommateGroupMemberGetService;
 
     @Transactional
@@ -103,8 +106,9 @@ public class RoommatePostUseCase {
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId);
         RoommatePost post = sharedLifestyle.getPost();
         boolean isOwner = post.getUser().getId().equals(userId);
+        boolean isBookmarked = bookmarkGetService.existsActiveBookmark(userId, postId);
         List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
-        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members);
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members);
     }
 
     @Transactional
