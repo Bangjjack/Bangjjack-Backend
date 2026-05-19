@@ -120,7 +120,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             sessionRegistry.register(principal.getMemberId(), session.getId());
             log.debug("[WS] 인증 성공 - userId={}, sessionId={}", principal.getMemberId(), session.getId());
             session.sendMessage(new TextMessage(objectMapper.writeValueAsString(
-                    new AuthSuccessResponse(AUTH_SUCCESS_TYPE, principal.getMemberId())
+                    AuthSuccessResponse.of(principal.getMemberId())
             )));
         } catch (InvalidWsTokenException e) {
             log.warn("[WS] 인증 실패 - sessionId={}, 원인={}", session.getId(), e.getMessage());
