@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.user.presentation;
 
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
+import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
 import com.project.bangjjack.domain.user.application.usecase.UserUseCase;
 import com.project.bangjjack.domain.user.presentation.response.UserResponseCode;
 import com.project.bangjjack.global.annotation.CurrentMemberId;
@@ -26,5 +27,11 @@ public class UserController {
             @RequestBody @Valid UserOnboardingRequest request) {
         userUseCase.completeOnboarding(memberId, request);
         return CommonResponse.success(UserResponseCode.ONBOARDING_COMPLETED);
+    }
+
+    @Operation(summary = "내 기본 태그 조회", description = "본인의 학기, 기숙사, 룸메이트 선호도 우선순위 3가지를 조회합니다.")
+    @GetMapping("/me/tags")
+    public CommonResponse<UserBasicTagResponse> getUserBasicTag(@CurrentMemberId Long memberId) {
+        return CommonResponse.success(UserResponseCode.USER_BASIC_TAG_FOUND, userUseCase.getUserBasicTag(memberId));
     }
 }

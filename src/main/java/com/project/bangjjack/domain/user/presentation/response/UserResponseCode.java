@@ -9,7 +9,8 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum UserResponseCode implements ResponseCodeInterface {
 
-    ONBOARDING_COMPLETED(200, HttpStatus.OK, "온보딩이 완료되었습니다.");
+    ONBOARDING_COMPLETED(200, HttpStatus.OK, "온보딩이 완료되었습니다."),
+    USER_BASIC_TAG_FOUND(200, HttpStatus.OK, "사용자 기본 태그 정보를 조회했습니다.");
 
     private final int code;
     private final HttpStatus status;
