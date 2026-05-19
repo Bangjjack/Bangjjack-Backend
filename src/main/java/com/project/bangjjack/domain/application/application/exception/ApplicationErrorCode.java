@@ -19,8 +19,7 @@ public enum ApplicationErrorCode implements ErrorCodeInterface {
     INVALID_APPLICATION_STATUS(40808, HttpStatus.CONFLICT, "이미 처리된 신청은 다시 처리할 수 없습니다."),
     INVALID_TARGET_STATUS(40809, HttpStatus.BAD_REQUEST, "요청한 상태값이 유효하지 않습니다."),
     RECRUIT_LIMIT_REACHED(40810, HttpStatus.CONFLICT, "모집 정원이 가득 차 더 이상 수락할 수 없습니다."),
-    APPLICANT_ALREADY_IN_GROUP(40811, HttpStatus.CONFLICT, "신청자가 이미 다른 룸메이트 그룹에 소속되어 있습니다."),
-    ROOMMATE_GROUP_NOT_FOUND(40812, HttpStatus.INTERNAL_SERVER_ERROR, "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다.");
+    APPLICANT_ALREADY_IN_GROUP(40811, HttpStatus.CONFLICT, "신청자가 이미 다른 룸메이트 그룹에 소속되어 있습니다.");
 
     private final int code;
     private final HttpStatus status;

@@ -1,6 +1,6 @@
 package com.project.bangjjack.domain.roommategroup.domain.service;
 
-import com.project.bangjjack.domain.application.application.exception.RoommateGroupNotFoundException;
+import com.project.bangjjack.domain.roommategroup.application.exception.RoommateGroupNotFoundException;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
 import com.project.bangjjack.domain.roommategroup.domain.repository.RoommateGroupRepository;
 import lombok.RequiredArgsConstructor;
