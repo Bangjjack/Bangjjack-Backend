@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.roommategroup.domain.service;
 
+import com.project.bangjjack.domain.roommategroup.application.exception.RoommateGroupMembershipNotFoundException;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.roommategroup.domain.repository.RoommateGroupMemberRepository;
@@ -21,6 +22,11 @@ public class RoommateGroupMemberGetService {
 
     public long countByGroupIdAndRole(Long groupId, GroupMemberRole role) {
         return roommateGroupMemberRepository.countByGroupIdAndRoleAndDeletedFalse(groupId, role);
+    }
+
+    public RoommateGroupMember getActiveMembership(Long groupId, Long userId) {
+        return roommateGroupMemberRepository.findActiveMembership(groupId, userId)
+                .orElseThrow(RoommateGroupMembershipNotFoundException::new);
     }
 
     public List<RoommateGroupMember> getMembershipsByUserId(Long userId) {

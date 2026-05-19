@@ -8,12 +8,19 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public interface RoommateGroupMemberRepository extends JpaRepository<RoommateGroupMember, Long> {
 
     boolean existsByUserIdAndRoleAndDeletedFalse(Long userId, GroupMemberRole role);
 
     long countByGroupIdAndRoleAndDeletedFalse(Long groupId, GroupMemberRole role);
+
+    @Query("SELECT m FROM RoommateGroupMember m "
+            + "JOIN FETCH m.group g "
+            + "JOIN FETCH g.post "
+            + "WHERE g.id = :groupId AND m.user.id = :userId AND m.deleted = false")
+    Optional<RoommateGroupMember> findActiveMembership(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
     @Query("SELECT m FROM RoommateGroupMember m "
             + "JOIN FETCH m.group g "
