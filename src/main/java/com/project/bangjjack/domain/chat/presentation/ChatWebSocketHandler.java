@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.auth.application.exception.InvalidWsTokenException;
 import com.project.bangjjack.domain.auth.application.usecase.AuthUseCase;
+import com.project.bangjjack.domain.chat.application.exception.ChatRoomErrorCode;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketMessageType;
@@ -29,8 +30,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 @RequiredArgsConstructor
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
-    private static final String AUTH_SUCCESS_TYPE = "AUTH_SUCCESS";
-
     private final ChatMessageUseCase chatMessageUseCase;
     private final ChatRoomGetService chatRoomGetService;
     private final WebSocketSessionStore sessionStore;
@@ -50,13 +49,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
         } catch (JsonProcessingException | IllegalArgumentException e) {
             log.warn("[WS] 메시지 파싱 오류 - sessionId={}, 원인={}", session.getId(), e.getMessage());
-            sendError(session, WebSocketErrorResponse.unknown());
+            sendError(session, WebSocketErrorResponse.from(ChatRoomErrorCode.INVALID_WS_MESSAGE_FORMAT));
             return;
         }
 
         if (inbound.type() == null) {
             log.warn("[WS] 메시지 타입 누락 - sessionId={}", session.getId());
-            sendError(session, WebSocketErrorResponse.unknown());
+            sendError(session, WebSocketErrorResponse.from(ChatRoomErrorCode.MISSING_MESSAGE_TYPE));
+            session.close(CloseStatus.POLICY_VIOLATION.withReason("메시지 타입이 없습니다."));
             return;
         }
 
@@ -102,11 +102,17 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         } catch (Exception e) {
             log.error("[WS] 예상치 못한 오류 - userId={}, 원인={}",
                     principal.getMemberId(), e.getMessage(), e);
-            sendError(session, WebSocketErrorResponse.unknown());
+            sendError(session, WebSocketErrorResponse.from(ChatRoomErrorCode.WS_INTERNAL_ERROR));
         }
     }
 
     private void handleAuth(WebSocketSession session, WebSocketInboundMessage inbound) throws Exception {
+        if (getPrincipal(session) != null) {
+            log.warn("[WS] 이미 인증된 세션의 중복 AUTH 요청 - sessionId={}", session.getId());
+            sendError(session, WebSocketErrorResponse.from(ChatRoomErrorCode.ALREADY_WS_AUTHENTICATED));
+            return;
+        }
+
         String wsToken = inbound.token();
         if (wsToken == null || wsToken.isBlank()) {
             log.warn("[WS] AUTH 토큰 누락 - sessionId={}", session.getId());
@@ -125,6 +131,10 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         } catch (InvalidWsTokenException e) {
             log.warn("[WS] 인증 실패 - sessionId={}, 원인={}", session.getId(), e.getMessage());
             session.close(CloseStatus.POLICY_VIOLATION.withReason(e.getMessage()));
+        } catch (Exception e) {
+            log.error("[WS] 인증 처리 중 오류 - sessionId={}, 원인={}", session.getId(), e.getMessage(), e);
+            sendError(session, WebSocketErrorResponse.from(ChatRoomErrorCode.WS_INTERNAL_ERROR));
+            session.close(CloseStatus.SERVER_ERROR);
         }
     }
 
