@@ -32,10 +32,10 @@ public class RedisService {
         return bucket.getAndDelete();
     }
 
-    public String createWsToken(Long userId) {
+    public String createWsToken(Long userId, String memberName) {
         String uuid = UUID.randomUUID().toString();
         RBucket<String> bucket = redissonClient.getBucket(WS_TOKEN_PREFIX + uuid);
-        bucket.set(String.valueOf(userId), WS_TOKEN_TTL);
+        bucket.set(userId + ":" + memberName, WS_TOKEN_TTL);
         return uuid;
     }
 

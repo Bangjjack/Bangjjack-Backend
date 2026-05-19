@@ -37,18 +37,17 @@ public class AuthUseCase {
         return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername());
     }
 
-    @Transactional
     public WsTokenResponse issueWsToken(MemberPrincipal principal) {
-        String wsToken = redisService.createWsToken(principal.getMemberId());
+        String wsToken = redisService.createWsToken(principal.getMemberId(), principal.getMemberName());
         return WsTokenResponse.of(wsToken);
     }
 
     public MemberPrincipal authenticateWsToken(String wsToken) {
-        String userIdStr = redisService.validateAndConsumeWsToken(wsToken);
-        if (userIdStr == null) {
+        String value = redisService.validateAndConsumeWsToken(wsToken);
+        if (value == null) {
             throw new InvalidWsTokenException();
         }
-        User user = userGetService.getById(Long.parseLong(userIdStr));
-        return MemberPrincipal.of(user.getId(), user.getUsername(), Role.MEMBER);
+        String[] parts = value.split(":", 2);
+        return MemberPrincipal.of(Long.parseLong(parts[0]), parts[1], Role.MEMBER);
     }
 }
