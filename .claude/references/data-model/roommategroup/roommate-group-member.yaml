@@ -1,0 +1,82 @@
+# RoommateGroupMember Entity
+# Last Updated: 2026-05-19
+
+entity: ROOMMATE_GROUP_MEMBER
+description: |
+  룸메이트 그룹의 멤버. 역할은 LEADER(모집글 작성자) 또는 MEMBER(수락된 신청자).
+  그룹당 LEADER 1명 + MEMBER 0~post.recruitMemberCount 명.
+  한 사용자는 LEADER 1개 + MEMBER 1개 (총 2개 그룹) 동시 소속 가능.
+table: roommate_group_members
+domain: RoommateGroup
+extends: BaseEntity  # → references/data-model/base/base-entity.yaml
+
+columns:
+  - group_id:
+      type: BIGINT
+      nullable: false
+      fk: roommate_groups.id
+      description: "소속 그룹 FK"
+  - user_id:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: "유저 FK"
+  - role:
+      type: VARCHAR(10)
+      nullable: false
+      enum: GroupMemberRole
+      description: "LEADER (그룹장, 작성자) | MEMBER (수락된 신청자)"
+
+indexes:
+  - name: UQ_group_member_group_user
+    columns: [ group_id, user_id ]
+    type: UNIQUE
+    note: "동일 그룹 내 동일 유저 중복 소속 금지"
+  - name: IDX_group_member_user_role
+    columns: [ user_id, role ]
+    type: INDEX
+    note: "유저별 LEADER/MEMBER 역할 조회용 (중복 소속 검증 + 마이 그룹 조회)"
+
+relationships:
+  - type: ManyToOne
+    target: RoommateGroup
+    fk: group_id
+    fetch: LAZY
+    description: "소속 그룹"
+  - type: ManyToOne
+    target: User
+    fk: user_id
+    fetch: LAZY
+    description: "멤버 유저"
+
+business_logic:
+  - "create(group, user, role): 정적 팩토리 메서드. role = LEADER 또는 MEMBER."
+  - "softDelete(): → BaseEntity 위임"
+
+invariants:
+  - "그룹당 role=LEADER 멤버는 정확히 1명 (모집글 작성자, 모집글 작성 시 자동 등록)."
+  - "그룹당 role=MEMBER 멤버 수는 0 ~ 해당 그룹 post.recruitMemberCount."
+  - "한 사용자는 LEADER 역할 최대 1개를 동시 보유할 수 있다. (본인 OPEN 모집글 1개 정책으로 자연스럽게 보장됨)"
+  - "한 사용자는 MEMBER 역할 최대 1개를 동시 보유할 수 있다. (신청/수락 시점 검증으로 보장)"
+  - "한 사용자는 같은 그룹에 중복 소속될 수 없다 (group_id + user_id UNIQUE)."
+
+enums:
+  GroupMemberRole:
+    values: [ LEADER, MEMBER ]
+    display:
+      LEADER: "그룹장 (모집글 작성자)"
+      MEMBER: "그룹원 (수락된 신청자)"
+    rules:
+      LEADER:
+        - "모집글 작성 시 작성자가 자동으로 등록됨"
+        - "그룹당 1명"
+        - "본인 OPEN 모집글 1개 정책과 직접 연계됨"
+      MEMBER:
+        - "신청 → 수락 흐름을 통해 추가됨"
+        - "그룹당 0 ~ post.recruitMemberCount 명"
+        - "동일 사용자가 다른 그룹에 MEMBER로 이중 소속 불가"
+
+related_specs:
+  - ".claude/features/post/001_create_roommate_post.yaml — LEADER 자동 등록"
+  - ".claude/features/application/001_create_roommate_application.yaml — 신청 시점 MEMBER 중복 소속 사전 검증"
+  - ".claude/features/application/002_process_roommate_application.yaml — 수락 시 MEMBER 추가 + 정원/중복 검증"
