@@ -18,12 +18,12 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ChatWebSocketHandler chatWebSocketHandler;
-    private final JwtWebSocketHandshakeInterceptor handshakeInterceptor;
+    private final WsAuthHandshakeInterceptor wsAuthHandshakeInterceptor;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatWebSocketHandler, "/ws/chat")
-                .addInterceptors(handshakeInterceptor)
+                .addInterceptors(wsAuthHandshakeInterceptor)
                 .setAllowedOriginPatterns(
                         "http://localhost:3000",
                         "http://localhost:5173",

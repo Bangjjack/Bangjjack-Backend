@@ -2,11 +2,15 @@ package com.project.bangjjack.domain.auth.application.usecase;
 
 import com.project.bangjjack.domain.auth.application.dto.request.TokenExchangeRequest;
 import com.project.bangjjack.domain.auth.application.dto.response.TokenExchangeResponse;
+import com.project.bangjjack.domain.auth.application.dto.response.WsTokenResponse;
 import com.project.bangjjack.domain.auth.application.exception.InvalidAuthorizationCodeException;
+import com.project.bangjjack.domain.auth.application.exception.InvalidWsTokenException;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.global.infrastructure.redis.RedisService;
 import com.project.bangjjack.global.jwt.JwtProvider;
+import com.project.bangjjack.global.jwt.Role;
+import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,5 +35,29 @@ public class AuthUseCase {
 
         String accessToken = jwtProvider.createMemberAccessToken(user.getId(), user.getUsername());
         return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername());
+    }
+
+    public WsTokenResponse issueWsToken(MemberPrincipal principal) {
+        String wsToken = redisService.createWsToken(principal.getMemberId(), principal.getMemberName());
+        return WsTokenResponse.of(wsToken);
+    }
+
+    public MemberPrincipal authenticateWsToken(String wsToken) {
+        if (wsToken == null || wsToken.isBlank()) {
+            throw new InvalidWsTokenException();
+        }
+        String value = redisService.validateAndConsumeWsToken(wsToken);
+        if (value == null) {
+            throw new InvalidWsTokenException();
+        }
+        String[] parts = value.split(":", 2);
+        if (parts.length < 2) {
+            throw new InvalidWsTokenException();
+        }
+        try {
+            return MemberPrincipal.of(Long.parseLong(parts[0]), parts[1], Role.MEMBER);
+        } catch (NumberFormatException e) {
+            throw new InvalidWsTokenException();
+        }
     }
 }

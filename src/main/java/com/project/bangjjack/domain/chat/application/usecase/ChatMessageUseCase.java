@@ -6,12 +6,15 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePag
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
+import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -30,9 +34,18 @@ public class ChatMessageUseCase {
     private final ChatSaveService chatSaveService;
     private final ChatMessageGetService chatMessageGetService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Validator validator;
 
     @Transactional
     public void sendMessage(Long senderId, Long roomId, SendChatMessageRequest request) {
+        if (request == null) {
+            throw new InvalidMessageContentException();
+        }
+        // WebSocket은 @Valid 자동 적용 대상이 아니므로 수동 검증
+        Set<ConstraintViolation<SendChatMessageRequest>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            throw new InvalidMessageContentException();
+        }
         // TODO: 운영 환경 전환 시 content 제거 또는 contentLength로 변경 (PII)
         log.debug("[채팅 송신] 시작 - senderId={}, roomId={}, content='{}'", senderId, roomId, request.content());
 

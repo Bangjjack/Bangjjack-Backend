@@ -1,6 +1,6 @@
 # Feature Specification: 채팅 메시지 전송
 # Status: Done
-# Last Updated: 2026-05-13
+# Last Updated: 2026-05-19
 
 meta:
   id: FEAT-CHAT-002
@@ -34,8 +34,11 @@ technical_spec:
   websocket:
     connect_endpoint: /ws/chat
     auth: >
-      HTTP 핸드셰이크 시 JwtWebSocketHandshakeInterceptor에서 Authorization 헤더의 Bearer JWT를 검증.
-      검증 성공 시 MemberPrincipal을 WebSocketSession attributes에 저장.
+      브라우저 WebSocket API는 커스텀 헤더 전송이 불가하므로 핸드셰이크 JWT 검증 방식을 사용하지 않는다.
+      대신 2-step 인증 방식을 사용한다.
+      (1) REST API POST /api/v1/auth/ws-token 으로 단기 WS 토큰(Redis TTL 1분, 1회용) 발급.
+      (2) ws://.../ws/chat?token={wsToken} 으로 WebSocket 연결. WsAuthHandshakeInterceptor가 핸드셰이크 시점에 토큰 검증.
+      토큰 누락/만료 시 HTTP 401로 핸드셰이크 거부 (연결 자체가 실패).
 
     message_types:
       - type: SUBSCRIBE
@@ -104,11 +107,23 @@ technical_spec:
 # ──────────────────────────────────────────────
   data_flow:
     - step: 1
-      layer: Presentation (ChatWebSocketHandler)
+      layer: Infrastructure (WsAuthHandshakeInterceptor) — 핸드셰이크 인증
+      action: >
+        HTTP 업그레이드 요청의 쿼리 파라미터 token 추출.
+        AuthUseCase.authenticateWsToken(token) → Redis에서 ws:token:{uuid} 검증+삭제 → MemberPrincipal 반환.
+        인증 성공 시 session.attributes["principal"] 저장 후 핸드셰이크 허용 (return true).
+        토큰 누락/만료/파싱 실패 시 HTTP 401 응답 후 핸드셰이크 거부 (return false).
+
+    - step: 1-1
+      layer: Presentation (ChatWebSocketHandler) — 연결 확립
+      action: >
+        afterConnectionEstablished(): session.attributes["principal"]에서 MemberPrincipal 추출 → sessionRegistry 등록.
+
+    - step: 1-2
+      layer: Presentation (ChatWebSocketHandler) — 메시지 분기
       action: >
         WebSocketSession attributes에서 MemberPrincipal 추출 → userId 확보.
-        JSON 파싱 → WebSocketInboundMessage { type, roomId, content }.
-        type에 따라 분기 처리.
+        type에 따라 SUBSCRIBE / UNSUBSCRIBE / SEND 분기 처리.
 
     - step: 2
       layer: Presentation (ChatWebSocketHandler) — SUBSCRIBE 분기
@@ -117,6 +132,7 @@ technical_spec:
         방 미존재 시 40602, 미참여자 시 40604 ERROR 응답.
         검증 통과 시 WebSocketSessionStore에 세션 등록 (구독 처리).
 
+    - step: 3
     - step: 3
       layer: Presentation (ChatWebSocketHandler) — SEND 분기
       action: >
@@ -161,8 +177,14 @@ technical_spec:
 
   error_codes:
     domain: chat
-    range: "406xx"
+    range: "406xx / 506xx (WS 내부 오류) + 401xx (AuthErrorCode, WS 인증 전용)"
     codes:
+      - code: 40102
+        name: INVALID_WS_TOKEN
+        domain: auth (AuthErrorCode)
+        message: "유효하지 않거나 만료된 WebSocket 토큰입니다."
+        http: 401
+        trigger: WS 인증 시 토큰 누락·만료·파싱 실패. ERROR 프레임 전송 후 POLICY_VIOLATION 종료.
       - code: 40602
         name: CHAT_ROOM_NOT_FOUND
         message: "채팅방을 찾을 수 없습니다."
@@ -184,6 +206,21 @@ technical_spec:
         message: "먼저 해당 채팅방을 구독해야 합니다."
         http: 400
         trigger: SEND 시 해당 세션이 roomId를 구독하지 않은 경우
+      - code: 40607
+        name: INVALID_WS_MESSAGE_FORMAT
+        message: "메시지 형식이 올바르지 않습니다."
+        http: 400
+        trigger: JSON 파싱 실패 또는 올바르지 않은 메시지 구조
+      - code: 40608
+        name: MISSING_MESSAGE_TYPE
+        message: "메시지 타입이 없습니다."
+        http: 400
+        trigger: type 필드가 null인 메시지 수신
+      - code: 50601
+        name: WS_INTERNAL_ERROR
+        message: "서버 내부 오류가 발생했습니다."
+        http: 500
+        trigger: WS 처리 중 예상치 못한 예외 발생 (Redis 장애 등)
 
 # ──────────────────────────────────────────────
 # 테스트 전략
@@ -218,6 +255,6 @@ notes:
   - "메시지 이력 조회 API (GET /api/v1/chat/rooms/{roomId}/messages) 는 별도 스펙 작성 필요."
   - "읽음 처리 (ChatRoomParticipant.last_read_message_id 갱신) 는 별도 스펙 작성 필요."
   - "다중 인스턴스 배포 시 각 인스턴스가 Redis Pub/Sub 구독자로 등록되어야 broadcast 정상 동작."
-  - "WebSocket 인증 실패 (JWT 만료/변조) 시 핸드셰이크 단계에서 거부됨."
+  - "WebSocket 인증은 핸드셰이크가 아닌 연결 직후 AUTH 메시지로 수행됨. JWT 직접 사용 불가 (브라우저 WS API 헤더 제한). REST POST /api/v1/auth/ws-token으로 발급받은 단기 토큰(Redis TTL 1분, 1회용) 사용."
   - "WebSocketSessionRegistry는 userId → sessionId 매핑을 Redis에 보관 (Last-Connection-Wins). 세션 강제 종료는 미구현."
   - "STOMP 전환 시: @EnableWebSocketMessageBroker 기반 StompWebSocketConfig 추가 후 WebSocketBroadcaster → StompBroadcaster 교체."
