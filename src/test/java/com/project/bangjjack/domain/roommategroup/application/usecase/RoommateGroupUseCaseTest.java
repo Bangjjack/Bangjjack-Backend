@@ -1,14 +1,17 @@
 package com.project.bangjjack.domain.roommategroup.application.usecase;
 
+import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
+import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.MyRoommateGroupResponse;
-import com.project.bangjjack.domain.roommategroup.application.exception.LeaderCannotLeaveException;
 import com.project.bangjjack.domain.roommategroup.application.exception.RoommateGroupMembershipNotFoundException;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
@@ -44,6 +47,15 @@ class RoommateGroupUseCaseTest {
 
     @Mock
     private RoommateGroupMemberDeleteService roommateGroupMemberDeleteService;
+
+    @Mock
+    private RoommateGroupDeleteService roommateGroupDeleteService;
+
+    @Mock
+    private RoommatePostGetService roommatePostGetService;
+
+    @Mock
+    private RoommatePostDeleteService roommatePostDeleteService;
 
     @InjectMocks
     private RoommateGroupUseCase roommateGroupUseCase;
@@ -326,9 +338,7 @@ class RoommateGroupUseCaseTest {
 
         private static final Long GROUP_ID = 500L;
 
-        private RoommateGroupMember mockLeaveMembership(GroupMemberRole role, RoommatePost post) {
-            RoommateGroup group = mock(RoommateGroup.class);
-            lenient().when(group.getPost()).thenReturn(post);
+        private RoommateGroupMember mockLeaveMembership(GroupMemberRole role, RoommateGroup group) {
             RoommateGroupMember membership = mock(RoommateGroupMember.class);
             lenient().when(membership.getRole()).thenReturn(role);
             lenient().when(membership.getGroup()).thenReturn(group);
@@ -345,7 +355,8 @@ class RoommateGroupUseCaseTest {
         void MEMBER_탈퇴_성공() {
             // given
             RoommatePost post = mock(RoommatePost.class);
-            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, group);
             given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
                     .willReturn(membership);
 
@@ -354,15 +365,19 @@ class RoommateGroupUseCaseTest {
 
             // then
             then(roommateGroupMemberDeleteService).should().delete(membership);
+            then(roommateGroupMemberDeleteService).should(never()).deleteAll(anyList());
+            then(roommateGroupDeleteService).should(never()).delete(any());
+            then(roommatePostDeleteService).should(never()).deletePost(any(), any());
         }
 
         @Test
-        @DisplayName("탈퇴 시 연결된 모집글이 CLOSED면 OPEN으로 복귀한다")
+        @DisplayName("MEMBER 탈퇴 시 연결된 모집글이 CLOSED면 OPEN으로 복귀한다")
         void 모집글_CLOSED_OPEN_복귀() {
             // given
             RoommatePost post = realPost();
             post.close();
-            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, group);
             given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
                     .willReturn(membership);
 
@@ -374,11 +389,12 @@ class RoommateGroupUseCaseTest {
         }
 
         @Test
-        @DisplayName("탈퇴 시 연결된 모집글이 OPEN이면 그대로 OPEN을 유지한다 (멱등)")
+        @DisplayName("MEMBER 탈퇴 시 연결된 모집글이 OPEN이면 그대로 OPEN을 유지한다 (멱등)")
         void 모집글_OPEN_변경_없음() {
             // given
             RoommatePost post = realPost();
-            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, group);
             given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
                     .willReturn(membership);
 
@@ -400,6 +416,9 @@ class RoommateGroupUseCaseTest {
             assertThatThrownBy(() -> roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID))
                     .isInstanceOf(RoommateGroupMembershipNotFoundException.class);
             then(roommateGroupMemberDeleteService).should(never()).delete(any());
+            then(roommateGroupMemberDeleteService).should(never()).deleteAll(anyList());
+            then(roommateGroupDeleteService).should(never()).delete(any());
+            then(roommatePostDeleteService).should(never()).deletePost(any(), any());
         }
 
         @Test
@@ -416,27 +435,69 @@ class RoommateGroupUseCaseTest {
         }
 
         @Test
-        @DisplayName("LEADER가 탈퇴를 시도하면 409 LEADER_CANNOT_LEAVE, 멤버십·모집글 변경 없음")
-        void LEADER_탈퇴_불가() {
+        @DisplayName("LEADER가 탈퇴하면 그룹이 해체되어 모든 멤버십·모집글·공유 라이프스타일·그룹이 Soft Delete된다")
+        void LEADER_탈퇴_그룹_해체() {
             // given
             RoommatePost post = mock(RoommatePost.class);
-            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.LEADER, post);
-            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
-                    .willReturn(membership);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember leaderMembership = mockLeaveMembership(GroupMemberRole.LEADER, group);
+            User leader = mockUser(REQUESTER_ID, "리더", null);
+            User member1 = mockUser(2L, "멤버1", null);
+            List<RoommateGroupMember> activeMembers = List.of(
+                    mockMember(group, leader, GroupMemberRole.LEADER),
+                    mockMember(group, member1, GroupMemberRole.MEMBER));
+            PostSharedLifestyle sharedLifestyle = mock(PostSharedLifestyle.class);
 
-            // when & then
-            assertThatThrownBy(() -> roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID))
-                    .isInstanceOf(LeaderCannotLeaveException.class);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(leaderMembership);
+            given(roommateGroupMemberGetService.getActiveMembersByGroupId(GROUP_ID))
+                    .willReturn(activeMembers);
+            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(roommateGroupMemberDeleteService).should().deleteAll(activeMembers);
+            then(roommatePostDeleteService).should().deletePost(post, sharedLifestyle);
+            then(roommateGroupDeleteService).should().delete(group);
             then(roommateGroupMemberDeleteService).should(never()).delete(any());
             then(post).should(never()).open();
         }
 
         @Test
-        @DisplayName("LEADER·MEMBER 겸직 사용자가 MEMBER 그룹을 탈퇴하면 해당 MEMBER 멤버십만 삭제된다")
+        @DisplayName("LEADER 단독 그룹도 정상 해체된다 (멤버십 1건 Soft Delete)")
+        void LEADER_단독_해체() {
+            // given
+            RoommatePost post = mock(RoommatePost.class);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember leaderMembership = mockLeaveMembership(GroupMemberRole.LEADER, group);
+            User leader = mockUser(REQUESTER_ID, "리더", null);
+            List<RoommateGroupMember> activeMembers = List.of(mockMember(group, leader, GroupMemberRole.LEADER));
+            PostSharedLifestyle sharedLifestyle = mock(PostSharedLifestyle.class);
+
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(leaderMembership);
+            given(roommateGroupMemberGetService.getActiveMembersByGroupId(GROUP_ID))
+                    .willReturn(activeMembers);
+            given(roommatePostGetService.getSharedLifestyleByPost(post)).willReturn(sharedLifestyle);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(roommateGroupMemberDeleteService).should().deleteAll(activeMembers);
+            then(roommatePostDeleteService).should().deletePost(post, sharedLifestyle);
+            then(roommateGroupDeleteService).should().delete(group);
+        }
+
+        @Test
+        @DisplayName("LEADER·MEMBER 겸직 사용자가 MEMBER 그룹을 탈퇴하면 해당 MEMBER 멤버십만 삭제된다 (LEADER 그룹 영향 없음)")
         void 겸직_MEMBER_그룹만_탈퇴() {
             // given
             RoommatePost post = mock(RoommatePost.class);
-            RoommateGroupMember memberMembership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            RoommateGroup group = mockGroup(GROUP_ID, post);
+            RoommateGroupMember memberMembership = mockLeaveMembership(GroupMemberRole.MEMBER, group);
             given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
                     .willReturn(memberMembership);
 
@@ -445,6 +506,8 @@ class RoommateGroupUseCaseTest {
 
             // then
             then(roommateGroupMemberDeleteService).should().delete(memberMembership);
+            then(roommateGroupDeleteService).should(never()).delete(any());
+            then(roommatePostDeleteService).should(never()).deletePost(any(), any());
         }
     }
 }

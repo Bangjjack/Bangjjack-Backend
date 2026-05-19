@@ -29,6 +29,10 @@ public class RoommateGroupMemberGetService {
                 .orElseThrow(RoommateGroupMembershipNotFoundException::new);
     }
 
+    public List<RoommateGroupMember> getActiveMembersByGroupId(Long groupId) {
+        return roommateGroupMemberRepository.findActiveMembersByGroupId(groupId);
+    }
+
     public List<RoommateGroupMember> getMembershipsByUserId(Long userId) {
         return roommateGroupMemberRepository.findMembershipsByUserId(userId);
     }

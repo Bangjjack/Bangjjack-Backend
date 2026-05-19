@@ -4,11 +4,17 @@ import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMem
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class RoommateGroupMemberDeleteService {
 
     public void delete(RoommateGroupMember member) {
         member.softDelete();
+    }
+
+    public void deleteAll(List<RoommateGroupMember> members) {
+        members.forEach(RoommateGroupMember::softDelete);
     }
 }

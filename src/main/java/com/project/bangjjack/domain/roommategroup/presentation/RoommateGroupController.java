@@ -32,7 +32,7 @@ public class RoommateGroupController {
         return CommonResponse.success(RoommateGroupResponseCode.MY_ROOMMATE_GROUPS_FOUND, response);
     }
 
-    @Operation(summary = "룸메이트 그룹 탈퇴", description = "MEMBER로 합류한 요청자가 본인의 멤버십을 Soft Delete하여 그룹에서 탈퇴합니다. 그룹장(LEADER)은 탈퇴할 수 없으며, 탈퇴로 빈자리가 생기면 연결된 모집글이 CLOSED였을 경우 OPEN으로 복귀합니다.")
+    @Operation(summary = "룸메이트 그룹 탈퇴", description = "요청자가 본인의 멤버십을 Soft Delete하여 그룹에서 탈퇴합니다. MEMBER 탈퇴 시 빈자리가 생기면 연결된 모집글이 CLOSED였을 경우 OPEN으로 복귀합니다. LEADER가 탈퇴하면 그룹이 해체되어 연결된 모집글·공유 라이프스타일·그룹·모든 멤버십이 함께 Soft Delete됩니다(신청 이력은 보존).")
     @DeleteMapping("/{groupId}/members/me")
     public CommonResponse<Void> leaveRoommateGroup(
             @CurrentMemberId Long memberId,

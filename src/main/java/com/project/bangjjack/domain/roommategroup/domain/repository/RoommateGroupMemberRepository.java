@@ -23,6 +23,10 @@ public interface RoommateGroupMemberRepository extends JpaRepository<RoommateGro
     Optional<RoommateGroupMember> findActiveMembership(@Param("groupId") Long groupId, @Param("userId") Long userId);
 
     @Query("SELECT m FROM RoommateGroupMember m "
+            + "WHERE m.group.id = :groupId AND m.deleted = false")
+    List<RoommateGroupMember> findActiveMembersByGroupId(@Param("groupId") Long groupId);
+
+    @Query("SELECT m FROM RoommateGroupMember m "
             + "JOIN FETCH m.group g "
             + "JOIN FETCH g.post "
             + "WHERE m.user.id = :userId AND m.deleted = false")
