@@ -26,7 +26,18 @@ public class PostBookmark extends BaseEntity {
     @JoinColumn(name = "post_id", nullable = false)
     private RoommatePost post;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     public static PostBookmark create(User user, RoommatePost post) {
-        return new PostBookmark(user, post);
+        return new PostBookmark(user, post, true);
+    }
+
+    public void activate() {
+        this.active = true;
+    }
+
+    public void deactivate() {
+        this.active = false;
     }
 }

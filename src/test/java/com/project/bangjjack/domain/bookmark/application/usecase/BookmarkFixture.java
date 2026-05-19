@@ -32,9 +32,9 @@ class BookmarkFixture {
         return bookmark;
     }
 
-    static PostBookmark deletedBookmarkWithId(Long id, User user, RoommatePost post) {
+    static PostBookmark inactiveBookmarkWithId(Long id, User user, RoommatePost post) {
         PostBookmark bookmark = PostBookmark.create(user, post);
-        bookmark.softDelete();
+        bookmark.deactivate();
         ReflectionTestUtils.setField(bookmark, "id", id);
         return bookmark;
     }

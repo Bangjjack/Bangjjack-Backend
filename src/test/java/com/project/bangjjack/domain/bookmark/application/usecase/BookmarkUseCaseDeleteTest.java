@@ -44,7 +44,7 @@ class BookmarkUseCaseDeleteTest {
     class DeleteBookmark {
 
         @Test
-        @DisplayName("활성 북마크가 존재하면 softDelete가 호출되어 예외 없이 해제된다")
+        @DisplayName("활성 북마크가 존재하면 deactivate가 호출되어 예외 없이 해제된다")
         void 활성_북마크_존재_시_해제_성공() {
             // given
             Long userId = 1L;
@@ -59,7 +59,7 @@ class BookmarkUseCaseDeleteTest {
             bookmarkUseCase.deleteBookmark(userId, postId);
 
             // then
-            assertThat(bookmark.isDeleted()).isTrue();
+            assertThat(bookmark.isActive()).isFalse();
         }
 
         @Test

@@ -86,22 +86,22 @@ class BookmarkUseCaseCreateTest {
         }
 
         @Test
-        @DisplayName("soft delete된 북마크가 있으면 재활성화한다")
-        void soft_delete된_북마크_재활성화() {
+        @DisplayName("비활성 북마크가 있으면 활성화한다")
+        void 비활성_북마크_활성화() {
             Long userId = 1L;
             Long postId = 10L;
             User owner = BookmarkFixture.userWithId(2L);
             User user = BookmarkFixture.userWithId(userId);
             RoommatePost post = BookmarkFixture.postWithId(postId, owner);
-            PostBookmark deletedBookmark = BookmarkFixture.deletedBookmarkWithId(1L, user, post);
+            PostBookmark inactiveBookmark = BookmarkFixture.inactiveBookmarkWithId(1L, user, post);
 
             given(roommatePostGetService.getById(postId)).willReturn(post);
-            given(bookmarkGetService.findBookmark(userId, postId)).willReturn(Optional.of(deletedBookmark));
+            given(bookmarkGetService.findBookmark(userId, postId)).willReturn(Optional.of(inactiveBookmark));
 
             assertThatCode(() -> bookmarkUseCase.createBookmark(userId, postId))
                     .doesNotThrowAnyException();
 
-            assertThat(deletedBookmark.isDeleted()).isFalse();
+            assertThat(inactiveBookmark.isActive()).isTrue();
             then(bookmarkCreateService).should(never()).createBookmark(any());
         }
 

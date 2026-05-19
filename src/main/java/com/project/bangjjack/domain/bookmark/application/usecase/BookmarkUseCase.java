@@ -40,10 +40,10 @@ public class BookmarkUseCase {
 
         if (existing.isPresent()) {
             PostBookmark bookmark = existing.get();
-            if (!bookmark.isDeleted()) {
+            if (bookmark.isActive()) {
                 throw new AlreadyBookmarkedException();
             }
-            bookmark.reactivate();
+            bookmark.activate();
             return;
         }
 
@@ -54,7 +54,7 @@ public class BookmarkUseCase {
     @Transactional
     public void deleteBookmark(Long userId, Long postId) {
         PostBookmark bookmark = bookmarkGetService.getActiveBookmark(userId, postId);
-        bookmark.softDelete();
+        bookmark.deactivate();
     }
 
     public SliceResponse<BookmarkedPostResponse> getBookmarkedPosts(Long userId, Pageable pageable) {
