@@ -8,7 +8,9 @@ import com.project.bangjjack.global.common.response.CommonResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,5 +30,14 @@ public class RoommateGroupController {
             @CurrentMemberId Long memberId) {
         List<MyRoommateGroupResponse> response = roommateGroupUseCase.getMyRoommateGroups(memberId);
         return CommonResponse.success(RoommateGroupResponseCode.MY_ROOMMATE_GROUPS_FOUND, response);
+    }
+
+    @Operation(summary = "룸메이트 그룹 탈퇴", description = "MEMBER로 합류한 요청자가 본인의 멤버십을 Soft Delete하여 그룹에서 탈퇴합니다. 그룹장(LEADER)은 탈퇴할 수 없으며, 탈퇴로 빈자리가 생기면 연결된 모집글이 CLOSED였을 경우 OPEN으로 복귀합니다.")
+    @DeleteMapping("/{groupId}/members/me")
+    public CommonResponse<Void> leaveRoommateGroup(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long groupId) {
+        roommateGroupUseCase.leaveRoommateGroup(memberId, groupId);
+        return CommonResponse.success(RoommateGroupResponseCode.ROOMMATE_GROUP_LEFT);
     }
 }
