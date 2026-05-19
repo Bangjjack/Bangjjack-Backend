@@ -1,8 +1,10 @@
 package com.project.bangjjack.domain.roommategroup.application.usecase;
 
 import com.project.bangjjack.domain.roommategroup.application.dto.response.MyRoommateGroupResponse;
-import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
+import com.project.bangjjack.domain.roommategroup.application.exception.LeaderCannotLeaveException;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,20 @@ import java.util.stream.Collectors;
 public class RoommateGroupUseCase {
 
     private final RoommateGroupMemberGetService roommateGroupMemberGetService;
+    private final RoommateGroupMemberDeleteService roommateGroupMemberDeleteService;
+
+    @Transactional
+    public void leaveRoommateGroup(Long userId, Long groupId) {
+        RoommateGroupMember membership = roommateGroupMemberGetService.getActiveMembership(groupId, userId);
+
+        if (membership.getRole() == GroupMemberRole.LEADER) {
+            throw new LeaderCannotLeaveException();
+        }
+
+        roommateGroupMemberDeleteService.delete(membership);
+
+        membership.getGroup().getPost().open();
+    }
 
     public List<MyRoommateGroupResponse> getMyRoommateGroups(Long userId) {
         List<RoommateGroupMember> memberships = roommateGroupMemberGetService.getMembershipsByUserId(userId);
