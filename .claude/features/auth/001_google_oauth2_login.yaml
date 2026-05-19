@@ -129,12 +129,18 @@ technical_spec:
           - column: profile_image (VARCHAR(512), NULLABLE)
 
   redis:
-    key_pattern: "auth:code:{uuid}"
-    value: "userId (String)"
-    ttl: 5분
-    operations:
-      - createAuthorizationCode(userId): "UUID 생성 → bucket 저장 → uuid 반환"
-      - validateAndConsumeAuthorizationCode(code): "getAndDelete() 원자적 조회+삭제 → userId 반환 or null"
+    - key_pattern: "auth:code:{uuid}"
+      value: "userId (String)"
+      ttl: 5분
+      operations:
+        - createAuthorizationCode(userId): "UUID 생성 → bucket 저장 → uuid 반환"
+        - validateAndConsumeAuthorizationCode(code): "getAndDelete() 원자적 조회+삭제 → userId 반환 or null"
+    - key_pattern: "ws:token:{uuid}"
+      value: "userId:memberName (String)"
+      ttl: 1분
+      operations:
+        - createWsToken(userId, memberName): "UUID 생성 → bucket에 userId:memberName 저장 → uuid 반환"
+        - validateAndConsumeWsToken(wsToken): "getAndDelete() 원자적 조회+삭제 → userId:memberName 반환 or null"
 
   jwt:
     algorithm: HMAC (Base64 디코딩된 SecretKey)

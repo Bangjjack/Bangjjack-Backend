@@ -36,7 +36,7 @@ technical_spec:
     auth: >
       브라우저 WebSocket API는 커스텀 헤더 전송이 불가하므로 핸드셰이크 JWT 검증 방식을 사용하지 않는다.
       대신 2-step 인증 방식을 사용한다.
-      (1) REST API POST /api/v1/auth/ws-token 으로 단기 WS 토큰(Redis TTL 30초, 1회용) 발급.
+      (1) REST API POST /api/v1/auth/ws-token 으로 단기 WS 토큰(Redis TTL 1분, 1회용) 발급.
       (2) WebSocket 연결 직후 첫 메시지로 AUTH 타입을 전송하여 인증 완료.
       인증 전 AUTH 외 다른 메시지 수신 시 POLICY_VIOLATION으로 연결 종료.
 
@@ -156,6 +156,7 @@ technical_spec:
         검증 통과 시 WebSocketSessionStore에 세션 등록 (구독 처리).
 
     - step: 3
+    - step: 3
       layer: Presentation (ChatWebSocketHandler) — SEND 분기
       action: >
         ChatRoomGetService.validateParticipant(roomId, userId) 호출 (방 존재 + 참여 권한).
@@ -199,8 +200,14 @@ technical_spec:
 
   error_codes:
     domain: chat
-    range: "406xx / 506xx (WS 내부 오류)"
+    range: "406xx / 506xx (WS 내부 오류) + 401xx (AuthErrorCode, WS 인증 전용)"
     codes:
+      - code: 40102
+        name: INVALID_WS_TOKEN
+        domain: auth (AuthErrorCode)
+        message: "유효하지 않거나 만료된 WebSocket 토큰입니다."
+        http: 401
+        trigger: WS 인증 시 토큰 누락·만료·파싱 실패. ERROR 프레임 전송 후 POLICY_VIOLATION 종료.
       - code: 40602
         name: CHAT_ROOM_NOT_FOUND
         message: "채팅방을 찾을 수 없습니다."
@@ -276,6 +283,6 @@ notes:
   - "메시지 이력 조회 API (GET /api/v1/chat/rooms/{roomId}/messages) 는 별도 스펙 작성 필요."
   - "읽음 처리 (ChatRoomParticipant.last_read_message_id 갱신) 는 별도 스펙 작성 필요."
   - "다중 인스턴스 배포 시 각 인스턴스가 Redis Pub/Sub 구독자로 등록되어야 broadcast 정상 동작."
-  - "WebSocket 인증은 핸드셰이크가 아닌 연결 직후 AUTH 메시지로 수행됨. JWT 직접 사용 불가 (브라우저 WS API 헤더 제한). REST POST /api/v1/auth/ws-token으로 발급받은 단기 토큰(Redis TTL 30초, 1회용) 사용."
+  - "WebSocket 인증은 핸드셰이크가 아닌 연결 직후 AUTH 메시지로 수행됨. JWT 직접 사용 불가 (브라우저 WS API 헤더 제한). REST POST /api/v1/auth/ws-token으로 발급받은 단기 토큰(Redis TTL 1분, 1회용) 사용."
   - "WebSocketSessionRegistry는 userId → sessionId 매핑을 Redis에 보관 (Last-Connection-Wins). 세션 강제 종료는 미구현."
   - "STOMP 전환 시: @EnableWebSocketMessageBroker 기반 StompWebSocketConfig 추가 후 WebSocketBroadcaster → StompBroadcaster 교체."
