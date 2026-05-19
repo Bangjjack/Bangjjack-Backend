@@ -142,7 +142,8 @@ public class RoommateApplicationUseCase {
         Integer currentMemberCount = null;
 
         if (targetStatus == ApplicationStatus.ACCEPTED) {
-            group = roommateGroupGetService.getByPostId(post.getId());
+            // 동시 수락 정원 초과 방지: group 행을 잠가 카운트~멤버추가 구간을 직렬화
+            group = roommateGroupGetService.getByPostIdForUpdate(post.getId());
 
             long memberCount = roommateGroupMemberGetService.countByGroupIdAndRole(group.getId(), GroupMemberRole.MEMBER);
             if (memberCount >= post.getRecruitMemberCount()) {

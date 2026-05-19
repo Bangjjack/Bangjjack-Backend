@@ -16,4 +16,9 @@ public class RoommateGroupGetService {
         return roommateGroupRepository.findByPostIdAndDeletedFalse(postId)
                 .orElseThrow(RoommateGroupNotFoundException::new);
     }
+
+    public RoommateGroup getByPostIdForUpdate(Long postId) {
+        return roommateGroupRepository.findByPostIdAndDeletedFalseForUpdate(postId)
+                .orElseThrow(RoommateGroupNotFoundException::new);
+    }
 }

@@ -152,7 +152,7 @@ class RoommateApplicationUseCaseProcessTest {
             ChatRoom chatRoom = chatRoom();
 
             given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
-            given(roommateGroupGetService.getByPostId(POST_ID)).willReturn(group);
+            given(roommateGroupGetService.getByPostIdForUpdate(POST_ID)).willReturn(group);
             given(roommateGroupMemberGetService.countByGroupIdAndRole(GROUP_ID, GroupMemberRole.MEMBER)).willReturn(0L);
             given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -196,7 +196,7 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(response.status()).isEqualTo(ApplicationStatus.REJECTED);
             assertThat(response.groupId()).isNull();
             assertThat(response.currentGroupMemberCount()).isNull();
-            then(roommateGroupGetService).should(never()).getByPostId(any());
+            then(roommateGroupGetService).should(never()).getByPostIdForUpdate(any());
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
             then(chatSaveService).should().save(AUTHOR_ID, chatRoom, REJECTED_MESSAGE);
         }
@@ -210,7 +210,7 @@ class RoommateApplicationUseCaseProcessTest {
             ChatRoom chatRoom = chatRoom();
 
             given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
-            given(roommateGroupGetService.getByPostId(POST_ID)).willReturn(group);
+            given(roommateGroupGetService.getByPostIdForUpdate(POST_ID)).willReturn(group);
             given(roommateGroupMemberGetService.countByGroupIdAndRole(GROUP_ID, GroupMemberRole.MEMBER)).willReturn(0L);
             given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -288,7 +288,7 @@ class RoommateApplicationUseCaseProcessTest {
             RoommateGroup group = group(post);
 
             given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
-            given(roommateGroupGetService.getByPostId(POST_ID)).willReturn(group);
+            given(roommateGroupGetService.getByPostIdForUpdate(POST_ID)).willReturn(group);
             given(roommateGroupMemberGetService.countByGroupIdAndRole(GROUP_ID, GroupMemberRole.MEMBER))
                     .willReturn((long) RECRUIT_MEMBER_COUNT);
 
@@ -309,7 +309,7 @@ class RoommateApplicationUseCaseProcessTest {
             RoommateGroup group = group(post);
 
             given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
-            given(roommateGroupGetService.getByPostId(POST_ID)).willReturn(group);
+            given(roommateGroupGetService.getByPostIdForUpdate(POST_ID)).willReturn(group);
             given(roommateGroupMemberGetService.countByGroupIdAndRole(GROUP_ID, GroupMemberRole.MEMBER)).willReturn(0L);
             given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER))
                     .willReturn(true);
