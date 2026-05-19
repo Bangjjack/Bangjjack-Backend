@@ -7,6 +7,7 @@ import com.project.bangjjack.domain.auth.application.usecase.AuthUseCase;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketMessageType;
+import com.project.bangjjack.domain.chat.application.dto.response.AuthSuccessResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.exception.NotSubscribedException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
@@ -157,6 +158,4 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private MemberPrincipal getPrincipal(WebSocketSession session) {
         return (MemberPrincipal) session.getAttributes().get("principal");
     }
-
-    private record AuthSuccessResponse(String type, Long userId) {}
 }
