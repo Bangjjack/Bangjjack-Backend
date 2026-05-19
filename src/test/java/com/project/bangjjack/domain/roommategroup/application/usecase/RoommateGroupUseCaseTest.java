@@ -4,11 +4,15 @@ import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
 import com.project.bangjjack.domain.roommategroup.application.dto.response.MyRoommateGroupResponse;
+import com.project.bangjjack.domain.roommategroup.application.exception.LeaderCannotLeaveException;
+import com.project.bangjjack.domain.roommategroup.application.exception.RoommateGroupMembershipNotFoundException;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
+import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -35,6 +41,9 @@ class RoommateGroupUseCaseTest {
 
     @Mock
     private RoommateGroupMemberGetService roommateGroupMemberGetService;
+
+    @Mock
+    private RoommateGroupMemberDeleteService roommateGroupMemberDeleteService;
 
     @InjectMocks
     private RoommateGroupUseCase roommateGroupUseCase;
@@ -308,6 +317,134 @@ class RoommateGroupUseCaseTest {
             // then
             MyRoommateGroupResponse response = result.getFirst();
             assertThat(response.currentMemberCount()).isEqualTo(response.totalCapacity());
+        }
+    }
+
+    @Nested
+    @DisplayName("룸메이트 그룹 탈퇴 시")
+    class LeaveRoommateGroup {
+
+        private static final Long GROUP_ID = 500L;
+
+        private RoommateGroupMember mockLeaveMembership(GroupMemberRole role, RoommatePost post) {
+            RoommateGroup group = mock(RoommateGroup.class);
+            lenient().when(group.getPost()).thenReturn(post);
+            RoommateGroupMember membership = mock(RoommateGroupMember.class);
+            lenient().when(membership.getRole()).thenReturn(role);
+            lenient().when(membership.getGroup()).thenReturn(group);
+            return membership;
+        }
+
+        private RoommatePost realPost() {
+            return RoommatePost.create(mock(User.class), "기숙사 룸메 구해요", "함께 지낼 룸메이트를 찾습니다.",
+                    RoomSize.TWO_PERSON, 1, Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
+        }
+
+        @Test
+        @DisplayName("MEMBER가 본인 소속 그룹을 탈퇴하면 멤버십이 Soft Delete된다")
+        void MEMBER_탈퇴_성공() {
+            // given
+            RoommatePost post = mock(RoommatePost.class);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(membership);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(roommateGroupMemberDeleteService).should().delete(membership);
+        }
+
+        @Test
+        @DisplayName("탈퇴 시 연결된 모집글이 CLOSED면 OPEN으로 복귀한다")
+        void 모집글_CLOSED_OPEN_복귀() {
+            // given
+            RoommatePost post = realPost();
+            post.close();
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(membership);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            assertThat(post.isEditable()).isTrue();
+        }
+
+        @Test
+        @DisplayName("탈퇴 시 연결된 모집글이 OPEN이면 그대로 OPEN을 유지한다 (멱등)")
+        void 모집글_OPEN_변경_없음() {
+            // given
+            RoommatePost post = realPost();
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(membership);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            assertThat(post.isEditable()).isTrue();
+        }
+
+        @Test
+        @DisplayName("그룹이 없거나 요청자가 미소속이면 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND")
+        void 미소속_404() {
+            // given
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willThrow(new RoommateGroupMembershipNotFoundException());
+
+            // when & then
+            assertThatThrownBy(() -> roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID))
+                    .isInstanceOf(RoommateGroupMembershipNotFoundException.class);
+            then(roommateGroupMemberDeleteService).should(never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("이미 탈퇴한 멤버십에 재탈퇴를 요청하면 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND")
+        void 재탈퇴_404() {
+            // given
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willThrow(new RoommateGroupMembershipNotFoundException());
+
+            // when & then
+            assertThatThrownBy(() -> roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID))
+                    .isInstanceOf(RoommateGroupMembershipNotFoundException.class);
+            then(roommateGroupMemberDeleteService).should(never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("LEADER가 탈퇴를 시도하면 409 LEADER_CANNOT_LEAVE, 멤버십·모집글 변경 없음")
+        void LEADER_탈퇴_불가() {
+            // given
+            RoommatePost post = mock(RoommatePost.class);
+            RoommateGroupMember membership = mockLeaveMembership(GroupMemberRole.LEADER, post);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(membership);
+
+            // when & then
+            assertThatThrownBy(() -> roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID))
+                    .isInstanceOf(LeaderCannotLeaveException.class);
+            then(roommateGroupMemberDeleteService).should(never()).delete(any());
+            then(post).should(never()).open();
+        }
+
+        @Test
+        @DisplayName("LEADER·MEMBER 겸직 사용자가 MEMBER 그룹을 탈퇴하면 해당 MEMBER 멤버십만 삭제된다")
+        void 겸직_MEMBER_그룹만_탈퇴() {
+            // given
+            RoommatePost post = mock(RoommatePost.class);
+            RoommateGroupMember memberMembership = mockLeaveMembership(GroupMemberRole.MEMBER, post);
+            given(roommateGroupMemberGetService.getActiveMembership(GROUP_ID, REQUESTER_ID))
+                    .willReturn(memberMembership);
+
+            // when
+            roommateGroupUseCase.leaveRoommateGroup(REQUESTER_ID, GROUP_ID);
+
+            // then
+            then(roommateGroupMemberDeleteService).should().delete(memberMembership);
         }
     }
 }
