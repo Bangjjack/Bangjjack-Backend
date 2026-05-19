@@ -22,13 +22,15 @@ public record RoommatePostDetailResponse(
         boolean isBookmarked,
         LocalDateTime createdAt,
         AuthorResponse author,
-        SharedLifestyleResponse sharedLifestyle
+        SharedLifestyleResponse sharedLifestyle,
+        RoommatePreferenceResponse roommatePreference
 ) {
     public static RoommatePostDetailResponse from(
             RoommatePost post,
             PostSharedLifestyle sharedLifestyle,
             boolean isOwner,
-            boolean isBookmarked
+            boolean isBookmarked,
+            RoommatePreferenceResponse roommatePreference
     ) {
         return new RoommatePostDetailResponse(
                 post.getId(),
@@ -43,7 +45,8 @@ public record RoommatePostDetailResponse(
                 isBookmarked,
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
-                SharedLifestyleResponse.from(sharedLifestyle)
+                SharedLifestyleResponse.from(sharedLifestyle),
+                roommatePreference
         );
     }
 }
