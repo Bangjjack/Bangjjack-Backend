@@ -158,7 +158,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom newRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -195,7 +195,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom existingRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -226,7 +226,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom newRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -298,7 +298,7 @@ class RoommateApplicationUseCaseCreateTest {
             ReflectionTestUtils.setField(ownPost, "id", POST_ID);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(ownPost);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(ownPost);
 
             assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
                     .isInstanceOf(CannotApplyToOwnPostException.class);
@@ -316,7 +316,7 @@ class RoommateApplicationUseCaseCreateTest {
             ReflectionTestUtils.setField(post, "status", PostStatus.CLOSED);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
 
             assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
                     .isInstanceOf(PostNotOpenException.class);
@@ -331,7 +331,7 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(true);
 
             assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
@@ -347,7 +347,7 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(true);
 
@@ -366,7 +366,7 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getById(POST_ID)).willReturn(post);
+            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(true);

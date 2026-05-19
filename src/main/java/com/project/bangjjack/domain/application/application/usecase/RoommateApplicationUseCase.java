@@ -71,7 +71,8 @@ public class RoommateApplicationUseCase {
             throw new ApplicationPreconditionNotMetException();
         }
 
-        RoommatePost post = roommatePostGetService.getById(postId);
+        // 동시 중복 신청 방지: post 행을 잠가 존재 검사~생성 구간을 직렬화
+        RoommatePost post = roommatePostGetService.getByIdForUpdate(postId);
 
         Long authorId = post.getUser().getId();
         if (authorId.equals(userId)) {
