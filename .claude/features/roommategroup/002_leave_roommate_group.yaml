@@ -1,0 +1,193 @@
+# Feature Specification: 룸메이트 그룹 탈퇴
+# Status: Draft
+# Last Updated: 2026-05-19
+
+meta:
+  id: FEAT-016
+  title: 룸메이트 그룹 탈퇴
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    수락되어 MEMBER로 합류한 사용자가 자신이 속한 룸메이트 그룹에서 자발적으로 탈퇴한다.
+    탈퇴는 멤버십 행(RoommateGroupMember)의 Soft Delete로 처리하며, 정원에 빈자리가
+    생기므로 연결된 모집글(RoommatePost)이 CLOSED 상태였다면 OPEN으로 자동 복귀시킨다.
+    LEADER(모집글 작성자)는 탈퇴할 수 없다(그룹 해체는 별도 스펙). 합류 근거였던
+    ACCEPTED 신청 레코드는 이력 보존을 위해 변경하지 않는다.
+  user_story: >
+    As a 룸메이트 그룹의 MEMBER, I want to 그룹에서 탈퇴하고,
+    so that 더 이상 함께 살지 않을 그룹에서 빠지고 모집글은 다시 충원될 수 있다.
+  goals:
+    - 요청자(JWT userId)가 지정한 그룹의 MEMBER 멤버십을 Soft Delete
+    - LEADER는 탈퇴 불가 (LEADER_CANNOT_LEAVE) — 그룹 해체는 별도 스펙
+    - 탈퇴로 빈자리 발생 시 연결 모집글이 CLOSED면 OPEN으로 복귀, OPEN이면 변경 없음
+    - 합류 근거 ACCEPTED 신청 레코드는 불변(이력 보존)
+    - Hard Delete 금지 (BaseEntity.softDelete())
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: DELETE
+      path: /api/v1/roommate-groups/{groupId}/members/me
+      summary: 룸메이트 그룹 탈퇴 (요청자 본인의 MEMBER 멤버십 삭제)
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: groupId
+            type: Long
+            required: true
+            note: "탈퇴 대상 RoommateGroup ID"
+        query_param: []
+        dto: "(없음 — @CurrentMemberId로 userId 주입)"
+        fields: []
+      response:
+        dto: Void
+        http_status: 200 OK
+        wrapper: CommonResponse<Void>
+        response_code: RoommateGroupResponseCode.ROOMMATE_GROUP_LEFT
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommateGroupController)
+      action: "@CurrentMemberId로 JWT userId 추출, @PathVariable groupId 수신 후 RoommateGroupUseCase.leaveRoommateGroup(userId, groupId) 호출 (요청 body 없음)"
+    - step: 2
+      layer: UseCase (RoommateGroupUseCase)
+      transaction: true
+      action: "RoommateGroupMemberGetService.getActiveMembership(groupId, userId)로 요청자의 멤버십 조회 (group + group.post fetch join). 없거나 deleted=true이면 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - step: 3
+      layer: UseCase (RoommateGroupUseCase)
+      action: "membership.getRole() == LEADER 검증 → LEADER이면 LEADER_CANNOT_LEAVE (그룹 해체는 별도 스펙)"
+    - step: 4
+      layer: Domain (RoommateGroupMember Entity / BaseEntity)
+      action: "membership.softDelete() 호출 → deleted = true, deletedAt = now()"
+    - step: 5
+      layer: Infrastructure (RoommateGroupMemberDeleteService)
+      action: "변경된 membership 저장 (save)"
+    - step: 6
+      layer: Domain (RoommatePost Entity)
+      action: "membership.getGroup().getPost().open() 호출 → status == CLOSED이면 OPEN으로 전환(멱등). 이미 OPEN이면 변경 없음. JPA 더티 체킹으로 갱신 (post는 fetch join으로 영속 상태)"
+    - step: 7
+      layer: Response
+      action: "반환값 없음 (void). 200 OK, CommonResponse<Void> 반환"
+
+  database:
+    entities:
+      - name: RoommateGroupMember
+        action: Update (Soft Delete)
+        fields: "deleted = true, deletedAt = now() (group_id = groupId, user_id = 요청자, role = MEMBER 행)"
+        note: "Hard Delete 금지. UQ_group_member_group_user에 deleted 미포함."
+      - name: RoommatePost
+        action: Update
+        fields: "status: CLOSED → OPEN (OPEN이면 변경 없음)"
+        note: "membership → group → post 경로로 fetch join 로딩된 영속 엔티티. 더티 체킹으로 갱신. 별도 save 불필요."
+      - name: RoommateApplication
+        action: None
+        fields: "변경 없음"
+        note: "합류 근거 ACCEPTED 신청은 이력 보존을 위해 불변 (CANCELED 상태 없음)."
+
+  query_strategy:
+    note: "멤버십 조회 1회 + 멤버십 save 1회. post 상태 변경은 더티 체킹(추가 쿼리 없음)."
+    queries:
+      - "Q1: SELECT m FROM RoommateGroupMember m JOIN FETCH m.group g JOIN FETCH g.post WHERE g.id = :groupId AND m.user.id = :userId AND m.deleted = false"
+    pessimistic_lock: >
+      탈퇴는 MEMBER 카운트를 감소시키는 방향이라 정원 초과를 유발하지 않음.
+      신청 수락(002 application)과의 동시성에서 빈자리 계산이 보수적으로 안전하므로
+      비관적 락 불필요. 동시 중복 탈퇴 요청은 멤버십 단건 대상 트랜잭션으로 1건만 유효.
+
+  error_codes:
+    domain_range: "409xx (RoommateGroup 도메인)"
+    note: "신규 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
+    codes:
+      - code: 40901
+        name: ROOMMATE_GROUP_NOT_FOUND
+        status: 500 INTERNAL_SERVER_ERROR
+        message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
+        trigger: "기존 코드 (재사용). 본 기능에서 신규 트리거 없음."
+      - code: 40902
+        name: ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "해당 룸메이트 그룹의 멤버가 아닙니다."
+        trigger: "groupId+userId로 활성(deleted=false) 멤버십을 찾을 수 없음 (그룹 미존재 / 미소속 / 이미 탈퇴 포함). 그룹 존재 여부 비노출 목적으로 단일 코드로 통합."
+      - code: 40903
+        name: LEADER_CANNOT_LEAVE
+        status: 409 CONFLICT
+        message: "그룹장은 그룹에서 탈퇴할 수 없습니다."
+        trigger: "membership.role == LEADER. 그룹 해체는 별도 스펙에서 다룸."
+
+  response_codes:
+    note: "RoommateGroupResponseCode enum에 신규 코드 추가 (기존 MY_ROOMMATE_GROUPS_FOUND 유지)."
+    codes:
+      - name: ROOMMATE_GROUP_LEFT
+        code: 200
+        status: 200 OK
+        message: "룸메이트 그룹에서 탈퇴했습니다."
+
+  validation_rules:
+    - "인증된 사용자(MEMBER)만 호출 가능 (@CurrentMemberId)"
+    - "요청자는 해당 groupId에 활성(deleted=false) 멤버십이 있어야 함 → 없으면 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "멤버십 role == MEMBER 여야 함. role == LEADER → 409 LEADER_CANNOT_LEAVE (그룹 해체는 별도 스펙)"
+    - "탈퇴는 Soft Delete (deleted=true, deletedAt). Hard Delete 금지"
+    - "탈퇴 후 연결 모집글 status == CLOSED → OPEN 복귀. status == OPEN → 변경 없음 (open() 멱등)"
+    - "합류 근거 ACCEPTED 신청 레코드는 변경하지 않음 (이력 보존)"
+    - "재신청/재합류는 본 스펙 범위 밖. UNIQUE(group_id, user_id) 제약으로 동일 그룹 재합류 시 제약 위반 가능 — 별도 스펙에서 다룸"
+
+# ============================================================
+# 구현 대상 파일 (Implementation Phase)
+# ============================================================
+implementation_targets:
+  new_files:
+    - "domain/service/RoommateGroupMemberDeleteService.java — delete(member): softDelete된 멤버십 save"
+    - "application/exception/RoommateGroupMembershipNotFoundException.java — 40902"
+    - "application/exception/LeaderCannotLeaveException.java — 40903"
+  modified_files:
+    - "presentation/RoommateGroupController.java — @DeleteMapping(\"/{groupId}/members/me\"), @CurrentMemberId, @PathVariable"
+    - "application/usecase/RoommateGroupUseCase.java — @Transactional leaveRoommateGroup(userId, groupId)"
+    - "domain/service/RoommateGroupMemberGetService.java — getActiveMembership(groupId, userId) 추가"
+    - "domain/repository/RoommateGroupMemberRepository.java — findActiveMembership(groupId, userId) fetch join 쿼리 추가"
+    - "presentation/response/RoommateGroupResponseCode.java — ROOMMATE_GROUP_LEFT 추가"
+    - "application/exception/RoommateGroupErrorCode.java — 40902, 40903 추가"
+    - "post/domain/entity/RoommatePost.java — open() 도메인 메서드 추가 (status = OPEN, 멱등)"
+  layer_rules:
+    - "Controller → UseCase 1:1 위임, 비즈니스 로직 없음"
+    - "UseCase는 Repository 직접 접근 금지 → RoommateGroupMemberGetService / RoommateGroupMemberDeleteService 경유"
+    - "Domain Service 간 호출 금지 (UseCase가 오케스트레이션)"
+    - "기존 RoommateGroupMemberGetService 메서드/시그니처는 변경하지 않고 메서드만 추가"
+    - "post 상태 변경은 fetch join으로 로딩한 영속 엔티티의 도메인 메서드 호출 + 더티 체킹 (RoommatePost.open(), Tell Don't Ask)"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "MEMBER가 본인 소속 그룹 탈퇴 → 200, 멤버십 deleted=true / deletedAt 설정 확인"
+    - "탈퇴 시 연결 모집글 status == CLOSED → OPEN으로 복귀 확인"
+    - "탈퇴 시 연결 모집글 status == OPEN → 변경 없음 확인 (멱등)"
+    - "탈퇴 후 합류 근거 ACCEPTED 신청 레코드는 status/필드 변경 없음 확인 (이력 보존)"
+    - "탈퇴 후 동일 groupId로 재탈퇴 시도 → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND (이미 deleted)"
+  edge_cases:
+    - "존재하지 않는 groupId → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "그룹은 존재하나 요청자가 미소속 → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "LEADER가 본인 그룹 탈퇴 시도 → 409 LEADER_CANNOT_LEAVE, 멤버십/모집글 변경 없음"
+    - "LEADER 1 + MEMBER 1 겸직 사용자가 MEMBER 그룹만 탈퇴 → MEMBER 멤버십만 삭제, LEADER 그룹 영향 없음"
+    - "이미 탈퇴(deleted=true)한 멤버십 대상 재요청 → 404 (멱등적 차단)"
+    - "동시 중복 탈퇴 요청 → 1건만 유효, 모집글 status 일관성 유지"
+  query_verification:
+    - "탈퇴 처리 시 멤버십 조회 1회 + save 1회, post 상태 변경은 더티 체킹(추가 SELECT/UPDATE 쿼리 N+1 미발생) 확인"
+
+# ============================================================
+# 주의사항 / 결정 사항
+# ============================================================
+notes:
+  - "스코프 확정: 본 스펙은 'MEMBER 탈퇴'만 다룬다. LEADER 탈퇴(=그룹 해체)는 별도 스펙. 사용자 확인 완료 (2026-05-19)."
+  - "모집글 상태 부수효과 확정: 탈퇴로 빈자리 발생 시 CLOSED → OPEN 복귀. OPEN이면 변경 없음. 사용자 확인 완료 (2026-05-19)."
+  - "신청 레코드 처리 확정: 합류 근거 ACCEPTED 신청은 불변(이력 보존). ApplicationStatus에 CANCELED 없음. 사용자 확인 완료 (2026-05-19)."
+  - "재합류 정책: 본 스펙 범위 밖(차단/미보장). UQ_group_member_group_user(group_id, user_id)에 deleted 미포함 → 탈퇴 후 동일 그룹 재합류(INSERT) 시 UNIQUE 제약 위반 가능. 재신청/재합류 허용은 별도 스펙에서 제약/재활성화 설계 필요. 사용자 확인 완료 (2026-05-19)."
+  - "RoommatePost.open() 신규 도메인 메서드 추가 필요. 기존 close()(status=CLOSED)와 대칭. open()은 멱등(이미 OPEN이면 무변경)으로 정의해 호출부 분기 최소화."
+  - "응답 래핑은 코드베이스 컨벤션(CommonResponse<Void> + ResponseCode, 예: 002 모집글 삭제 POST_DELETED)을 따른다. system-design.yaml의 DELETE:204 가이드보다 코드베이스 일관성을 우선."
+  - "ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND 단일 코드로 '그룹 미존재 / 미소속 / 이미 탈퇴'를 통합 — 그룹 존재 여부 비노출(정보 누출 방지) 및 스펙 최소화."
+  - "RoommateGroupErrorCode 409xx 신규 코드(40902, 40903) 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
+  - "동시성: 탈퇴는 MEMBER 카운트 감소 방향이라 정원 초과를 유발하지 않음. 신청 수락과의 경합에서 빈자리 계산이 보수적으로 안전하므로 비관적 락 미적용. 추후 동시성 강화가 필요하면 별도 refactor로 다룸."
