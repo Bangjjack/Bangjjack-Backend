@@ -19,6 +19,7 @@ public record RoommatePostDetailResponse(
         Semester semester,
         Dormitory dormitory,
         boolean isOwner,
+        boolean isBookmarked,
         LocalDateTime createdAt,
         AuthorResponse author,
         SharedLifestyleResponse sharedLifestyle
@@ -26,7 +27,8 @@ public record RoommatePostDetailResponse(
     public static RoommatePostDetailResponse from(
             RoommatePost post,
             PostSharedLifestyle sharedLifestyle,
-            boolean isOwner
+            boolean isOwner,
+            boolean isBookmarked
     ) {
         return new RoommatePostDetailResponse(
                 post.getId(),
@@ -38,6 +40,7 @@ public record RoommatePostDetailResponse(
                 post.getSemester(),
                 post.getDormitory(),
                 isOwner,
+                isBookmarked,
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
                 SharedLifestyleResponse.from(sharedLifestyle)

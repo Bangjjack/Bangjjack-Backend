@@ -1,0 +1,41 @@
+# PostBookmark Entity
+# Last Updated: 2026-05-17
+
+entity: POST_BOOKMARK
+description: 사용자가 북마크한 룸메이트 모집글. 북마크 해제는 소프트 딜리트로 처리.
+table: post_bookmarks
+domain: Post
+extends: BaseEntity
+
+columns:
+  - user_id:
+      type: BIGINT
+      nullable: false
+      fk: users.id
+      description: "북마크한 사용자 FK"
+  - post_id:
+      type: BIGINT
+      nullable: false
+      fk: roommate_posts.id
+      description: "북마크된 게시글 FK"
+
+constraints:
+  - "(user_id, post_id) UNIQUE — DB 레벨 중복 방지. 동일 (user, post) 쌍은 row가 하나만 존재."
+
+relationships:
+  - type: ManyToOne
+    target: User
+    fk: user_id
+    fetch: LAZY
+  - type: ManyToOne
+    target: RoommatePost
+    fk: post_id
+    fetch: LAZY
+
+business_logic:
+  - "create(userId, postId): 정적 팩토리 메서드"
+  - "softDelete(): → BaseEntity 위임 (북마크 해제)"
+
+notes:
+  - "소프트 딜리트 사용. 재북마크 시 기존 레코드 재활성화 (deleted=false). 신규 row 생성 없음."
+  - "활성 북마크 조회 시 반드시 deleted=false 조건 포함."
