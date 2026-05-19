@@ -23,8 +23,12 @@ import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupCreateService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
+
+import java.util.List;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +47,7 @@ public class RoommatePostUseCase {
     private final RoommatePostUpdateService roommatePostUpdateService;
     private final RoommateGroupCreateService roommateGroupCreateService;
     private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
+    private final RoommateGroupMemberGetService roommateGroupMemberGetService;
 
     @Transactional
     public void createPost(Long userId, CreateRoommatePostRequest request) {
@@ -98,7 +103,8 @@ public class RoommatePostUseCase {
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId);
         RoommatePost post = sharedLifestyle.getPost();
         boolean isOwner = post.getUser().getId().equals(userId);
-        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner);
+        List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members);
     }
 
     @Transactional

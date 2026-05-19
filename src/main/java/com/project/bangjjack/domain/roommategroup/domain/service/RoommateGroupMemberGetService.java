@@ -40,4 +40,8 @@ public class RoommateGroupMemberGetService {
     public List<RoommateGroupMember> getAllByGroupIds(Collection<Long> groupIds) {
         return roommateGroupMemberRepository.findAllByGroupIdIn(groupIds);
     }
+
+    public List<RoommateGroupMember> getActiveMembersWithUserByPostId(Long postId) {
+        return roommateGroupMemberRepository.findActiveMembersWithUserByPostId(postId);
+    }
 }
