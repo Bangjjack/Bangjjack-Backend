@@ -47,7 +47,7 @@ public class RoommatePostUseCase {
     private final BookmarkGetService bookmarkGetService;
 
     @Transactional
-    public void createPost(Long userId, CreateRoommatePostRequest request) {
+    public Long createPost(Long userId, CreateRoommatePostRequest request) {
         User user = userGetService.getById(userId);
 
         if (!user.isOnboarded() || !user.isChecklistRegistered() || !user.isRoommatePreferenceRegistered()) {
@@ -87,6 +87,8 @@ public class RoommatePostUseCase {
 
         RoommateGroup group = roommateGroupCreateService.createGroup(post);
         roommateGroupMemberCreateService.addMember(group, user, GroupMemberRole.LEADER);
+
+        return post.getId();
     }
 
     public SliceResponse<RoommatePostSummaryResponse> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {

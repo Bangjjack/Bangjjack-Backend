@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.post.presentation;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.CreateRoommatePostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.MatchRateResponse;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.usecase.MatchAnalysisUseCase;
@@ -35,11 +36,11 @@ public class RoommatePostController {
     @Operation(summary = "룸메이트 모집글 작성", description = "온보딩, 체크리스트, 선호도 등록을 완료한 사용자가 모집글을 작성합니다.")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CommonResponse<Void> createPost(
+    public CommonResponse<CreateRoommatePostResponse> createPost(
             @CurrentMemberId Long memberId,
             @RequestBody @Valid CreateRoommatePostRequest request) {
-        roommatePostUseCase.createPost(memberId, request);
-        return CommonResponse.success(PostResponseCode.POST_CREATED);
+        Long postId = roommatePostUseCase.createPost(memberId, request);
+        return CommonResponse.success(PostResponseCode.POST_CREATED, CreateRoommatePostResponse.from(postId));
     }
 
     @Operation(summary = "룸메이트 모집글 목록 조회", description = "캠퍼스/방 유형 필터로 OPEN 상태 모집글 목록을 최신순으로 조회합니다.")
