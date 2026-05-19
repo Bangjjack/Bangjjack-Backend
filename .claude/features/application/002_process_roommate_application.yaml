@@ -171,7 +171,7 @@ technical_spec:
         trigger: "신청자가 다른 RoommateGroup의 MEMBER 역할로 이미 등록된 경우. application/001에서 사전 차단되지만 수락 시점에서도 재검증."
       - code: 40812
         name: ROOMMATE_GROUP_NOT_FOUND
-        status: 500 INTERNAL_SERVER_ERROR
+        status: 404 NOT_FOUND
         message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
         trigger: "모집글 작성 시 그룹 자동 생성이 누락된 시스템 무결성 오류. 일반적으로 도달 불가."
 

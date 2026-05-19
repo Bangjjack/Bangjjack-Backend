@@ -1,0 +1,230 @@
+# Feature Specification: 룸메이트 그룹 탈퇴
+# Status: Draft
+# Last Updated: 2026-05-19
+
+meta:
+  id: FEAT-016
+  title: 룸메이트 그룹 탈퇴
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    그룹에 속한 사용자가 자신이 속한 룸메이트 그룹에서 자발적으로 탈퇴한다.
+    역할(role)에 따라 동작이 분기된다.
+    - MEMBER 탈퇴: 자신의 멤버십(RoommateGroupMember)을 Soft Delete한다. 정원에
+      빈자리가 생기므로 연결된 모집글(RoommatePost)이 CLOSED 상태였다면 OPEN으로
+      자동 복귀시킨다.
+    - LEADER 탈퇴(= 그룹 해체): 연결된 모집글(RoommatePost), 공유 라이프스타일
+      (PostSharedLifestyle), 그룹(RoommateGroup), 해당 그룹의 모든 활성 멤버십
+      (RoommateGroupMember) 전부를 Soft Delete한다.
+    합류 근거였던 RoommateApplication(PENDING/ACCEPTED/REJECTED)은 이력 보존을
+    위해 어떠한 경우에도 변경하지 않는다(ApplicationStatus에 CANCELED 없음).
+  user_story: >
+    As a 룸메이트 그룹의 LEADER 또는 MEMBER, I want to 그룹에서 탈퇴하고,
+    so that 더 이상 함께 살지 않을 그룹에서 빠지거나(MEMBER) 그룹을 정리하여
+    재모집을 준비할 수 있다(LEADER).
+  goals:
+    - 요청자(JWT userId)가 지정한 그룹의 활성(deleted=false) 멤버십 Soft Delete
+    - MEMBER 탈퇴 시 연결 모집글이 CLOSED면 OPEN으로 복귀(멱등), OPEN이면 변경 없음
+    - LEADER 탈퇴 시 그룹 해체 — 모집글·공유 라이프스타일·그룹·모든 활성 멤버십 Soft Delete
+    - 합류 근거 ACCEPTED 신청 레코드를 포함한 모든 RoommateApplication은 불변(이력 보존)
+    - Hard Delete 금지 (BaseEntity.softDelete())
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: DELETE
+      path: /api/v1/roommate-groups/{groupId}/members/me
+      summary: 룸메이트 그룹 탈퇴 (역할에 따라 MEMBER 탈퇴 또는 LEADER에 의한 그룹 해체)
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: groupId
+            type: Long
+            required: true
+            note: "탈퇴 대상 RoommateGroup ID"
+        query_param: []
+        dto: "(없음 — @CurrentMemberId로 userId 주입)"
+        fields: []
+      response:
+        dto: Void
+        http_status: 200 OK
+        wrapper: CommonResponse<Void>
+        response_code: RoommateGroupResponseCode.ROOMMATE_GROUP_LEFT
+        fields: []
+
+  data_flow:
+    - step: 1
+      layer: Presentation (RoommateGroupController)
+      action: "@CurrentMemberId로 JWT userId 추출, @PathVariable groupId 수신 후 RoommateGroupUseCase.leaveRoommateGroup(userId, groupId) 호출 (요청 body 없음)"
+    - step: 2
+      layer: UseCase (RoommateGroupUseCase)
+      transaction: true
+      action: "RoommateGroupMemberGetService.getActiveMembership(groupId, userId)로 요청자의 활성 멤버십 조회 (group + group.post fetch join). 없거나 deleted=true이면 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - step: 3
+      layer: UseCase (RoommateGroupUseCase)
+      action: "membership.getRole() 분기 — LEADER면 그룹 해체 흐름(step 4~7), MEMBER면 단일 탈퇴 흐름(step 8~9)"
+    - step: 4
+      layer: UseCase (LEADER 분기)
+      action: "RoommateGroupMemberGetService.getActiveMembersByGroupId(groupId)로 그룹의 모든 활성 멤버십(LEADER 본인 + MEMBER들) 조회"
+    - step: 5
+      layer: Domain (RoommateGroupMember Entity / BaseEntity) + Service
+      action: "RoommateGroupMemberDeleteService.deleteAll(members) → 각 멤버십에 softDelete() 호출 (deleted=true, deletedAt=now()). 더티 체킹으로 일괄 flush"
+    - step: 6
+      layer: UseCase + Domain (LEADER 분기)
+      action: "membership.getGroup().getPost()로 RoommatePost 획득 → RoommatePostGetService.getSharedLifestyleByPost(post)로 PostSharedLifestyle 조회 → RoommatePostDeleteService.deletePost(post, sharedLifestyle) 호출 (둘 모두 softDelete)"
+    - step: 7
+      layer: Domain (RoommateGroup Entity / BaseEntity) + Service
+      action: "RoommateGroupDeleteService.delete(group) → group.softDelete() 호출. 더티 체킹으로 갱신. 이후 step 10으로 종료"
+    - step: 8
+      layer: UseCase + Domain (MEMBER 분기)
+      action: "RoommateGroupMemberDeleteService.delete(membership) → membership.softDelete() (deleted=true, deletedAt=now())"
+    - step: 9
+      layer: Domain (RoommatePost Entity) — MEMBER 분기
+      action: "membership.getGroup().getPost().open() 호출 → status == CLOSED면 OPEN으로 전환(멱등). 이미 OPEN이면 변경 없음. JPA 더티 체킹으로 갱신"
+    - step: 10
+      layer: Response
+      action: "반환값 없음 (void). 200 OK, CommonResponse<Void> 반환"
+
+  database:
+    entities:
+      - name: RoommateGroupMember
+        action: Update (Soft Delete)
+        fields: "deleted = true, deletedAt = now()"
+        note: |
+          MEMBER 탈퇴: 요청자 본인의 단일 멤버십 행 (group_id = groupId, user_id = 요청자, role = MEMBER).
+          LEADER 탈퇴(그룹 해체): 해당 group_id의 모든 활성 멤버십(LEADER 본인 + 모든 MEMBER 행)을 일괄 Soft Delete.
+          UQ_group_member_group_user_active(group_id, user_id, deleted_at) 제약은 deleted_at=NULL인 활성 행만 유일.
+      - name: RoommatePost
+        action: Update
+        fields: |
+          MEMBER 탈퇴: status: CLOSED → OPEN (OPEN이면 변경 없음, 멱등)
+          LEADER 탈퇴(그룹 해체): deleted = true, deletedAt = now()
+        note: "membership → group → post 경로로 fetch join 로딩된 영속 엔티티. 더티 체킹으로 갱신. 별도 save 불필요."
+      - name: PostSharedLifestyle
+        action: Update (LEADER 탈퇴 시에만)
+        fields: "deleted = true, deletedAt = now()"
+        note: "LEADER 탈퇴 시 RoommatePostGetService.getSharedLifestyleByPost(post)로 조회 후 함께 Soft Delete. MEMBER 탈퇴 시 변경 없음."
+      - name: RoommateGroup
+        action: Update (LEADER 탈퇴 시에만)
+        fields: "deleted = true, deletedAt = now()"
+        note: "LEADER 탈퇴(그룹 해체) 시 group.softDelete(). MEMBER 탈퇴 시 변경 없음."
+      - name: RoommateApplication
+        action: None
+        fields: "변경 없음"
+        note: "PENDING/ACCEPTED/REJECTED 모두 이력 보존을 위해 불변. ApplicationStatus에 CANCELED 없음. 모집글이 Soft Delete된 이후에도 신청 레코드는 잔존."
+
+  query_strategy:
+    note: |
+      MEMBER 탈퇴: 멤버십 조회 1회. softDelete는 더티 체킹(추가 쿼리 없음).
+      LEADER 탈퇴(그룹 해체): 멤버십 조회 1회 + 활성 멤버 일괄 조회 1회 + 공유 라이프스타일 조회 1회.
+      softDelete는 모두 더티 체킹으로 UPDATE 일괄 flush.
+    queries:
+      - "Q1: SELECT m FROM RoommateGroupMember m JOIN FETCH m.group g JOIN FETCH g.post WHERE g.id = :groupId AND m.user.id = :userId AND m.deleted = false"
+      - "Q2 (LEADER 분기): SELECT m FROM RoommateGroupMember m WHERE m.group.id = :groupId AND m.deleted = false"
+      - "Q3 (LEADER 분기): SELECT psl FROM PostSharedLifestyle psl WHERE psl.post = :post AND psl.deleted = false"
+    pessimistic_lock: >
+      탈퇴는 멤버 카운트를 감소시키는 방향이라 정원 초과를 유발하지 않음.
+      MEMBER 탈퇴와 신청 수락(application/002)의 동시성에서 빈자리 계산이 보수적으로 안전하므로 비관적 락 불필요.
+      LEADER 탈퇴(그룹 해체)와 신청 수락의 경합은 정원 외 부수효과(post/group softDelete)를 동반하지만,
+      수락 측이 활성 모집글만 조회하므로 그룹 해체 트랜잭션 커밋 이후의 수락 시도는 POST_NOT_FOUND 또는 POST_NOT_OPEN으로 정상 차단된다.
+      커밋 시점 이전의 경합 강화가 필요해지면 별도 refactor로 다룸.
+
+  error_codes:
+    domain_range: "409xx (RoommateGroup 도메인)"
+    note: "신규 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
+    codes:
+      - code: 40901
+        name: ROOMMATE_GROUP_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
+        trigger: "기존 코드 (재사용). 본 기능에서 신규 트리거 없음."
+      - code: 40902
+        name: ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "해당 룸메이트 그룹의 멤버가 아닙니다."
+        trigger: "groupId+userId로 활성(deleted=false) 멤버십을 찾을 수 없음 (그룹 미존재 / 미소속 / 이미 탈퇴 / 그룹 해체로 멤버십이 함께 소멸된 경우 포함). 그룹 존재 여부 비노출 목적으로 단일 코드로 통합."
+
+  response_codes:
+    note: "RoommateGroupResponseCode enum의 ROOMMATE_GROUP_LEFT를 MEMBER 탈퇴/LEADER 그룹 해체 양쪽에서 공통으로 사용한다."
+    codes:
+      - name: ROOMMATE_GROUP_LEFT
+        code: 200
+        status: 200 OK
+        message: "룸메이트 그룹에서 탈퇴했습니다."
+
+  validation_rules:
+    - "인증된 사용자(MEMBER)만 호출 가능 (@CurrentMemberId)"
+    - "요청자는 해당 groupId에 활성(deleted=false) 멤버십이 있어야 함 → 없으면 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "멤버십 role == LEADER 면 그룹 해체 흐름 진입(모집글·공유 라이프스타일·그룹·모든 활성 멤버십 Soft Delete)"
+    - "멤버십 role == MEMBER 면 본인 멤버십만 Soft Delete + 모집글 status 복귀(CLOSED→OPEN, 멱등)"
+    - "탈퇴는 Soft Delete (deleted=true, deletedAt). Hard Delete 금지"
+    - "RoommateApplication(모든 status)은 변경하지 않음 (이력 보존)"
+    - "탈퇴/해체 후 동일 그룹 재합류는 불가(그룹/모집글이 softDelete되므로). 새로운 모집글 생성으로만 재시작 가능. MEMBER 탈퇴의 경우, UNIQUE(group_id, user_id, deleted_at) 제약으로 활성 행은 1개로 제한되고 탈퇴 행은 다수 공존 가능하여 새 수락 시 INSERT 가능."
+
+# ============================================================
+# 구현 대상 파일 (Implementation Phase)
+# ============================================================
+implementation_targets:
+  new_files:
+    - "domain/service/RoommateGroupMemberDeleteService.java — delete(member): softDelete된 멤버십 (더티 체킹) / deleteAll(members): 일괄 softDelete"
+    - "domain/service/RoommateGroupDeleteService.java — delete(group): group.softDelete() (그룹 해체용 신규 서비스)"
+    - "application/exception/RoommateGroupMembershipNotFoundException.java — 40902"
+  modified_files:
+    - "presentation/RoommateGroupController.java — @DeleteMapping(\"/{groupId}/members/me\"), Swagger 설명에 LEADER 그룹 해체 동작 명시"
+    - "application/usecase/RoommateGroupUseCase.java — @Transactional leaveRoommateGroup(userId, groupId): role 분기(LEADER 해체 / MEMBER 탈퇴)"
+    - "domain/service/RoommateGroupMemberGetService.java — getActiveMembership(groupId, userId) + getActiveMembersByGroupId(groupId)"
+    - "domain/repository/RoommateGroupMemberRepository.java — findActiveMembership(groupId, userId) fetch join + findActiveMembersByGroupId(groupId)"
+    - "presentation/response/RoommateGroupResponseCode.java — ROOMMATE_GROUP_LEFT (MEMBER/LEADER 공통)"
+    - "application/exception/RoommateGroupErrorCode.java — 40902"
+    - "post/domain/entity/RoommatePost.java — open() 도메인 메서드 (status = OPEN, 멱등). softDelete()는 BaseEntity 사용"
+  removed_files:
+    - "application/exception/LeaderCannotLeaveException.java — LEADER 탈퇴를 허용하므로 제거"
+    - "RoommateGroupErrorCode.LEADER_CANNOT_LEAVE (40903) — 위와 동일한 사유로 제거"
+  layer_rules:
+    - "Controller → UseCase 1:1 위임, 비즈니스 로직 없음"
+    - "UseCase는 Repository 직접 접근 금지 → 도메인 서비스(RoommateGroupMemberGetService / RoommateGroupMemberDeleteService / RoommateGroupDeleteService / RoommatePostGetService / RoommatePostDeleteService) 경유"
+    - "Domain Service 간 호출 금지 (UseCase가 오케스트레이션)"
+    - "post 상태 변경 / 엔티티 softDelete는 fetch join 또는 도메인 서비스로 로딩한 영속 엔티티의 도메인 메서드 호출 + 더티 체킹 (Tell Don't Ask)"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "MEMBER가 본인 소속 그룹 탈퇴 → 200, 본인 멤버십 deleted=true / deletedAt 설정 확인 (다른 멤버·모집글·그룹은 무변)"
+    - "MEMBER 탈퇴 시 연결 모집글 status == CLOSED → OPEN으로 복귀 확인"
+    - "MEMBER 탈퇴 시 연결 모집글 status == OPEN → 변경 없음 확인 (멱등)"
+    - "LEADER가 본인 그룹 탈퇴 → 200, 그룹의 모든 활성 멤버십·모집글·공유 라이프스타일·그룹이 모두 Soft Delete 확인"
+    - "LEADER 단독 그룹(MEMBER 0명) 탈퇴 → 200, LEADER 단일 멤버십만 Soft Delete + 모집글/공유 라이프스타일/그룹 Soft Delete 확인"
+    - "탈퇴/해체 후 RoommateApplication(PENDING/ACCEPTED/REJECTED) 레코드는 status/필드 변경 없음 확인 (이력 보존)"
+  edge_cases:
+    - "존재하지 않는 groupId → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "그룹은 존재하나 요청자가 미소속 → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND"
+    - "이미 탈퇴(deleted=true)한 멤버십 대상 재요청 → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND (멱등적 차단)"
+    - "그룹이 해체된 이후 같은 groupId로 재요청 → 404 ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND (활성 멤버십 부재)"
+    - "LEADER·MEMBER 겸직 사용자가 MEMBER 그룹만 탈퇴 → MEMBER 멤버십만 삭제, LEADER 그룹 영향 없음"
+    - "LEADER·MEMBER 겸직 사용자가 LEADER 그룹을 탈퇴(해체) → LEADER 그룹 전체 해체, MEMBER 그룹 영향 없음"
+    - "동시 중복 탈퇴/해체 요청 → 1건만 유효 (트랜잭션 직렬화에 의해 두 번째 요청은 404로 차단)"
+  query_verification:
+    - "MEMBER 탈퇴: 멤버십 조회 1회. softDelete/모집글 status 변경은 더티 체킹(추가 SELECT/UPDATE 쿼리 N+1 미발생) 확인"
+    - "LEADER 탈퇴: 멤버십 조회 1회 + 활성 멤버 일괄 조회 1회 + 공유 라이프스타일 조회 1회. 멤버 N건에 대한 N+1 미발생 확인"
+
+# ============================================================
+# 주의사항 / 결정 사항
+# ============================================================
+notes:
+  - "스코프 확장: 기존에 LEADER 탈퇴를 차단(LEADER_CANNOT_LEAVE)했으나, 본 스펙에서 LEADER 탈퇴를 '그룹 해체'로 정의하여 허용한다. 모집글·공유 라이프스타일·그룹·모든 활성 멤버십을 일괄 Soft Delete. 사용자 확인 완료 (2026-05-19)."
+  - "삭제 범위 결정: RoommatePost + PostSharedLifestyle + RoommateGroup + 그룹의 모든 활성 RoommateGroupMember. RoommateApplication은 불변(이력 보존). 사용자 확인 완료 (2026-05-19)."
+  - "엔드포인트 통합: LEADER/MEMBER 모두 DELETE /api/v1/roommate-groups/{groupId}/members/me로 처리. 별도 그룹 해체 API를 두지 않음. 사용자 확인 완료 (2026-05-19)."
+  - "모집글 상태 부수효과: MEMBER 탈퇴 시 빈자리 발생 → CLOSED → OPEN 복귀(멱등). LEADER 탈퇴 시 모집글 자체가 softDelete되므로 상태 변경 무의미."
+  - "신청 레코드 처리: ApplicationStatus에 CANCELED 없음. 모든 status(PENDING/ACCEPTED/REJECTED) 불변. 모집글 softDelete 이후 PENDING 신청은 사실상 무효화되지만 레코드는 잔존."
+  - "재모집 정책: LEADER가 그룹을 해체한 후, 새 모집글을 작성하면 새로운 group/lifestyle 행이 INSERT되어 정상 재시작 가능. existsOpenPostByUser(post/001) 검증은 softDeleted 모집글을 OPEN으로 카운트하지 않으므로 충돌 없음."
+  - "RoommatePost.open()은 멱등(이미 OPEN이면 무변경) 도메인 메서드. close()와 대칭."
+  - "응답 래핑은 코드베이스 컨벤션(CommonResponse<Void> + ResponseCode)을 따른다. system-design.yaml의 DELETE:204 가이드보다 코드베이스 일관성을 우선."
+  - "ROOMMATE_GROUP_MEMBERSHIP_NOT_FOUND 단일 코드로 '그룹 미존재 / 미소속 / 이미 탈퇴 / 해체된 그룹 재요청'을 통합 — 그룹 존재 여부 비노출(정보 누출 방지) 및 스펙 최소화."
+  - "RoommateGroupErrorCode 409xx 변경(40903 LEADER_CANNOT_LEAVE 제거) 시 check_error_codes.py 실행 권장 (essential-rules.yaml). 코드 추가가 아닌 제거이므로 중복 충돌은 발생하지 않음."
+  - "동시성: 그룹 해체는 단일 LEADER 트랜잭션에서 수행되므로 같은 그룹에 대한 중복 요청은 두 번째가 active membership 부재로 404 차단. application/002 수락과의 경합은 그룹 해체 커밋 이후 POST_NOT_FOUND/NOT_OPEN으로 차단됨. 별도 비관적 락 미적용."
