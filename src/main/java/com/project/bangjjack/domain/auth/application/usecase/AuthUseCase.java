@@ -2,11 +2,13 @@ package com.project.bangjjack.domain.auth.application.usecase;
 
 import com.project.bangjjack.domain.auth.application.dto.request.TokenExchangeRequest;
 import com.project.bangjjack.domain.auth.application.dto.response.TokenExchangeResponse;
+import com.project.bangjjack.domain.auth.application.dto.response.WsTokenResponse;
 import com.project.bangjjack.domain.auth.application.exception.InvalidAuthorizationCodeException;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.global.infrastructure.redis.RedisService;
 import com.project.bangjjack.global.jwt.JwtProvider;
+import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,5 +33,11 @@ public class AuthUseCase {
 
         String accessToken = jwtProvider.createMemberAccessToken(user.getId(), user.getUsername());
         return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername());
+    }
+
+    @Transactional
+    public WsTokenResponse issueWsToken(MemberPrincipal principal) {
+        String wsToken = redisService.createWsToken(principal.getMemberId());
+        return WsTokenResponse.of(wsToken);
     }
 }
