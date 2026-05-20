@@ -1,35 +1,34 @@
 package com.project.bangjjack.global.infrastructure.redis;
 
 import lombok.RequiredArgsConstructor;
-import org.redisson.api.RMap;
+import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 public class WebSocketSessionRegistry {
 
-    private static final String SESSION_MAP_KEY = "ws:sessions";
+    private static final String SESSION_KEY_PREFIX = "ws:sessions:";
 
     private final RedissonClient redissonClient;
 
     public void register(Long userId, String sessionId) {
-        sessions().put(String.valueOf(userId), sessionId);
+        sessions(userId).add(sessionId);
     }
 
-    public Optional<String> getSessionId(Long userId) {
-        return Optional.ofNullable(sessions().get(String.valueOf(userId)));
+    public Set<String> getSessionIds(Long userId) {
+        return sessions(userId).readAll();
     }
 
     public void remove(Long userId, String sessionId) {
-        // Last-Connection-Wins: 현재 등록된 sessionId일 때만 제거
-        sessions().remove(String.valueOf(userId), sessionId);
+        sessions(userId).remove(sessionId);
     }
 
-    private RMap<String, String> sessions() {
-        return redissonClient.getMap(SESSION_MAP_KEY, StringCodec.INSTANCE);
+    private RSet<String> sessions(Long userId) {
+        return redissonClient.getSet(SESSION_KEY_PREFIX + userId, StringCodec.INSTANCE);
     }
 }
