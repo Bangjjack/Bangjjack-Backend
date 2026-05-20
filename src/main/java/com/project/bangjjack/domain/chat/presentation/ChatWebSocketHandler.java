@@ -44,11 +44,15 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         Long userId = principal.getMemberId();
-        List<Long> roomIds = chatRoomUseCase.getMyRoomIds(userId);
         sessionStore.registerGlobal(session);
         sessionRegistry.register(userId, session.getId());
-        roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
-        log.debug("[WS] 연결 확립 - userId={}, sessionId={}, 자동 구독 방 수={}", userId, session.getId(), roomIds.size());
+        try {
+            List<Long> roomIds = chatRoomUseCase.getMyRoomIds(userId);
+            roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
+            log.debug("[WS] 연결 확립 - userId={}, sessionId={}, 자동 구독 방 수={}", userId, session.getId(), roomIds.size());
+        } catch (Exception e) {
+            log.warn("[WS] 자동 구독 실패 - userId={}, sessionId={}, 원인={}", userId, session.getId(), e.getMessage());
+        }
     }
 
     @Override
