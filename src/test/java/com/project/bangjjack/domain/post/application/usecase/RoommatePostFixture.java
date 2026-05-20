@@ -1,5 +1,7 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreferenceFactor;
 import com.project.bangjjack.domain.post.domain.entity.ItemSharing;
 import com.project.bangjjack.domain.post.domain.entity.LightsOutTime;
 import com.project.bangjjack.domain.post.domain.entity.PhoneCall;
@@ -31,5 +33,12 @@ class RoommatePostFixture {
     static PostSharedLifestyle sharedLifestyleFor(RoommatePost post) {
         return PostSharedLifestyle.create(post, true, Recycling.SHARE_BIN, PhoneCall.SHORT_CALLS_OKAY,
                 ItemSharing.NO_PREFERENCE, true, LightsOutTime.BETWEEN_23_24);
+    }
+
+    static RoommatePreference preferenceFor(User user) {
+        return RoommatePreference.create(user,
+                RoommatePreferenceFactor.BEDTIME,
+                RoommatePreferenceFactor.CLEANING_HABIT,
+                RoommatePreferenceFactor.NOISE_SENSITIVITY);
     }
 }
