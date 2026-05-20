@@ -171,6 +171,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
@@ -198,6 +199,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
