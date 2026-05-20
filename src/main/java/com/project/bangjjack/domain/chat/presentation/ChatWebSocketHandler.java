@@ -17,6 +17,8 @@ import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -36,8 +38,18 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         MemberPrincipal principal = getPrincipal(session);
-        sessionRegistry.register(principal.getMemberId(), session.getId());
-        log.debug("[WS] 연결 확립 - userId={}, sessionId={}", principal.getMemberId(), session.getId());
+        if (principal == null) {
+            log.warn("[WS] 인증 정보 없는 연결 - sessionId={}", session.getId());
+            closeSession(session);
+            return;
+        }
+
+        Long userId = principal.getMemberId();
+        sessionRegistry.register(userId, session.getId());
+
+        List<Long> roomIds = chatRoomGetService.findRoomIdsByUserId(userId);
+        roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
+        log.debug("[WS] 연결 확립 - userId={}, sessionId={}, 자동 구독 방 수={}", userId, session.getId(), roomIds.size());
     }
 
     @Override
@@ -120,5 +132,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private MemberPrincipal getPrincipal(WebSocketSession session) {
         return (MemberPrincipal) session.getAttributes().get("principal");
+    }
+
+    private void closeSession(WebSocketSession session) {
+        try {
+            session.close(CloseStatus.POLICY_VIOLATION);
+        } catch (Exception e) {
+            log.warn("[WS] 세션 강제 종료 실패 - sessionId={}", session.getId());
+        }
     }
 }
