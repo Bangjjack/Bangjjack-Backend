@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomErrorCode;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
-import com.project.bangjjack.domain.chat.application.dto.request.WebSocketMessageType;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.exception.NotSubscribedException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
@@ -45,6 +44,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         Long userId = principal.getMemberId();
+        sessionStore.registerGlobal(session);
         sessionRegistry.register(userId, session.getId());
 
         List<Long> roomIds = chatRoomGetService.findRoomIdsByUserId(userId);
@@ -121,6 +121,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         sessionStore.removeAll(session);
+        sessionStore.deregisterGlobal(session);
         sessionRegistry.remove(principal.getMemberId(), session.getId());
         log.debug("[WS] 연결 해제 - userId={}, sessionId={}, status={}", principal.getMemberId(), session.getId(), status);
     }
