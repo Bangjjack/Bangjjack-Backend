@@ -72,4 +72,8 @@ public class RoommatePost extends BaseEntity {
     public void close() {
         this.status = PostStatus.CLOSED;
     }
+
+    public void open() {
+        this.status = PostStatus.OPEN;
+    }
 }

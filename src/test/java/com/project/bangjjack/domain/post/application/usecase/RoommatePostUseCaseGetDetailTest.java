@@ -8,7 +8,12 @@ import com.project.bangjjack.domain.post.application.exception.PostNotFoundExcep
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
+import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
+import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,6 +22,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.postOwnedBy;
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.preferenceFor;
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.sharedLifestyleFor;
@@ -24,6 +31,8 @@ import static com.project.bangjjack.domain.post.application.usecase.RoommatePost
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class RoommatePostUseCaseGetDetailTest {
@@ -35,10 +44,20 @@ class RoommatePostUseCaseGetDetailTest {
     private BookmarkGetService bookmarkGetService;
 
     @Mock
+    private RoommateGroupMemberGetService roommateGroupMemberGetService;
+
+    @Mock
     private RoommatePreferenceGetService roommatePreferenceGetService;
 
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;
+
+    private static RoommateGroupMember mockMember(User user, GroupMemberRole role) {
+        RoommateGroupMember member = mock(RoommateGroupMember.class);
+        lenient().when(member.getUser()).thenReturn(user);
+        lenient().when(member.getRole()).thenReturn(role);
+        return member;
+    }
 
     @Nested
     @DisplayName("모집글 단건 조회 시")
@@ -52,10 +71,12 @@ class RoommatePostUseCaseGetDetailTest {
             User owner = userWithId(userId);
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
             RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
+            given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -76,10 +97,12 @@ class RoommatePostUseCaseGetDetailTest {
             User owner = userWithId(ownerId);
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
             RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(viewerId, 1L)).willReturn(false);
+            given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -129,6 +152,60 @@ class RoommatePostUseCaseGetDetailTest {
 
             // then
             assertThat(response.isBookmarked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("응답에 그룹 활성 멤버(LEADER + MEMBER)들이 userId/username/profileImage/role로 매핑되어 포함된다")
+        void 응답에_그룹_멤버_목록_포함() {
+            // given
+            Long ownerId = 1L;
+            User owner = userWithId(ownerId);
+            User member1 = userWithId(2L);
+            User member2 = userWithId(3L);
+            RoommatePost post = postOwnedBy(owner);
+            PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            RoommateGroupMember leader = mockMember(owner, GroupMemberRole.LEADER);
+            RoommateGroupMember m1 = mockMember(member1, GroupMemberRole.MEMBER);
+            RoommateGroupMember m2 = mockMember(member2, GroupMemberRole.MEMBER);
+            List<RoommateGroupMember> members = List.of(leader, m1, m2);
+
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+
+            // when
+            RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
+
+            // then
+            assertThat(response.members())
+                    .extracting(GroupMemberResponse::userId, GroupMemberResponse::username,
+                            GroupMemberResponse::profileImage, GroupMemberResponse::role)
+                    .containsExactly(
+                            Tuple.tuple(1L, owner.getUsername(), owner.getProfileImage(), GroupMemberRole.LEADER),
+                            Tuple.tuple(2L, member1.getUsername(), member1.getProfileImage(), GroupMemberRole.MEMBER),
+                            Tuple.tuple(3L, member2.getUsername(), member2.getProfileImage(), GroupMemberRole.MEMBER)
+                    );
+        }
+
+        @Test
+        @DisplayName("LEADER 단독 그룹 조회 시 멤버 목록은 LEADER 1건만 포함된다")
+        void LEADER_단독_그룹_멤버_1건() {
+            // given
+            Long ownerId = 1L;
+            User owner = userWithId(ownerId);
+            RoommatePost post = postOwnedBy(owner);
+            PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
+
+            given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
+            given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+
+            // when
+            RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
+
+            // then
+            assertThat(response.members()).hasSize(1);
+            assertThat(response.members().getFirst().role()).isEqualTo(GroupMemberRole.LEADER);
+            assertThat(response.members().getFirst().userId()).isEqualTo(ownerId);
         }
 
         @Test

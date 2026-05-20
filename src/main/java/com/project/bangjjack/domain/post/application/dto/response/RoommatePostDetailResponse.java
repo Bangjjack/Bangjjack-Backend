@@ -4,10 +4,13 @@ import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
+import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Semester;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record RoommatePostDetailResponse(
         Long postId,
@@ -23,6 +26,7 @@ public record RoommatePostDetailResponse(
         LocalDateTime createdAt,
         AuthorResponse author,
         SharedLifestyleResponse sharedLifestyle,
+        List<GroupMemberResponse> members,
         RoommatePreferenceResponse roommatePreference
 ) {
     public static RoommatePostDetailResponse from(
@@ -30,6 +34,7 @@ public record RoommatePostDetailResponse(
             PostSharedLifestyle sharedLifestyle,
             boolean isOwner,
             boolean isBookmarked,
+            List<RoommateGroupMember> members,
             RoommatePreferenceResponse roommatePreference
     ) {
         return new RoommatePostDetailResponse(
@@ -46,6 +51,7 @@ public record RoommatePostDetailResponse(
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
                 SharedLifestyleResponse.from(sharedLifestyle),
+                members.stream().map(GroupMemberResponse::from).toList()
                 roommatePreference
         );
     }

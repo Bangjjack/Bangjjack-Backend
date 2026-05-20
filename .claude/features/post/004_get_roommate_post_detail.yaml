@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 모집글 단건 조회
 # Status: Draft
-# Last Updated: 2026-05-10
+# Last Updated: 2026-05-19
 
 meta:
   id: FEAT-010
@@ -14,16 +14,20 @@ overview:
     삭제된 모집글(deleted=true)은 조회할 수 없다.
     응답에는 모집글 정보(제목, 설명, 방 유형, 모집 인원, 상태, 학기, 기숙사),
     작성자 기본 정보(id, username, profileImage), 공동 생활습관 6개 항목,
-    그리고 요청자가 해당 모집글의 작성자인지 여부(isOwner)가 포함된다.
+    요청자가 해당 모집글의 작성자인지 여부(isOwner),
+    그리고 해당 모집글에 연결된 룸메이트 그룹의 활성 멤버 목록(LEADER + 모든 MEMBER)이 포함된다.
+    각 멤버는 userId, username, profileImage, role(LEADER|MEMBER)을 제공한다.
   user_story: >
     As a 인증된 사용자, I want to 특정 룸메이트 모집글의 상세 내용을 조회하고,
-    so that 지원 여부를 판단하거나 내 글인 경우 수정/삭제 버튼을 표시할 수 있다.
+    so that 지원 여부를 판단하거나 내 글인 경우 수정/삭제 버튼을 표시할 수 있고,
+    현재까지 모집된 그룹 구성원(LEADER 포함)이 누구인지 확인할 수 있다.
   goals:
     - postId로 단건 모집글 상세 조회
     - 삭제된 모집글 조회 차단
     - 작성자 기본 정보 포함 응답
     - 공동 생활습관 6개 항목 포함 응답
     - 요청자 본인 작성 여부(isOwner) 반환
+    - 연결된 룸메이트 그룹의 활성 멤버(LEADER + 모든 MEMBER) 목록 반환
 
 # ============================================================
 # API 명세
@@ -97,6 +101,20 @@ technical_spec:
                 type: Boolean
               - name: lightsOutTime
                 type: String (Enum)
+          - name: members
+            type: List<GroupMemberResponse> (nested)
+            note: "해당 모집글에 연결된 룸메이트 그룹의 활성(deleted=false) 멤버 전체. LEADER + 모든 MEMBER 포함. 빈 리스트가 될 수 있으나 정상 운영 흐름에서는 최소 LEADER 1건 포함됨(모집글 작성 시 LEADER 멤버십이 함께 INSERT됨)."
+            fields:
+              - name: userId
+                type: Long
+              - name: username
+                type: String
+              - name: profileImage
+                type: String
+                note: "null 가능"
+              - name: role
+                type: String (Enum)
+                note: "LEADER | MEMBER"
 
   data_flow:
     - step: 1
@@ -104,29 +122,35 @@ technical_spec:
       action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable postId 수신 후 PostUseCase.getPostDetail(userId, postId) 호출"
     - step: 2
       layer: UseCase (RoommatePostUseCase)
-      action: "RoommatePostGetService로 postId 기준 RoommatePost 조회 (없거나 deleted=true이면 POST_NOT_FOUND)"
+      action: "RoommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId)로 PostSharedLifestyle을 post + user fetch join으로 조회. 없거나 모집글이 deleted=true이면 POST_NOT_FOUND"
     - step: 3
       layer: UseCase (RoommatePostUseCase)
-      action: "RoommatePostGetService로 해당 post의 PostSharedLifestyle 조회"
+      action: "sharedLifestyle.getPost()로 RoommatePost 획득"
     - step: 4
       layer: UseCase (RoommatePostUseCase)
       action: "isOwner = post.getUser().getId().equals(userId) 계산"
     - step: 5
       layer: UseCase (RoommatePostUseCase)
-      action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner) 생성 후 반환"
+      action: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) 호출 → 해당 모집글에 연결된 룸메이트 그룹의 활성 멤버 전체(LEADER + MEMBER)를 user fetch join으로 조회"
     - step: 6
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members) 생성 후 반환 (members는 GroupMemberResponse.from으로 매핑)"
+    - step: 7
       layer: Response
       action: "200 OK, CommonResponse<RoommatePostDetailResponse> 반환"
 
   response_dto_structure:
     RoommatePostDetailResponse:
-      note: "static factory method from(RoommatePost, PostSharedLifestyle, boolean isOwner) 사용"
+      note: "static factory method from(RoommatePost, PostSharedLifestyle, boolean isOwner, List<RoommateGroupMember> members) 사용"
       nested:
         - AuthorResponse:
             note: "static factory method from(User) 사용"
             source: "post.getUser()"
         - SharedLifestyleResponse:
             note: "static factory method from(PostSharedLifestyle) 사용"
+        - GroupMemberResponse (List):
+            note: "roommategroup 도메인의 기존 GroupMemberResponse 재사용. static factory method from(RoommateGroupMember) 사용. 필드: userId, username, profileImage, role"
+            source: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId)"
 
   error_codes:
     domain_range: "407xx (Post 도메인)"
@@ -148,6 +172,23 @@ technical_spec:
     - "deleted=true인 모집글은 조회 불가. POST_NOT_FOUND 반환."
     - "OPEN / CLOSED 상태 모두 조회 가능."
     - "인증된 사용자(MEMBER)만 조회 가능."
+    - "members 목록은 활성(deleted=false) 멤버십만 포함. 탈퇴(Soft Delete)한 멤버는 제외."
+
+# ============================================================
+# 구현 대상 파일 (Implementation Phase)
+# ============================================================
+implementation_targets:
+  new_files: []
+  modified_files:
+    - "application/dto/response/RoommatePostDetailResponse.java — members 필드 추가, from(post, sharedLifestyle, isOwner, members) 시그니처 확장"
+    - "application/usecase/RoommatePostUseCase.java — getPostDetail에서 RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) 호출"
+    - "roommategroup/domain/service/RoommateGroupMemberGetService.java — getActiveMembersWithUserByPostId(postId) 메서드 추가"
+    - "roommategroup/domain/repository/RoommateGroupMemberRepository.java — findActiveMembersWithUserByPostId(postId) JPQL 추가 (JOIN FETCH m.user, m.group.post.id 조건)"
+  reused_files:
+    - "roommategroup/application/dto/response/GroupMemberResponse.java — userId/username/profileImage/role 정확히 동일하므로 재사용 (도메인 간 DTO 공유)"
+  layer_rules:
+    - "UseCase는 Repository 직접 접근 금지 → RoommateGroupMemberGetService 경유"
+    - "도메인 간 UseCase 오케스트레이션 허용. DTO 재사용으로 중복 최소화"
 
 # ============================================================
 # 테스트 전략
@@ -155,19 +196,27 @@ technical_spec:
 testing_strategy:
   happy_path:
     - "유효한 postId로 GET 요청 시 200 OK, RoommatePostDetailResponse 반환 확인"
-    - "응답에 post, author, sharedLifestyle 3개 영역 데이터가 모두 포함되는지 확인"
+    - "응답에 post, author, sharedLifestyle, members 4개 영역 데이터가 모두 포함되는지 확인"
     - "OPEN / CLOSED 상태 모두 정상 조회 가능 확인"
     - "작성자 본인이 조회하면 isOwner=true 반환"
     - "타인이 조회하면 isOwner=false 반환"
+    - "members에 LEADER + 모든 MEMBER가 userId/username/profileImage/role로 매핑되어 포함됨 확인"
+    - "LEADER 단독 그룹(MEMBER 0명)도 members에 LEADER 1건 포함됨 확인"
   edge_cases:
     - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "이미 삭제된 postId → 404 POST_NOT_FOUND"
+    - "탈퇴(Soft Delete)한 멤버는 members 목록에서 제외됨 확인"
+  query_verification:
+    - "단건 조회 1회 + 그룹 멤버 조회 1회로 처리(JOIN FETCH m.user로 N+1 미발생) 확인"
 
 # ============================================================
 # 주의사항
 # ============================================================
 notes:
   - "isOwner는 서버에서 userId 비교로 계산. 클라이언트가 수정/삭제 버튼 표시 여부 판단에 활용."
-  - "응답 DTO는 Static Factory Method 패턴 사용: RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner)"
+  - "응답 DTO는 Static Factory Method 패턴 사용: RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members)"
   - "Controller는 @CurrentMemberId로 userId를 받아 UseCase에 전달. 인증 통과 보장 + isOwner 계산 목적."
-  - "PostSharedLifestyle 조회는 기존 RoommatePostGetService.getSharedLifestyleByPost()를 재사용."
+  - "PostSharedLifestyle 조회는 기존 RoommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId)를 재사용 (post + user fetch join)."
+  - "그룹 멤버 조회는 RoommateGroupMemberRepository.findActiveMembersWithUserByPostId(postId)로 m.group.post.id 조인 + m.user fetch join. 그룹을 별도 조회하지 않아 쿼리 1회로 처리."
+  - "응답 멤버 매핑은 roommategroup 도메인의 GroupMemberResponse를 재사용 (userId/username/profileImage/role). 도메인 간 DTO 공유는 본 케이스에서 의도적 선택(중복 회피)."
+  - "탈퇴/해체된 그룹의 모집글은 RoommatePost.deleted=true이므로 본 조회에서 POST_NOT_FOUND로 사전 차단된다."

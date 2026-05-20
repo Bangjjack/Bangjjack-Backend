@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "roommate_group_members",
-        uniqueConstraints = @UniqueConstraint(name = "UQ_group_member_group_user", columnNames = {"group_id", "user_id"}),
+        uniqueConstraints = @UniqueConstraint(name = "UQ_group_member_group_user_active", columnNames = {"group_id", "user_id", "deleted_at"}),
         indexes = @Index(name = "IDX_group_member_user_role", columnList = "user_id, role")
 )
 @Getter

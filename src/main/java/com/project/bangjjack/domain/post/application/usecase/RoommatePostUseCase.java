@@ -27,8 +27,13 @@ import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
+import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupCreateService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
+
+import java.util.List;
+
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +53,7 @@ public class RoommatePostUseCase {
     private final RoommateGroupCreateService roommateGroupCreateService;
     private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
     private final BookmarkGetService bookmarkGetService;
+    private final RoommateGroupMemberGetService roommateGroupMemberGetService;
     private final RoommatePreferenceGetService roommatePreferenceGetService;
 
     @Transactional
@@ -107,8 +113,9 @@ public class RoommatePostUseCase {
         RoommatePost post = sharedLifestyle.getPost();
         boolean isOwner = post.getUser().getId().equals(userId);
         boolean isBookmarked = bookmarkGetService.existsActiveBookmark(userId, postId);
+        List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
         RoommatePreference preference = roommatePreferenceGetService.getByUser(post.getUser());
-        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, RoommatePreferenceResponse.from(preference));
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members, RoommatePreferenceResponse.from(preference));
     }
 
     @Transactional
