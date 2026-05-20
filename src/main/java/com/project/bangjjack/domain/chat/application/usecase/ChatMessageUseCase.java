@@ -9,6 +9,7 @@ import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedExc
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
@@ -56,7 +57,7 @@ public class ChatMessageUseCase {
             throw new ChatRoomClosedException();
         }
 
-        Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content());
+        Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content(), MessageType.USER);
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
 
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(savedChat, roomId);

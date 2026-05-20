@@ -22,6 +22,7 @@ import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -105,7 +106,7 @@ public class RoommateApplicationUseCase {
                 RoommateApplication.create(post, applicant)
         );
 
-        Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE);
+        Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
         eventPublisher.publishEvent(new ChatMessageSentEvent(
                 chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
 
@@ -165,10 +166,10 @@ public class RoommateApplicationUseCase {
         ChatRoom chatRoom = chatRoomGetService.findByDirectRoomKey(directRoomKey)
                 .orElseThrow(ChatRoomNotFoundException::new);
 
-        String content = targetStatus == ApplicationStatus.ACCEPTED
-                ? APPLICATION_ACCEPTED_MESSAGE
-                : APPLICATION_REJECTED_MESSAGE;
-        Chat chat = chatSaveService.save(authorId, chatRoom, content);
+        boolean accepted = targetStatus == ApplicationStatus.ACCEPTED;
+        String content = accepted ? APPLICATION_ACCEPTED_MESSAGE : APPLICATION_REJECTED_MESSAGE;
+        MessageType messageType = accepted ? MessageType.APPLICATION_ACCEPTED : MessageType.APPLICATION_REJECTED;
+        Chat chat = chatSaveService.save(authorId, chatRoom, content, messageType);
         eventPublisher.publishEvent(new ChatMessageSentEvent(
                 chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
 
