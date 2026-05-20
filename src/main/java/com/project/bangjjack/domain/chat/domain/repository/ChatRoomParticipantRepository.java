@@ -13,6 +13,6 @@ public interface ChatRoomParticipantRepository extends JpaRepository<ChatRoomPar
 
     boolean existsByChatRoomIdAndUserIdAndDeletedFalse(Long chatRoomId, Long userId);
 
-    @Query("SELECT p.chatRoom.id FROM ChatRoomParticipant p WHERE p.userId = :userId AND p.deleted = false")
-    List<Long> findRoomIdsByUserId(@Param("userId") Long userId);
+    @Query("SELECT p.chatRoom.id FROM ChatRoomParticipant p WHERE p.userId = :userId AND p.deleted = false AND p.chatRoom.deleted = false")
+    List<Long> findRoomIdsByUserIdAndDeletedFalse(@Param("userId") Long userId);
 }
