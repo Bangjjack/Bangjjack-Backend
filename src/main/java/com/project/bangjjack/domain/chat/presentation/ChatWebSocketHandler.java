@@ -44,10 +44,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         Long userId = principal.getMemberId();
+        List<Long> roomIds = chatRoomGetService.findRoomIdsByUserId(userId);
         sessionStore.registerGlobal(session);
         sessionRegistry.register(userId, session.getId());
-
-        List<Long> roomIds = chatRoomGetService.findRoomIdsByUserId(userId);
         roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
         log.debug("[WS] 연결 확립 - userId={}, sessionId={}, 자동 구독 방 수={}", userId, session.getId(), roomIds.size());
     }
