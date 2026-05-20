@@ -19,6 +19,7 @@ import com.project.bangjjack.domain.application.domain.service.RoommateApplicati
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationGetService;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.application.event.ChatRoomCreatedEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
@@ -41,6 +42,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -101,6 +103,10 @@ public class RoommateApplicationUseCase {
         boolean isNewChatRoom = existing.isEmpty();
         ChatRoom chatRoom = existing.orElseGet(
                 () -> chatRoomCreateService.createDirectRoom(userId, authorId, directRoomKey));
+
+        if (isNewChatRoom) {
+            eventPublisher.publishEvent(new ChatRoomCreatedEvent(chatRoom.getId(), List.of(userId, authorId)));
+        }
 
         RoommateApplication saved = roommateApplicationCreateService.createApplication(
                 RoommateApplication.create(post, applicant)

@@ -8,7 +8,7 @@ import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboun
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.exception.NotSubscribedException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
-import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.domain.chat.application.usecase.ChatRoomUseCase;
 import com.project.bangjjack.global.common.exception.ApplicationException;
 import com.project.bangjjack.global.infrastructure.redis.WebSocketSessionRegistry;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
@@ -29,7 +29,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final ChatMessageUseCase chatMessageUseCase;
-    private final ChatRoomGetService chatRoomGetService;
+    private final ChatRoomUseCase chatRoomUseCase;
     private final WebSocketSessionStore sessionStore;
     private final WebSocketSessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
@@ -44,7 +44,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
         Long userId = principal.getMemberId();
-        List<Long> roomIds = chatRoomGetService.findRoomIdsByUserId(userId);
+        List<Long> roomIds = chatRoomUseCase.getMyRoomIds(userId);
         sessionStore.registerGlobal(session);
         sessionRegistry.register(userId, session.getId());
         roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
@@ -74,7 +74,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-                    chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
+                    chatRoomUseCase.validateParticipant(inbound.roomId(), principal.getMemberId());
                     sessionStore.subscribe(inbound.roomId(), session);
                     log.debug("[WS] 구독 등록 완료 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                 }

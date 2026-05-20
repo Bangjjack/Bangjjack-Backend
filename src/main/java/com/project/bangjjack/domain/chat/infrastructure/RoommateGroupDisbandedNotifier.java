@@ -2,12 +2,14 @@ package com.project.bangjjack.domain.chat.infrastructure;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.application.event.ChatRoomCreatedEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -25,8 +27,12 @@ public class RoommateGroupDisbandedNotifier {
     @Transactional
     public void sendDirectSystemMessage(Long senderId, Long receiverId, String content) {
         String directRoomKey = ChatRoom.generateDirectKey(senderId, receiverId);
+        boolean isNewRoom = chatRoomGetService.findByDirectRoomKey(directRoomKey).isEmpty();
         ChatRoom room = chatRoomGetService.findByDirectRoomKey(directRoomKey)
                 .orElseGet(() -> chatRoomCreateService.createDirectRoom(senderId, receiverId, directRoomKey));
+        if (isNewRoom) {
+            eventPublisher.publishEvent(new ChatRoomCreatedEvent(room.getId(), List.of(senderId, receiverId)));
+        }
         Chat saved = chatSaveService.save(senderId, room, content, MessageType.GROUP_DISBANDED);
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(saved, room.getId());
         eventPublisher.publishEvent(new ChatMessageSentEvent(room.getId(), broadcast));
