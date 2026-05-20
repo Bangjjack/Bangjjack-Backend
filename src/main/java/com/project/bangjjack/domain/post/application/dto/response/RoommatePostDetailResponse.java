@@ -26,14 +26,16 @@ public record RoommatePostDetailResponse(
         LocalDateTime createdAt,
         AuthorResponse author,
         SharedLifestyleResponse sharedLifestyle,
-        List<GroupMemberResponse> members
+        List<GroupMemberResponse> members,
+        RoommatePreferenceResponse roommatePreference
 ) {
     public static RoommatePostDetailResponse from(
             RoommatePost post,
             PostSharedLifestyle sharedLifestyle,
             boolean isOwner,
             boolean isBookmarked,
-            List<RoommateGroupMember> members
+            List<RoommateGroupMember> members,
+            RoommatePreferenceResponse roommatePreference
     ) {
         return new RoommatePostDetailResponse(
                 post.getId(),
@@ -49,7 +51,8 @@ public record RoommatePostDetailResponse(
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
                 SharedLifestyleResponse.from(sharedLifestyle),
-                members.stream().map(GroupMemberResponse::from).toList()
+                members.stream().map(GroupMemberResponse::from).toList(),
+                roommatePreference
         );
     }
 }

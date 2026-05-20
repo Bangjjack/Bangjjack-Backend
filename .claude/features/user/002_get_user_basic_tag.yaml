@@ -1,0 +1,103 @@
+# Feature Specification: 사용자 기본 태그 조회
+# Status: Completed
+# Last Updated: 2026-05-20
+
+meta:
+  id: FEAT-014
+  title: 사용자 기본 태그 조회
+  type: Feature
+  author: xEzIxX
+
+overview:
+  summary: >
+    인증된 사용자가 본인의 기본 태그 정보(학기, 기숙사, 룸메이트 선호도 우선순위 3가지)를 조회한다.
+    룸메이트 모집글 카드 등 UI에서 사용자를 빠르게 식별할 수 있는 핵심 속성만 추려 반환한다.
+  user_story: >
+    As a 인증된 사용자, I want to 나의 학기/기숙사/룸메이트 선호도를 조회하고,
+    so that 프로필 또는 모집글에서 기본 태그를 확인할 수 있다.
+  goals:
+    - 본인의 학기(Semester), 기숙사(Dormitory) 조회
+    - 룸메이트 선호도 우선순위 3가지(firstPriority, secondPriority, thirdPriority) 조회
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/users/me/tags
+      summary: 내 기본 태그 조회
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        dto: "(없음)"
+        fields: []
+      response:
+        dto: UserBasicTagResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<UserBasicTagResponse>
+        response_code: UserResponseCode.USER_BASIC_TAG_FOUND
+        fields:
+          - name: semester
+            type: String (Enum)
+            note: "SIXTEEN_WEEKS | TWENTY_FIVE_WEEKS"
+          - name: dormitory
+            type: String (Enum)
+            note: "DORM_1 | DORM_2 | DORM_3"
+          - name: roommatePreferences
+            type: List<String (Enum)>
+            note: "RoommatePreferenceFactor 3개 순서대로 반환 [firstPriority, secondPriority, thirdPriority]"
+
+  data_flow:
+    - step: 1
+      layer: Presentation (UserController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출 후 UserUseCase.getUserBasicTag(userId) 호출"
+    - step: 2
+      layer: UseCase (UserUseCase)
+      action: "UserGetService로 userId 기준 User 조회 (없으면 USER_NOT_FOUND)"
+    - step: 3
+      layer: UseCase (UserUseCase)
+      action: "RoommatePreferenceGetService로 user 기준 RoommatePreference 조회"
+    - step: 4
+      layer: UseCase (UserUseCase)
+      action: "UserBasicTagResponse.of(user, preference) 생성 후 반환"
+    - step: 5
+      layer: Response
+      action: "200 OK, CommonResponse<UserBasicTagResponse> 반환"
+
+  response_dto_structure:
+    UserBasicTagResponse:
+      note: "static factory method of(User, RoommatePreference) 사용"
+      fields:
+        - semester: "user.getSemester()"
+        - dormitory: "user.getDormitory()"
+        - roommatePreferences: "[preference.getFirstPriority(), preference.getSecondPriority(), preference.getThirdPriority()]"
+
+  error_codes:
+    domain_range: "402xx (User 도메인)"
+    codes:
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+
+  validation_rules:
+    - "인증된 사용자(MEMBER)만 조회 가능."
+    - "별도 파라미터 없이 JWT에서 추출한 userId로만 조회."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "유효한 JWT로 GET 요청 시 200 OK, UserBasicTagResponse 반환 확인"
+    - "roommatePreferences 리스트에 3개 항목이 순서대로 포함되는지 확인"
+  edge_cases:
+    - "JWT userId에 해당하는 User가 없을 경우 → 404 USER_NOT_FOUND"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "UserUseCase에 completeOnboarding과 함께 위치. 기능 규모가 작아 별도 UseCase 파일 분리 없음."
+  - "RoommatePreference 조회 실패 시 별도 에러 처리 필요 여부는 서비스 정책에 따라 결정."

@@ -1,8 +1,11 @@
 package com.project.bangjjack.domain.user.application.usecase;
 
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
+import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.department.domain.entity.Department;
 import com.project.bangjjack.domain.department.domain.service.DepartmentGetService;
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
+import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
 import com.project.bangjjack.domain.user.application.exception.AlreadyOnboardedException;
 import com.project.bangjjack.domain.user.application.exception.InvalidBirthYearException;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -20,6 +23,7 @@ public class UserUseCase {
 
     private final UserGetService userGetService;
     private final DepartmentGetService departmentGetService;
+    private final RoommatePreferenceGetService roommatePreferenceGetService;
 
     @Transactional
     public void completeOnboarding(Long userId, UserOnboardingRequest request) {
@@ -41,6 +45,12 @@ public class UserUseCase {
                 request.semester(),
                 request.dormitory()
         );
+    }
+
+    public UserBasicTagResponse getUserBasicTag(Long userId) {
+        User user = userGetService.getById(userId);
+        RoommatePreference preference = roommatePreferenceGetService.getByUser(user);
+        return UserBasicTagResponse.of(user, preference);
     }
 
     private void validateBirthYear(int birthYear) {

@@ -1,7 +1,10 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
+import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.RoommatePreferenceResponse;
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
 import com.project.bangjjack.domain.post.application.exception.AlreadyOpenPostExistsException;
@@ -51,9 +54,10 @@ public class RoommatePostUseCase {
     private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
     private final BookmarkGetService bookmarkGetService;
     private final RoommateGroupMemberGetService roommateGroupMemberGetService;
+    private final RoommatePreferenceGetService roommatePreferenceGetService;
 
     @Transactional
-    public void createPost(Long userId, CreateRoommatePostRequest request) {
+    public Long createPost(Long userId, CreateRoommatePostRequest request) {
         User user = userGetService.getById(userId);
 
         if (!user.isOnboarded() || !user.isChecklistRegistered() || !user.isRoommatePreferenceRegistered()) {
@@ -93,6 +97,8 @@ public class RoommatePostUseCase {
 
         RoommateGroup group = roommateGroupCreateService.createGroup(post);
         roommateGroupMemberCreateService.addMember(group, user, GroupMemberRole.LEADER);
+
+        return post.getId();
     }
 
     public SliceResponse<RoommatePostSummaryResponse> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
@@ -108,7 +114,8 @@ public class RoommatePostUseCase {
         boolean isOwner = post.getUser().getId().equals(userId);
         boolean isBookmarked = bookmarkGetService.existsActiveBookmark(userId, postId);
         List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
-        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members);
+        RoommatePreference preference = roommatePreferenceGetService.getByUser(post.getUser());
+        return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members, RoommatePreferenceResponse.from(preference));
     }
 
     @Transactional

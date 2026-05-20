@@ -1,6 +1,8 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
+import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.exception.PostNotFoundException;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
@@ -23,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.postOwnedBy;
+import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.preferenceFor;
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.sharedLifestyleFor;
 import static com.project.bangjjack.domain.post.application.usecase.RoommatePostFixture.userWithId;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +45,9 @@ class RoommatePostUseCaseGetDetailTest {
 
     @Mock
     private RoommateGroupMemberGetService roommateGroupMemberGetService;
+
+    @Mock
+    private RoommatePreferenceGetService roommatePreferenceGetService;
 
     @InjectMocks
     private RoommatePostUseCase roommatePostUseCase;
@@ -66,10 +72,12 @@ class RoommatePostUseCaseGetDetailTest {
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
             List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
+            RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
@@ -90,10 +98,12 @@ class RoommatePostUseCaseGetDetailTest {
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
             List<RoommateGroupMember> members = List.of(mockMember(owner, GroupMemberRole.LEADER));
+            RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(viewerId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(viewerId, 1L);
@@ -110,9 +120,11 @@ class RoommatePostUseCaseGetDetailTest {
             User owner = userWithId(userId);
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(true);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
@@ -129,9 +141,11 @@ class RoommatePostUseCaseGetDetailTest {
             User owner = userWithId(userId);
             RoommatePost post = postOwnedBy(owner);
             PostSharedLifestyle sharedLifestyle = sharedLifestyleFor(post);
+            RoommatePreference preference = preferenceFor(owner);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(userId, 1L);
@@ -157,6 +171,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
@@ -184,6 +199,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
+            given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
             RoommatePostDetailResponse response = roommatePostUseCase.getPostDetail(ownerId, 1L);
