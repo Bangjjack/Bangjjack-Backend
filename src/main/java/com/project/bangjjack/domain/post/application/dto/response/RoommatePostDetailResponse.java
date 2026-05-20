@@ -51,7 +51,7 @@ public record RoommatePostDetailResponse(
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
                 SharedLifestyleResponse.from(sharedLifestyle),
-                members.stream().map(GroupMemberResponse::from).toList()
+                members.stream().map(GroupMemberResponse::from).toList(),
                 roommatePreference
         );
     }
