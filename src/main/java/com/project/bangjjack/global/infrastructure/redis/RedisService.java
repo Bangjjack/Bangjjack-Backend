@@ -16,7 +16,7 @@ public class RedisService {
     private static final Duration AUTH_CODE_TTL = Duration.ofMinutes(5);
 
     private static final String WS_TOKEN_PREFIX = "ws:token:";
-    private static final Duration WS_TOKEN_TTL = Duration.ofSeconds(10);
+    private static final Duration WS_TOKEN_TTL = Duration.ofMinutes(5);
 
     private final RedissonClient redissonClient;
 
