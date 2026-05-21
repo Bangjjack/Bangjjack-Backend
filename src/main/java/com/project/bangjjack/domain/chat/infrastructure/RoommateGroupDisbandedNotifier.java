@@ -10,6 +10,7 @@ import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -27,10 +28,10 @@ public class RoommateGroupDisbandedNotifier {
     @Transactional
     public void sendDirectSystemMessage(Long senderId, Long receiverId, String content) {
         String directRoomKey = ChatRoom.generateDirectKey(senderId, receiverId);
-        boolean isNewRoom = chatRoomGetService.findByDirectRoomKey(directRoomKey).isEmpty();
-        ChatRoom room = chatRoomGetService.findByDirectRoomKey(directRoomKey)
+        Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
+        ChatRoom room = existing
                 .orElseGet(() -> chatRoomCreateService.createDirectRoom(senderId, receiverId, directRoomKey));
-        if (isNewRoom) {
+        if (existing.isEmpty()) {
             eventPublisher.publishEvent(new ChatRoomCreatedEvent(room.getId(), List.of(senderId, receiverId)));
         }
         Chat saved = chatSaveService.save(senderId, room, content, MessageType.GROUP_DISBANDED);
