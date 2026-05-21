@@ -14,6 +14,7 @@ import com.project.bangjjack.domain.application.domain.service.RoommateApplicati
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -135,9 +136,9 @@ class RoommateApplicationUseCaseCreateTest {
     }
 
     private void stubChatSaved(ChatRoom room) {
-        given(chatSaveService.save(eq(APPLICANT_ID), eq(room), eq(APPLICATION_CHAT_MESSAGE)))
+        given(chatSaveService.save(eq(APPLICANT_ID), eq(room), eq(APPLICATION_CHAT_MESSAGE), eq(MessageType.APPLICATION_SENT)))
                 .willAnswer(invocation -> {
-                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), MessageType.APPLICATION_SENT);
                     ReflectionTestUtils.setField(chat, "id", CHAT_ID);
                     return chat;
                 });
@@ -181,7 +182,7 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             assertThat(response.isNewChatRoom()).isTrue();
             then(chatRoomCreateService).should().createDirectRoom(eq(APPLICANT_ID), eq(AUTHOR_ID), anyString());
-            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE);
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
         }
 
         @Test
@@ -212,7 +213,7 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.isNewChatRoom()).isFalse();
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             then(chatRoomCreateService).should(never()).createDirectRoom(anyLong(), anyLong(), anyString());
-            then(chatSaveService).should().save(APPLICANT_ID, existingRoom, APPLICATION_CHAT_MESSAGE);
+            then(chatSaveService).should().save(APPLICANT_ID, existingRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
         }
 
         @Test
@@ -241,7 +242,7 @@ class RoommateApplicationUseCaseCreateTest {
             roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID);
 
             // then
-            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE);
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
 
             ArgumentCaptor<ChatMessageSentEvent> captor = ArgumentCaptor.forClass(ChatMessageSentEvent.class);
             then(eventPublisher).should().publishEvent(captor.capture());
@@ -375,7 +376,7 @@ class RoommateApplicationUseCaseCreateTest {
                     .isInstanceOf(ApplicantAlreadyInGroupException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());
-            then(chatSaveService).should(never()).save(any(), any(), any());
+            then(chatSaveService).should(never()).save(any(), any(), any(), any());
         }
     }
 }

@@ -6,6 +6,7 @@ import com.project.bangjjack.domain.chat.application.exception.NotChatParticipan
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -51,7 +52,7 @@ class ChatMessageUseCaseGetMessagesTest {
 
     private Chat createChat() {
         ChatRoom chatRoom = ChatRoom.createDirect(1L, "DM_1_2");
-        Chat chat = Chat.create(1L, chatRoom, "테스트 메시지");
+        Chat chat = Chat.create(1L, chatRoom, "테스트 메시지", MessageType.USER);
         ReflectionTestUtils.setField(chat, "id", idSequence.getAndIncrement());
         return chat;
     }

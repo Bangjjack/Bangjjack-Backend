@@ -14,6 +14,7 @@ import com.project.bangjjack.domain.application.domain.service.RoommateApplicati
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -129,10 +130,10 @@ class RoommateApplicationUseCaseProcessTest {
         return group;
     }
 
-    private void stubChatSaved(ChatRoom room, String content) {
-        given(chatSaveService.save(eq(AUTHOR_ID), eq(room), eq(content)))
+    private void stubChatSaved(ChatRoom room, String content, MessageType messageType) {
+        given(chatSaveService.save(eq(AUTHOR_ID), eq(room), eq(content), eq(messageType)))
                 .willAnswer(invocation -> {
-                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2));
+                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), messageType);
                     ReflectionTestUtils.setField(chat, "id", CHAT_ID);
                     return chat;
                 });
@@ -158,7 +159,7 @@ class RoommateApplicationUseCaseProcessTest {
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
                     .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(chatRoom));
-            stubChatSaved(chatRoom, ACCEPTED_MESSAGE);
+            stubChatSaved(chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED);
 
             // when
             ProcessRoommateApplicationResponse response = roommateApplicationUseCase.processApplication(
@@ -171,7 +172,7 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(response.currentGroupMemberCount()).isEqualTo(1);
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             then(roommateGroupMemberCreateService).should().addMember(group, application.getApplicant(), GroupMemberRole.MEMBER);
-            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, ACCEPTED_MESSAGE);
+            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED);
         }
 
         @Test
@@ -185,7 +186,7 @@ class RoommateApplicationUseCaseProcessTest {
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
                     .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(chatRoom));
-            stubChatSaved(chatRoom, REJECTED_MESSAGE);
+            stubChatSaved(chatRoom, REJECTED_MESSAGE, MessageType.APPLICATION_REJECTED);
 
             // when
             ProcessRoommateApplicationResponse response = roommateApplicationUseCase.processApplication(
@@ -198,7 +199,7 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(response.currentGroupMemberCount()).isNull();
             then(roommateGroupGetService).should(never()).getByPostIdForUpdate(any());
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, REJECTED_MESSAGE);
+            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, REJECTED_MESSAGE, MessageType.APPLICATION_REJECTED);
         }
 
         @Test
@@ -216,7 +217,7 @@ class RoommateApplicationUseCaseProcessTest {
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
                     .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
             given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(chatRoom));
-            stubChatSaved(chatRoom, ACCEPTED_MESSAGE);
+            stubChatSaved(chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED);
 
             roommateApplicationUseCase.processApplication(
                     AUTHOR_ID, APPLICATION_ID, new ProcessRoommateApplicationRequest(ApplicationStatus.ACCEPTED));
@@ -252,7 +253,7 @@ class RoommateApplicationUseCaseProcessTest {
                     .isInstanceOf(ApplicationProcessForbiddenException.class);
 
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should(never()).save(any(), any(), any());
+            then(chatSaveService).should(never()).save(any(), any(), any(), any());
         }
 
         @Test
@@ -266,7 +267,7 @@ class RoommateApplicationUseCaseProcessTest {
                     .isInstanceOf(InvalidApplicationStatusException.class);
 
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should(never()).save(any(), any(), any());
+            then(chatSaveService).should(never()).save(any(), any(), any(), any());
         }
 
         @Test
@@ -298,7 +299,7 @@ class RoommateApplicationUseCaseProcessTest {
 
             assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PENDING);
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should(never()).save(any(), any(), any());
+            then(chatSaveService).should(never()).save(any(), any(), any(), any());
         }
 
         @Test
@@ -320,7 +321,7 @@ class RoommateApplicationUseCaseProcessTest {
 
             assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PENDING);
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should(never()).save(any(), any(), any());
+            then(chatSaveService).should(never()).save(any(), any(), any(), any());
         }
     }
 }

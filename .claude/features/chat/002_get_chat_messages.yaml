@@ -68,6 +68,9 @@ technical_spec:
           type: Long
         - name: content
           type: String
+        - name: messageType
+          type: MessageType
+          note: "USER | APPLICATION_SENT | APPLICATION_ACCEPTED | APPLICATION_REJECTED | GROUP_DISBANDED | SYSTEM"
         - name: createdAt
           type: LocalDateTime
 

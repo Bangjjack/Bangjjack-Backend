@@ -5,11 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomErrorCode;
 import com.project.bangjjack.domain.chat.application.dto.request.SendChatMessageRequest;
 import com.project.bangjjack.domain.chat.application.dto.request.WebSocketInboundMessage;
-import com.project.bangjjack.domain.chat.application.dto.request.WebSocketMessageType;
 import com.project.bangjjack.domain.chat.application.dto.response.WebSocketErrorResponse;
 import com.project.bangjjack.domain.chat.application.exception.NotSubscribedException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
-import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
+import com.project.bangjjack.domain.chat.application.usecase.ChatRoomUseCase;
 import com.project.bangjjack.global.common.exception.ApplicationException;
 import com.project.bangjjack.global.infrastructure.redis.WebSocketSessionRegistry;
 import com.project.bangjjack.global.infrastructure.websocket.WebSocketSessionStore;
@@ -17,6 +16,8 @@ import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -28,7 +29,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private final ChatMessageUseCase chatMessageUseCase;
-    private final ChatRoomGetService chatRoomGetService;
+    private final ChatRoomUseCase chatRoomUseCase;
     private final WebSocketSessionStore sessionStore;
     private final WebSocketSessionRegistry sessionRegistry;
     private final ObjectMapper objectMapper;
@@ -36,8 +37,22 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         MemberPrincipal principal = getPrincipal(session);
-        sessionRegistry.register(principal.getMemberId(), session.getId());
-        log.debug("[WS] 연결 확립 - userId={}, sessionId={}", principal.getMemberId(), session.getId());
+        if (principal == null) {
+            log.warn("[WS] 인증 정보 없는 연결 - sessionId={}", session.getId());
+            closeSession(session);
+            return;
+        }
+
+        Long userId = principal.getMemberId();
+        sessionStore.registerGlobal(session);
+        sessionRegistry.register(userId, session.getId());
+        try {
+            List<Long> roomIds = chatRoomUseCase.getMyRoomIds(userId);
+            roomIds.forEach(roomId -> sessionStore.subscribe(roomId, session));
+            log.debug("[WS] 연결 확립 - userId={}, sessionId={}, 자동 구독 방 수={}", userId, session.getId(), roomIds.size());
+        } catch (Exception e) {
+            log.warn("[WS] 자동 구독 실패 - userId={}, sessionId={}, 원인={}", userId, session.getId(), e.getMessage());
+        }
     }
 
     @Override
@@ -63,7 +78,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
-                    chatRoomGetService.validateParticipant(inbound.roomId(), principal.getMemberId());
+                    chatRoomUseCase.validateParticipant(inbound.roomId(), principal.getMemberId());
                     sessionStore.subscribe(inbound.roomId(), session);
                     log.debug("[WS] 구독 등록 완료 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
                 }
@@ -109,6 +124,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         sessionStore.removeAll(session);
+        sessionStore.deregisterGlobal(session);
         sessionRegistry.remove(principal.getMemberId(), session.getId());
         log.debug("[WS] 연결 해제 - userId={}, sessionId={}, status={}", principal.getMemberId(), session.getId(), status);
     }
@@ -120,5 +136,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private MemberPrincipal getPrincipal(WebSocketSession session) {
         return (MemberPrincipal) session.getAttributes().get("principal");
+    }
+
+    private void closeSession(WebSocketSession session) {
+        try {
+            session.close(CloseStatus.POLICY_VIOLATION);
+        } catch (Exception e) {
+            log.warn("[WS] 세션 강제 종료 실패 - sessionId={}", session.getId());
+        }
     }
 }

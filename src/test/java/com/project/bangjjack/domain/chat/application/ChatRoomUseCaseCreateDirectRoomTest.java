@@ -11,6 +11,7 @@ import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.user.application.exception.UserNotFoundException;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,9 @@ class ChatRoomUseCaseCreateDirectRoomTest {
 
     @Mock
     private UserGetService userGetService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private ChatRoomUseCase chatRoomUseCase;

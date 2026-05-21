@@ -3,6 +3,7 @@ package com.project.bangjjack.domain.chat.infrastructure;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -72,14 +73,14 @@ class RoommateGroupDisbandedNotifierTest {
         ChatRoom existing = mockChatRoom(100L);
         Chat saved = mockSavedChat(900L);
         given(chatRoomGetService.findByDirectRoomKey(directKey)).willReturn(Optional.of(existing));
-        given(chatSaveService.save(SENDER_ID, existing, CONTENT)).willReturn(saved);
+        given(chatSaveService.save(SENDER_ID, existing, CONTENT, MessageType.GROUP_DISBANDED)).willReturn(saved);
 
         // when
         notifier.sendDirectSystemMessage(SENDER_ID, RECEIVER_ID, CONTENT);
 
         // then
         then(chatRoomCreateService).should(never()).createDirectRoom(anyLong(), anyLong(), anyString());
-        then(chatSaveService).should().save(SENDER_ID, existing, CONTENT);
+        then(chatSaveService).should().save(SENDER_ID, existing, CONTENT, MessageType.GROUP_DISBANDED);
 
         ArgumentCaptor<ChatMessageSentEvent> captor = ArgumentCaptor.forClass(ChatMessageSentEvent.class);
         then(eventPublisher).should().publishEvent(captor.capture());
@@ -98,14 +99,14 @@ class RoommateGroupDisbandedNotifierTest {
         Chat saved = mockSavedChat(901L);
         given(chatRoomGetService.findByDirectRoomKey(directKey)).willReturn(Optional.empty());
         given(chatRoomCreateService.createDirectRoom(SENDER_ID, RECEIVER_ID, directKey)).willReturn(created);
-        given(chatSaveService.save(SENDER_ID, created, CONTENT)).willReturn(saved);
+        given(chatSaveService.save(SENDER_ID, created, CONTENT, MessageType.GROUP_DISBANDED)).willReturn(saved);
 
         // when
         notifier.sendDirectSystemMessage(SENDER_ID, RECEIVER_ID, CONTENT);
 
         // then
         then(chatRoomCreateService).should().createDirectRoom(SENDER_ID, RECEIVER_ID, directKey);
-        then(chatSaveService).should().save(SENDER_ID, created, CONTENT);
+        then(chatSaveService).should().save(SENDER_ID, created, CONTENT, MessageType.GROUP_DISBANDED);
         then(eventPublisher).should().publishEvent(any(ChatMessageSentEvent.class));
     }
 }

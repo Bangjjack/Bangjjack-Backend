@@ -49,4 +49,8 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
+    public List<Long> findRoomIdsByUserId(Long userId) {
+        return chatRoomParticipantRepository.findRoomIdsByUserIdAndDeletedFalse(userId);
+    }
+
 }

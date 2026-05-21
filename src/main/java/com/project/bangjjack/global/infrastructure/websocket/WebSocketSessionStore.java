@@ -6,6 +6,7 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -18,6 +19,20 @@ public class WebSocketSessionStore {
     // roomId → (sessionId → thread-safe decorated session)
     private final ConcurrentHashMap<Long, ConcurrentHashMap<String, WebSocketSession>> roomSessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Set<Long>> sessionRooms = new ConcurrentHashMap<>();
+    // sessionId → raw session (for dynamic room subscription)
+    private final ConcurrentHashMap<String, WebSocketSession> activeSessions = new ConcurrentHashMap<>();
+
+    public void registerGlobal(WebSocketSession session) {
+        activeSessions.put(session.getId(), session);
+    }
+
+    public void deregisterGlobal(WebSocketSession session) {
+        activeSessions.remove(session.getId());
+    }
+
+    public Optional<WebSocketSession> getById(String sessionId) {
+        return Optional.ofNullable(activeSessions.get(sessionId));
+    }
 
     public void subscribe(Long roomId, WebSocketSession session) {
         WebSocketSession wrapped = new ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, BUFFER_SIZE_LIMIT_BYTES);

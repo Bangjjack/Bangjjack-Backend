@@ -98,6 +98,9 @@ technical_spec:
           type: Long
         - name: content
           type: String
+        - name: messageType
+          type: MessageType
+          note: "USER | APPLICATION_SENT | APPLICATION_ACCEPTED | APPLICATION_REJECTED | GROUP_DISBANDED | SYSTEM"
         - name: createdAt
           type: LocalDateTime
           note: DB 저장 시각 (ISO-8601)
@@ -145,13 +148,13 @@ technical_spec:
       action: >
         ChatRoomGetService.getById(roomId)로 ChatRoom 조회.
         status=CLOSED 검증 (CLOSED 시 40603).
-        ChatSaveService.save(senderId, chatRoom, content) 호출 (동기).
+        ChatSaveService.save(senderId, chatRoom, content, MessageType.USER) 호출 (동기).
         저장 완료 후 ChatMessageBroadcast 이벤트 발행 (ApplicationEventPublisher).
 
     - step: 5
       layer: Domain (ChatSaveService)
       action: >
-        Chat.create(senderId, room, content) 생성.
+        Chat.create(senderId, room, content, MessageType.USER) 생성.
         ChatRepository.save() 동기 호출 → messageId 반환.
         @Transactional 내에서 수행, 저장 실패 시 예외 전파 후 트랜잭션 롤백.
 
