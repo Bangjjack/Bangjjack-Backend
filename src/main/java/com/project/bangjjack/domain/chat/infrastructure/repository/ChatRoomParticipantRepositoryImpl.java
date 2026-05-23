@@ -24,7 +24,7 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
     private static final QChatRoom room = QChatRoom.chatRoom;
 
     @Override
-    public List<Long> findRoomIdsByUserIdWithCursor(Long userId, Long cursorRoomId, int size, ChatRoomCategory category) {
+    public List<Long> findRoomIdsByUserIdWithCursor(Long userId, Long cursorRoomId, LocalDateTime cursorLastMessageAt, int size, ChatRoomCategory category) {
         return queryFactory
                 .select(participant.chatRoom.id)
                 .from(participant)
@@ -33,7 +33,7 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
                         participant.deleted.isFalse(),
                         participant.chatRoom.deleted.isFalse(),
                         categoryFilter(category),
-                        cursorCondition(cursorRoomId)
+                        cursorCondition(cursorRoomId, cursorLastMessageAt)
                 )
                 .orderBy(participant.chatRoom.lastMessageAt.desc().nullsLast(), participant.chatRoom.id.desc())
                 .limit(size + 1L)
@@ -54,22 +54,18 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
         return category != null ? participant.chatRoom.category.eq(category) : null;
     }
 
-    private BooleanExpression cursorCondition(Long cursorRoomId) {
+    private BooleanExpression cursorCondition(Long cursorRoomId, LocalDateTime cursorLastMessageAt) {
         if (cursorRoomId == null) {
             return null;
         }
-        LocalDateTime cursorTime = queryFactory
-                .select(room.lastMessageAt)
-                .from(room)
-                .where(room.id.eq(cursorRoomId))
-                .fetchOne();
-
-        if (cursorTime != null) {
-            return participant.chatRoom.lastMessageAt.lt(cursorTime)
-                    .or(participant.chatRoom.lastMessageAt.eq(cursorTime).and(participant.chatRoom.id.lt(cursorRoomId)))
+        if (cursorLastMessageAt != null) {
+            return participant.chatRoom.lastMessageAt.lt(cursorLastMessageAt)
+                    .or(participant.chatRoom.lastMessageAt.eq(cursorLastMessageAt)
+                            .and(participant.chatRoom.id.lt(cursorRoomId)))
                     .or(participant.chatRoom.lastMessageAt.isNull());
+        } else {
+            return participant.chatRoom.lastMessageAt.isNull()
+                    .and(participant.chatRoom.id.lt(cursorRoomId));
         }
-        return participant.chatRoom.lastMessageAt.isNull()
-                .and(participant.chatRoom.id.lt(cursorRoomId));
     }
 }

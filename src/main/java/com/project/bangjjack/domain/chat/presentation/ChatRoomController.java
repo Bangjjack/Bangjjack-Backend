@@ -40,7 +40,7 @@ public class ChatRoomController {
     public CommonResponse<ChatRoomListResponse> getMyChatRooms(
             @CurrentMemberId Long currentMemberId,
             @RequestParam(required = false) ChatRoomCategory category,
-            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size) {
         ChatRoomListResponse response = chatRoomUseCase.getMyChatRooms(currentMemberId, category, cursor, size);
         return CommonResponse.success(ChatRoomResponseCode.CHAT_ROOM_LIST_FOUND, response);

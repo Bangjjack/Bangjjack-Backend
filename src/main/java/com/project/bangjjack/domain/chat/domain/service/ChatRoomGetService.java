@@ -10,6 +10,7 @@ import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,8 +63,8 @@ public class ChatRoomGetService {
         return chatRoomParticipantRepository.findAllRoomIdsByUserId(userId);
     }
 
-    public List<ChatRoomParticipant> findParticipantsPage(Long userId, Long cursorRoomId, int size, ChatRoomCategory category) {
-        List<Long> roomIds = chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, cursorRoomId, size, category);
+    public List<ChatRoomParticipant> findParticipantsPage(Long userId, Long cursorRoomId, LocalDateTime cursorLastMessageAt, int size, ChatRoomCategory category) {
+        List<Long> roomIds = chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, cursorRoomId, cursorLastMessageAt, size, category);
         if (roomIds.isEmpty()) {
             return List.of();
         }

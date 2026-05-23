@@ -4,10 +4,10 @@ import java.util.List;
 
 public record ChatRoomListResponse(
         List<ChatRoomSummaryResponse> rooms,
-        Long nextCursor,
+        String nextCursor,
         boolean hasNext
 ) {
-    public static ChatRoomListResponse from(List<ChatRoomSummaryResponse> rooms, Long nextCursor, boolean hasNext) {
+    public static ChatRoomListResponse from(List<ChatRoomSummaryResponse> rooms, String nextCursor, boolean hasNext) {
         return new ChatRoomListResponse(rooms, nextCursor, hasNext);
     }
 }

@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.chat.application.usecase;
 
+import com.project.bangjjack.domain.chat.application.dto.ChatRoomCursor;
 import com.project.bangjjack.domain.chat.application.dto.request.CreateChatRoomRequest;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomListResponse;
@@ -60,8 +61,12 @@ public class ChatRoomUseCase {
         return ChatRoomResponse.from(chatRoom, participants, true);
     }
 
-    public ChatRoomListResponse getMyChatRooms(Long userId, ChatRoomCategory category, Long cursor, int size) {
-        List<ChatRoomParticipant> allParticipants = chatRoomGetService.findParticipantsPage(userId, cursor, size, category);
+    public ChatRoomListResponse getMyChatRooms(Long userId, ChatRoomCategory category, String cursor, int size) {
+        ChatRoomCursor decoded = cursor != null ? ChatRoomCursor.decode(cursor) : null;
+        Long cursorRoomId = decoded != null ? decoded.roomId() : null;
+
+        List<ChatRoomParticipant> allParticipants = chatRoomGetService.findParticipantsPage(
+                userId, cursorRoomId, decoded != null ? decoded.lastMessageAt() : null, size, category);
 
         // 현재 유저의 participant (unreadCount 조회용)
         Map<Long, ChatRoomParticipant> myParticipantByRoomId = allParticipants.stream()
@@ -97,8 +102,11 @@ public class ChatRoomUseCase {
             rooms.add(ChatRoomSummaryResponse.from(room, partner, lastChat, participant.getUnreadCount()));
         }
 
-        Long nextCursor = hasNext && !sortedPage.isEmpty()
-                ? sortedPage.get(sortedPage.size() - 1).getChatRoom().getId()
+        String nextCursor = hasNext && !sortedPage.isEmpty()
+                ? new ChatRoomCursor(
+                        sortedPage.get(sortedPage.size() - 1).getChatRoom().getId(),
+                        sortedPage.get(sortedPage.size() - 1).getChatRoom().getLastMessageAt()
+                  ).encode()
                 : null;
         return ChatRoomListResponse.from(rooms, nextCursor, hasNext);
     }
