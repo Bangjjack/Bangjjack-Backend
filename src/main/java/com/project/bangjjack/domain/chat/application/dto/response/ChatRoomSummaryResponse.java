@@ -18,9 +18,9 @@ public record ChatRoomSummaryResponse(
     public static ChatRoomSummaryResponse from(ChatRoom room, User partner, Chat lastChat, long unreadCount) {
         return new ChatRoomSummaryResponse(
                 room.getId(),
-                partner.getId(),
-                partner.getUsername(),
-                partner.getProfileImage(),
+                partner != null ? partner.getId() : null,
+                partner != null ? partner.getUsername() : null,
+                partner != null ? partner.getProfileImage() : null,
                 lastChat != null ? lastChat.getContent() : null,
                 lastChat != null ? lastChat.getCreatedAt() : null,
                 unreadCount

@@ -45,10 +45,7 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
         return queryFactory
                 .selectFrom(participant)
                 .join(participant.chatRoom, room).fetchJoin()
-                .where(
-                        participant.chatRoom.id.in(roomIds),
-                        participant.deleted.isFalse()
-                )
+                .where(participant.chatRoom.id.in(roomIds))
                 .fetch();
     }
 
