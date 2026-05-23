@@ -21,7 +21,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -61,12 +60,9 @@ public class ChatRoomUseCase {
     }
 
     public ChatRoomListResponse getMyChatRooms(Long userId, ChatRoomCategory category, String cursor, int size) {
-        ChatRoomCursor decoded = cursor != null ? ChatRoomCursor.decode(cursor) : null;
-        Long cursorRoomId = decoded != null ? decoded.roomId() : null;
-        LocalDateTime cursorLastMessageAt = decoded != null ? decoded.lastMessageAt() : null;
-
+        ChatRoomCursor cursorInfo = decodeCursor(cursor);
         List<ChatRoomParticipant> myParticipants = chatRoomGetService.findMyDirectParticipantsPage(
-                userId, cursorRoomId, cursorLastMessageAt, size, category);
+                userId, cursorInfo.roomId(), cursorInfo.lastMessageAt(), size, category);
 
         boolean hasNext = myParticipants.size() > size;
         List<ChatRoomParticipant> page = hasNext ? myParticipants.subList(0, size) : myParticipants;
@@ -79,6 +75,22 @@ public class ChatRoomUseCase {
         Map<Long, User> partnerMap = userGetService.getByIds(partnerIdByRoomId.values());
         Map<Long, Chat> lastMessageMap = chatMessageGetService.findLastMessagesByRoomIds(roomIds);
 
+        List<ChatRoomSummaryResponse> rooms = buildChatRoomSummaries(page, partnerIdByRoomId, partnerMap, lastMessageMap);
+        String nextCursor = hasNext ? buildNextCursor(page) : null;
+        return ChatRoomListResponse.from(rooms, nextCursor, hasNext);
+    }
+
+    private ChatRoomCursor decodeCursor(String cursor) {
+        ChatRoomCursor decoded = ChatRoomCursor.decodeOrNull(cursor);
+        return decoded != null ? decoded : new ChatRoomCursor(null, null);
+    }
+
+    private List<ChatRoomSummaryResponse> buildChatRoomSummaries(
+            List<ChatRoomParticipant> page,
+            Map<Long, Long> partnerIdByRoomId,
+            Map<Long, User> partnerMap,
+            Map<Long, Chat> lastMessageMap
+    ) {
         List<ChatRoomSummaryResponse> rooms = new ArrayList<>();
         for (ChatRoomParticipant participant : page) {
             ChatRoom room = participant.getChatRoom();
@@ -86,14 +98,12 @@ public class ChatRoomUseCase {
             Chat lastChat = lastMessageMap.get(room.getId());
             rooms.add(ChatRoomSummaryResponse.from(room, partner, lastChat, participant.getUnreadCount()));
         }
+        return rooms;
+    }
 
-        String nextCursor = hasNext
-                ? new ChatRoomCursor(
-                        page.get(page.size() - 1).getChatRoom().getId(),
-                        page.get(page.size() - 1).getChatRoom().getLastMessageAt()
-                  ).encode()
-                : null;
-        return ChatRoomListResponse.from(rooms, nextCursor, hasNext);
+    private String buildNextCursor(List<ChatRoomParticipant> page) {
+        ChatRoom lastRoom = page.get(page.size() - 1).getChatRoom();
+        return new ChatRoomCursor(lastRoom.getId(), lastRoom.getLastMessageAt()).encode();
     }
 
     public List<Long> getMyRoomIds(Long userId) {

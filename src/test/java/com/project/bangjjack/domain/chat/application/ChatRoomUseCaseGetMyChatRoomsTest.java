@@ -84,7 +84,7 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
         @Test
         @DisplayName("빈 리스트 반환")
         void 빈_리스트_반환() {
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, null)).willReturn(List.of());
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null)).willReturn(List.of());
 
             ChatRoomListResponse response = chatRoomUseCase.getMyChatRooms(USER_ID, null, null, 20);
 
@@ -106,9 +106,9 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             User partner = createUser(PARTNER_ID, "파트너");
             Chat lastChat = Chat.create(USER_ID, room, "안녕하세요", MessageType.USER);
 
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, null))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null))
                     .willReturn(List.of(myParticipant));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of(10L, lastChat));
@@ -134,9 +134,9 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             ChatRoomParticipant myParticipant = createParticipant(room, USER_ID, 0L);
             User partner = createUser(PARTNER_ID, "파트너");
 
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, null))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null))
                     .willReturn(List.of(myParticipant));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
@@ -160,12 +160,12 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             User partner = createUser(PARTNER_ID, "파트너");
 
             // DB ORDER BY 결과를 모사: lastMessageAt 있는 방이 먼저
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, null))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null))
                     .willReturn(List.of(
                             createParticipant(roomWithMsg, USER_ID, 0L),
                             createParticipant(roomNoMsg, USER_ID, 0L)
                     ));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID, 20L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
@@ -189,9 +189,9 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             setField(appRoom, "category", ChatRoomCategory.APPLICATION, appRoom.getClass());
             User partner = createUser(PARTNER_ID, "파트너");
 
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, ChatRoomCategory.APPLICATION))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, ChatRoomCategory.APPLICATION))
                     .willReturn(List.of(createParticipant(appRoom, USER_ID, 0L)));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
@@ -204,7 +204,7 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
         @Test
         @DisplayName("APPLICATION 필터 + 해당 방 없음 → 빈 리스트")
         void APPLICATION_필터_방_없으면_빈_리스트() {
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, ChatRoomCategory.APPLICATION))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, ChatRoomCategory.APPLICATION))
                     .willReturn(List.of());
 
             ChatRoomListResponse response = chatRoomUseCase.getMyChatRooms(USER_ID, ChatRoomCategory.APPLICATION, null, 20);
@@ -220,12 +220,12 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             User partner = createUser(PARTNER_ID, "파트너");
 
             // size=1이므로 size+1=2개 반환 → hasNext=true
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 1, ChatRoomCategory.APPLICATION))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 1, ChatRoomCategory.APPLICATION))
                     .willReturn(List.of(
                             createParticipant(room1, USER_ID, 0L),
                             createParticipant(room2, USER_ID, 0L)
                     ));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
@@ -248,9 +248,9 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
             room.close();
             User partner = createUser(PARTNER_ID, "파트너");
 
-            given(chatRoomGetService.findMyParticipantsPage(USER_ID, null, null, 20, null))
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null))
                     .willReturn(List.of(createParticipant(room, USER_ID, 0L)));
-            given(chatRoomGetService.findPartnerIdsByRoomIds(any(), eq(USER_ID)))
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
                     .willReturn(Map.of(10L, PARTNER_ID));
             given(userGetService.getByIds(any())).willReturn(Map.of(PARTNER_ID, partner));
             given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
