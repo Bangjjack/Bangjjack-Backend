@@ -24,14 +24,11 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "last_read_message_id")
-    private Long lastReadMessageId;
-
     @Column(name = "unread_count", nullable = false)
     private long unreadCount = 0;
 
     public static ChatRoomParticipant create(ChatRoom chatRoom, Long userId) {
-        return new ChatRoomParticipant(chatRoom, userId, null, 0);
+        return new ChatRoomParticipant(chatRoom, userId, 0);
     }
 
     public void resetUnreadCount() {

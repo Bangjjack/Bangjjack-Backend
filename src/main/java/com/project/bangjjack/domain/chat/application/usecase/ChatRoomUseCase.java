@@ -63,7 +63,7 @@ public class ChatRoomUseCase {
     public ChatRoomListResponse getMyChatRooms(Long userId, ChatRoomCategory category, Long cursor, int size) {
         List<ChatRoomParticipant> allParticipants = chatRoomGetService.findParticipantsPage(userId, cursor, size, category);
 
-        // 현재 유저의 participant (lastReadMessageId 사용)
+        // 현재 유저의 participant (unreadCount 조회용)
         Map<Long, ChatRoomParticipant> myParticipantByRoomId = allParticipants.stream()
                 .filter(p -> p.getUserId().equals(userId))
                 .collect(Collectors.toMap(p -> p.getChatRoom().getId(), p -> p));
