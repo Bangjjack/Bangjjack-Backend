@@ -7,7 +7,7 @@ public record ChatRoomListResponse(
         Long nextCursor,
         boolean hasNext
 ) {
-    public static ChatRoomListResponse of(List<ChatRoomSummaryResponse> rooms, Long nextCursor, boolean hasNext) {
+    public static ChatRoomListResponse from(List<ChatRoomSummaryResponse> rooms, Long nextCursor, boolean hasNext) {
         return new ChatRoomListResponse(rooms, nextCursor, hasNext);
     }
 }

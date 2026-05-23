@@ -94,13 +94,13 @@ public class ChatRoomUseCase {
             ChatRoom room = participant.getChatRoom();
             User partner = partnerMap.get(partnerIdByRoomId.get(room.getId()));
             Chat lastChat = lastMessageMap.get(room.getId());
-            rooms.add(ChatRoomSummaryResponse.of(room, partner, lastChat, participant.getUnreadCount()));
+            rooms.add(ChatRoomSummaryResponse.from(room, partner, lastChat, participant.getUnreadCount()));
         }
 
         Long nextCursor = hasNext && !sortedPage.isEmpty()
                 ? sortedPage.get(sortedPage.size() - 1).getChatRoom().getId()
                 : null;
-        return ChatRoomListResponse.of(rooms, nextCursor, hasNext);
+        return ChatRoomListResponse.from(rooms, nextCursor, hasNext);
     }
 
     public List<Long> getMyRoomIds(Long userId) {

@@ -15,7 +15,7 @@ public record ChatRoomSummaryResponse(
         LocalDateTime lastMessageAt,
         long unreadCount
 ) {
-    public static ChatRoomSummaryResponse of(ChatRoom room, User partner, Chat lastChat, long unreadCount) {
+    public static ChatRoomSummaryResponse from(ChatRoom room, User partner, Chat lastChat, long unreadCount) {
         return new ChatRoomSummaryResponse(
                 room.getId(),
                 partner.getId(),
