@@ -50,9 +50,9 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
-    public void resetUnreadCount(Long roomId, Long userId) {
+    public void markAsRead(Long roomId, Long userId, Long lastMessageId) {
         chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
-                .ifPresent(ChatRoomParticipant::resetUnreadCount);
+                .ifPresent(p -> p.markAsRead(lastMessageId));
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {

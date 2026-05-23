@@ -68,12 +68,15 @@ public class ChatMessageUseCase {
     @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         chatRoomGetService.validateParticipant(roomId, currentUserId);
-        chatRoomGetService.resetUnreadCount(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 
         boolean hasNext = fetched.size() > size;
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
+
+        if (!content.isEmpty()) {
+            chatRoomGetService.markAsRead(roomId, currentUserId, content.get(0).getId());
+        }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 
         List<ChatMessageResponse> messages = content.stream()
