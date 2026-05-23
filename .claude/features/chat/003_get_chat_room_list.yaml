@@ -35,8 +35,12 @@ technical_spec:
             default: null (전체 조회)
             note: null이면 category 조건 없이 전체 조회
           - name: cursor
-            type: Long (roomId)
+            type: String (opaque Base64)
             required: false
+            note: >
+              서버가 발급한 nextCursor 값을 그대로 전달.
+              내부 포맷: Base64Url(roomId:lastMessageAt ISO string).
+              클라이언트는 내부 구조를 파싱하지 않고 그대로 돌려줌.
           - name: size
             type: int
             required: false
@@ -47,7 +51,7 @@ technical_spec:
         wrapper: CommonResponse<ChatRoomListResponse>
         fields:
           - rooms: List<ChatRoomSummaryResponse>
-          - nextCursor: Long (nullable)
+          - nextCursor: String (nullable, opaque Base64)
           - hasNext: boolean
 
   data_flow:
@@ -57,30 +61,45 @@ technical_spec:
     - step: 2
       layer: UseCase (ChatRoomUseCase.getMyChatRooms)
       action: >
-        findParticipantsPage(userId, cursor, size, category) 단일 메서드 호출.
-        반환된 participants에서 내 participant와 파트너 userId를 분리.
-        size+1 기반 hasNext 판별 후 메모리에서 lastMessageAt 기준 재정렬.
-        상대방 배치 조회(getByIds) + 마지막 메시지 배치 조회(findLastMessagesByRoomIds) + unreadCount 컬럼값 조립.
+        cursor를 decodeCursor()로 ChatRoomCursor(roomId, lastMessageAt)로 변환.
+        findMyDirectParticipantsPage()로 내 participant 목록을 정렬된 채로 조회 (size+1).
+        size+1 기반 hasNext 판별 후 page로 자르기.
+        findPartnerIdsByDirectRoomIds()로 파트너 ID 배치 조회.
+        userGetService.getByIds()로 파트너 User 배치 조회.
+        findLastMessagesByRoomIds()로 마지막 메시지 배치 조회.
+        buildChatRoomSummaries()로 응답 조립, buildNextCursor()로 다음 커서 생성.
       transaction: readOnly
+      note: >
+        Java 레벨 재정렬 없음. DB ORDER BY 결과를 그대로 사용.
+        파트너 조회는 page 기준으로만 수행 (hasNext 감지용 extra room 제외).
     - step: 3
-      layer: Domain (ChatRoomGetService.findParticipantsPage)
+      layer: Domain (ChatRoomGetService)
       action: >
-        Step1: findRoomIdsByUserIdWithCursor로 roomId 목록 페이징 조회 (size+1).
-        Step2: findAllWithRoomByRoomIds로 해당 roomId의 모든 참여자 JOIN FETCH.
-        반환된 participants에는 soft-delete된 파트너도 포함 (파트너가 방을 나간 경우 정보 유지)
+        findMyDirectParticipantsPage: Repository의 findMyDirectParticipantsWithCursor 위임.
+        findPartnerIdsByDirectRoomIds: Repository의 findPartnerIdsByDirectRoomIds 위임.
     - step: 4
-      layer: Repository (ChatRoomParticipantRepository)
+      layer: Repository (ChatRoomParticipantRepositoryImpl)
       action: >
-        findRoomIdsByUserIdWithCursor: category 유무로 필터 분기, lastMessageAt 기반 커서 조건.
-        findAllWithRoomByRoomIds: roomIds IN 조건 + ChatRoom JOIN FETCH (deleted 조건 없음).
+        findMyDirectParticipantsWithCursor:
+          userId 조건 + cursor 조건 + category 필터를 WHERE에 적용.
+          ChatRoom을 fetchJoin하여 N+1 방지.
+          ORDER BY lastMessageAt DESC NULLS LAST, id DESC로 정렬된 결과 반환 (size+1).
+        findPartnerIdsByDirectRoomIds:
+          roomId IN 조건 + userId != myUserId 조건으로 파트너 userId만 Tuple 조회.
+          Map<roomId, partnerId>로 반환.
+          participant.deleted 필터 미적용 (파트너가 나간 경우에도 정보 유지).
 
   cursor_design:
     note: >
-      lastMessageAt + roomId 복합 커서. cursorRoomId로 해당 방의 lastMessageAt을 서브쿼리 조회 후 비교.
+      Opaque cursor 방식. lastMessageAt + roomId를 Base64URL로 인코딩하여 클라이언트에 발급.
+      다음 요청 시 cursor를 디코딩하여 두 값을 WHERE 조건에 직접 파라미터로 사용.
+      서브쿼리 없이 단일 쿼리로 처리.
+    encoding: "Base64Url('{roomId}:{lastMessageAt ISO string}')"
     conditions:
-      - lastMessageAt이 cursor보다 작은 경우
-      - lastMessageAt이 동일하면 roomId가 cursor보다 작은 경우 (동시간 방 중복 방지)
-      - lastMessageAt이 null인 경우 (메시지 없는 방은 항상 뒤)
+      - lastMessageAt이 cursor.lastMessageAt보다 작은 경우
+      - lastMessageAt이 동일하면 roomId가 cursor.roomId보다 작은 경우 (동시간 방 중복 방지)
+      - cursor.lastMessageAt이 null이면: lastMessageAt IS NULL AND roomId < cursor.roomId
+      - cursor.lastMessageAt이 있으면: 위 조건 외 lastMessageAt IS NULL인 방도 포함 (NULLS LAST 보장)
 
   filter_design:
     ALL: category 파라미터 null → category 조건 없음 (전체)
@@ -96,7 +115,8 @@ technical_spec:
       USER 메시지, SYSTEM 메시지 모두 increment 적용.
     reset: >
       ChatMessageUseCase.getMessages() 에서 메시지 조회 후 participant.markAsRead(newestMessageId) 호출.
-      markAsRead = lastReadMessageId 저장 + unreadCount = 0 동시 처리.
+      markAsRead: 전달된 messageId가 현재 lastReadMessageId보다 클 때만 갱신 (guard clause).
+      이전 페이지(더 오래된 메시지) 조회 시 lastReadMessageId 후퇴 및 unreadCount 오류 초기화 방지.
     race_condition: >
       조회 완료 후 markAsRead 순서로 실행하여 reset→fetch 순서의 누락 위험 완화.
       lastReadMessageId 저장으로 이후 재계산 기반 마련 (COUNT WHERE id > lastReadMessageId).
@@ -105,7 +125,7 @@ technical_spec:
   partner_left_design:
     note: >
       파트너가 채팅방을 나간 경우(soft-delete) 해당 채팅방은 남은 유저에게 계속 노출.
-      findAllWithRoomByRoomIds에서 deleted 조건 제거하여 soft-delete된 participant도 조회.
+      findPartnerIdsByDirectRoomIds에서 deleted 조건 없이 조회하여 나간 파트너도 포함.
       ChatRoomSummaryResponse에서 partner null-safe 처리 (파트너 정보 null 반환).
       두 유저 모두 나가야 ChatRoom.status = CLOSED → 목록에서 제외.
 
@@ -120,6 +140,7 @@ technical_spec:
         note: >
           unreadCount는 DB 컬럼으로 관리.
           lastReadMessageId는 마지막으로 읽은 메시지 ID (unreadCount 재계산 기반).
+          markAsRead는 더 최신 messageId일 때만 갱신 (guard clause).
       - name: Chat
         action: Read
         fields: id, content, messageType, createdAt
@@ -140,7 +161,7 @@ testing_strategy:
     - 참여 채팅방 없음 → 빈 리스트
     - 채팅방 1개 → partner/lastMessage/unreadCount 정상 조립
     - 메시지 없는 방 → lastMessage=null, unreadCount=0
-    - 메시지 있는 방이 없는 방보다 앞에 위치
+    - DB 정렬 순서 그대로 응답에 반영 (lastMessageAt 있는 방이 없는 방보다 앞)
     - APPLICATION 필터 → 해당 방만 반환
     - APPLICATION 필터 + hasNext=true → nextCursor 설정
   edge_cases:
