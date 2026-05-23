@@ -238,6 +238,30 @@ class ChatRoomUseCaseGetMyChatRoomsTest {
     }
 
     @Nested
+    @DisplayName("파트너가 채팅방을 나간 경우")
+    class PartnerLeft {
+
+        @Test
+        @DisplayName("파트너 정보가 없어도 채팅방이 목록에 포함되며 partner 필드는 null")
+        void 파트너가_나가도_목록에_포함() throws Exception {
+            ChatRoom room = createRoomWithId(10L);
+
+            given(chatRoomGetService.findMyDirectParticipantsPage(USER_ID, null, null, 20, null))
+                    .willReturn(List.of(createParticipant(room, USER_ID, 0L)));
+            given(chatRoomGetService.findPartnerIdsByDirectRoomIds(any(), eq(USER_ID)))
+                    .willReturn(Map.of()); // 파트너가 나가서 조회 안 됨
+            given(userGetService.getByIds(any())).willReturn(Map.of());
+            given(chatMessageGetService.findLastMessagesByRoomIds(any())).willReturn(Map.of());
+
+            ChatRoomListResponse response = chatRoomUseCase.getMyChatRooms(USER_ID, null, null, 20);
+
+            assertThat(response.rooms()).hasSize(1);
+            assertThat(response.rooms().get(0).partnerId()).isNull();
+            assertThat(response.rooms().get(0).partnerName()).isNull();
+        }
+    }
+
+    @Nested
     @DisplayName("CLOSED 상태 채팅방")
     class ClosedChatRoom {
 

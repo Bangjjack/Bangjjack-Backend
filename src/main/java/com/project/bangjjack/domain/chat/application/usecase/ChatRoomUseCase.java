@@ -94,7 +94,8 @@ public class ChatRoomUseCase {
         List<ChatRoomSummaryResponse> rooms = new ArrayList<>();
         for (ChatRoomParticipant participant : page) {
             ChatRoom room = participant.getChatRoom();
-            User partner = partnerMap.get(partnerIdByRoomId.get(room.getId()));
+            Long partnerId = partnerIdByRoomId.get(room.getId());
+            User partner = partnerId != null ? partnerMap.get(partnerId) : null;
             Chat lastChat = lastMessageMap.get(room.getId());
             rooms.add(ChatRoomSummaryResponse.from(room, partner, lastChat, participant.getUnreadCount()));
         }
