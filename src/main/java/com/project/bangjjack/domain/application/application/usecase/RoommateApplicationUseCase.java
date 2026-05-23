@@ -23,6 +23,7 @@ import com.project.bangjjack.domain.chat.application.event.ChatRoomCreatedEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
@@ -113,6 +114,7 @@ public class RoommateApplicationUseCase {
         );
 
         Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
+        chatRoom.updateCategory(ChatRoomCategory.APPLICATION);
         eventPublisher.publishEvent(new ChatMessageSentEvent(
                 chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
 
