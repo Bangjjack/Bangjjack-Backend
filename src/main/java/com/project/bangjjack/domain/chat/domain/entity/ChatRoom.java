@@ -48,6 +48,14 @@ public class ChatRoom extends BaseEntity {
         return "DM_" + Math.min(userId1, userId2) + "_" + Math.max(userId1, userId2);
     }
 
+    public void updateLastMessageAt(LocalDateTime sentAt) {
+        this.lastMessageAt = sentAt;
+    }
+
+    public void updateCategory(ChatRoomCategory newCategory) {
+        this.category = newCategory;
+    }
+
     public void close() {
         this.status = RoomStatus.CLOSED;
     }

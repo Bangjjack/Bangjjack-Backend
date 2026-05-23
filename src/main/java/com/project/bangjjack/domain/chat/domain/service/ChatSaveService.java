@@ -16,7 +16,8 @@ public class ChatSaveService {
 
     @Transactional
     public Chat save(Long senderId, ChatRoom chatRoom, String content, MessageType messageType) {
-        Chat chat = Chat.create(senderId, chatRoom, content, messageType);
-        return chatRepository.save(chat);
+        Chat saved = chatRepository.save(Chat.create(senderId, chatRoom, content, messageType));
+        chatRoom.updateLastMessageAt(saved.getCreatedAt());
+        return saved;
     }
 }
