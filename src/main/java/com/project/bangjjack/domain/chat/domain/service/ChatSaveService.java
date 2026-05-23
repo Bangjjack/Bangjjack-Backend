@@ -4,6 +4,7 @@ import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRepository;
+import com.project.bangjjack.domain.chat.domain.repository.ChatRoomParticipantRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,11 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ChatSaveService {
 
     private final ChatRepository chatRepository;
+    private final ChatRoomParticipantRepository chatRoomParticipantRepository;
 
     @Transactional
     public Chat save(Long senderId, ChatRoom chatRoom, String content, MessageType messageType) {
         Chat saved = chatRepository.save(Chat.create(senderId, chatRoom, content, messageType));
         chatRoom.updateLastMessageAt(saved.getCreatedAt());
+        chatRoomParticipantRepository.incrementUnreadCountExcludingSender(chatRoom.getId(), senderId);
         return saved;
     }
 }

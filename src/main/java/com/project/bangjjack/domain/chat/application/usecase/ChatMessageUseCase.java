@@ -65,8 +65,10 @@ public class ChatMessageUseCase {
         log.debug("[채팅 송신] 브로드캐스트 이벤트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
     }
 
+    @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         chatRoomGetService.validateParticipant(roomId, currentUserId);
+        chatRoomGetService.resetUnreadCount(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 
