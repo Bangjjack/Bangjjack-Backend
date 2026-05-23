@@ -1,0 +1,112 @@
+# Feature Specification: 내 채팅방 목록 조회
+# Status: Done
+# Last Updated: 2026-05-22
+
+meta:
+  id: FEAT-CHAT-003
+  title: 내 채팅방 목록 조회
+  type: Feature
+  author: Claude
+
+overview:
+  summary: >
+    로그인 유저가 참여 중인 채팅방 목록을 최신 메시지 순으로 커서 페이지네이션 조회
+  user_story: >
+    As a 로그인 유저, I want to 내 채팅방 목록을 보고 싶다,
+    so that 대화 상대와 읽지 않은 메시지를 한눈에 확인할 수 있다.
+  goals:
+    - 최신 메시지 순 내림차순 정렬 (메시지 없는 방은 맨 뒤)
+    - ALL / APPLICATION 필터 지원
+    - 커서 기반 페이지네이션 (스크롤 UX)
+    - 상대방 프로필, 마지막 메시지, unreadCount 포함
+
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/chat-rooms
+      summary: 내 채팅방 목록 조회
+      auth: AUTHENTICATED (JWT)
+      request:
+        dto: QueryParameter
+        fields:
+          - name: filter
+            type: ChatRoomFilter (ALL | APPLICATION)
+            required: false
+            default: ALL
+          - name: cursor
+            type: Long (roomId)
+            required: false
+          - name: size
+            type: int
+            required: false
+            default: 20
+            validation: min=1, max=50
+      response:
+        dto: ChatRoomListResponse
+        wrapper: CommonResponse<ChatRoomListResponse>
+        fields:
+          - rooms: List<ChatRoomSummaryResponse>
+          - nextCursor: Long (nullable)
+          - hasNext: boolean
+
+  data_flow:
+    - step: 1
+      layer: Presentation (ChatRoomController)
+      action: JWT → currentMemberId, filter/cursor/size 파라미터 수신 → UseCase 위임
+    - step: 2
+      layer: UseCase (ChatRoomUseCase.getMyChatRooms)
+      action: >
+        filter 분기 → findParticipantsPage / findApplicationParticipantsPage 호출.
+        size+1 조회 후 lastMessageAt 기준 메모리 재정렬 → hasNext 판별.
+        상대방 배치 조회(getByIds) + 마지막 메시지 + unreadCount 조립
+      transaction: readOnly
+    - step: 3
+      layer: Domain (ChatRoomGetService)
+      action: >
+        cursor 유무 / lastMessageAt 유무로 쿼리 분기(resolveRoomIds).
+        Step1: roomId만 페이징 조회. Step2: roomIds로 JOIN FETCH
+    - step: 4
+      layer: Repository (ChatRoomParticipantRepository)
+      action: 커서 페이징 쿼리 3종 (ALL) + 3종 (APPLICATION, category 조건) + JOIN FETCH 1종
+
+  filter_design:
+    ALL: category 조건 없음
+    APPLICATION: >
+      ChatRoom.category = APPLICATION 조건 추가.
+      category는 룸메이트 신청(RoommateApplicationUseCase.createApplication) 시 GENERAL → APPLICATION으로 변경.
+      ChatSaveService가 아닌 신청 도메인에서 명시적으로 updateCategory(APPLICATION) 호출.
+
+  database:
+    entities:
+      - name: ChatRoom
+        action: Read
+        fields: id, roomType, status, category, lastMessageAt, createdAt
+        note: category(ChatRoomCategory), lastMessageAt 신규 추가
+      - name: ChatRoomParticipant
+        action: Read
+        fields: userId, lastReadMessageId
+      - name: Chat
+        action: Read
+        fields: id, content, messageType, createdAt
+      - name: User
+        action: Read
+        fields: id, username, profileImage (배치 IN 조회)
+
+  validation_rules:
+    - soft-delete된 채팅방·참여자 제외
+    - size 범위 1~50
+
+testing_strategy:
+  test_file: ChatRoomUseCaseGetMyChatRoomsTest.java
+  happy_path:
+    - 참여 채팅방 없음 → 빈 리스트
+    - 채팅방 1개 → partner/lastMessage/unreadCount 정상 조립
+    - 메시지 없는 방 → lastMessage=null, unreadCount=0
+    - lastReadMessageId=null → countByRoomId 호출
+    - lastReadMessageId=N → countAfterMessageId 호출
+    - 메시지 있는 방이 없는 방보다 앞에 위치
+    - APPLICATION 필터 → 해당 방만 반환
+    - APPLICATION 필터 + hasNext=true → nextCursor 설정
+  edge_cases:
+    - APPLICATION 필터 + 해당 방 없음 → 빈 리스트
+    - CLOSED 상태 채팅방도 목록에 포함
