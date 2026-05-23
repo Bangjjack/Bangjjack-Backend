@@ -17,6 +17,9 @@ public interface ChatRoomParticipantRepository extends JpaRepository<ChatRoomPar
 
     Optional<ChatRoomParticipant> findByChatRoomIdAndUserIdAndDeletedFalse(Long chatRoomId, Long userId);
 
+    @Query("SELECT p.chatRoom.id FROM ChatRoomParticipant p WHERE p.userId = :userId AND p.deleted = false AND p.chatRoom.deleted = false")
+    List<Long> findAllRoomIdsByUserId(@Param("userId") Long userId);
+
     @Modifying
     @Query("UPDATE ChatRoomParticipant p SET p.unreadCount = p.unreadCount + 1 WHERE p.chatRoom.id = :roomId AND p.userId != :senderId AND p.deleted = false")
     void incrementUnreadCountExcludingSender(@Param("roomId") Long roomId, @Param("senderId") Long senderId);

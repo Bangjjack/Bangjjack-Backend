@@ -59,7 +59,7 @@ public class ChatRoomGetService {
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {
-        return chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, null, Integer.MAX_VALUE, null);
+        return chatRoomParticipantRepository.findAllRoomIdsByUserId(userId);
     }
 
     public List<ChatRoomParticipant> findParticipantsPage(Long userId, Long cursorRoomId, int size, ChatRoomCategory category) {
