@@ -35,6 +35,9 @@ public class ChatRoomParticipant extends BaseEntity {
     }
 
     public void markAsRead(Long messageId) {
+        if (this.lastReadMessageId != null && messageId <= this.lastReadMessageId) {
+            return;
+        }
         this.lastReadMessageId = messageId;
         this.unreadCount = 0;
     }
