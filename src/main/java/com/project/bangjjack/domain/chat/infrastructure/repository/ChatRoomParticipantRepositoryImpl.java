@@ -42,6 +42,7 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
 
     @Override
     public List<ChatRoomParticipant> findAllWithRoomByRoomIds(Collection<Long> roomIds) {
+        // participant.deleted 필터 미적용: 파트너가 나간 경우에도 파트너 정보를 목록에 표시해야 함
         return queryFactory
                 .selectFrom(participant)
                 .join(participant.chatRoom, room).fetchJoin()
