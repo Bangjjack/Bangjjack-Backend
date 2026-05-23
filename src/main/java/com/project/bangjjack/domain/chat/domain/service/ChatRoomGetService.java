@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -63,11 +64,11 @@ public class ChatRoomGetService {
         return chatRoomParticipantRepository.findAllRoomIdsByUserId(userId);
     }
 
-    public List<ChatRoomParticipant> findParticipantsPage(Long userId, Long cursorRoomId, LocalDateTime cursorLastMessageAt, int size, ChatRoomCategory category) {
-        List<Long> roomIds = chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, cursorRoomId, cursorLastMessageAt, size, category);
-        if (roomIds.isEmpty()) {
-            return List.of();
-        }
-        return chatRoomParticipantRepository.findAllWithRoomByRoomIds(roomIds);
+    public List<ChatRoomParticipant> findMyDirectParticipantsPage(Long userId, Long cursorRoomId, LocalDateTime cursorLastMessageAt, int size, ChatRoomCategory category) {
+        return chatRoomParticipantRepository.findMyDirectParticipantsWithCursor(userId, cursorRoomId, cursorLastMessageAt, size, category);
+    }
+
+    public Map<Long, Long> findPartnerIdsByDirectRoomIds(List<Long> roomIds, Long myUserId) {
+        return chatRoomParticipantRepository.findPartnerIdsByDirectRoomIds(roomIds, myUserId);
     }
 }

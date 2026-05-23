@@ -21,12 +21,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,48 +63,34 @@ public class ChatRoomUseCase {
     public ChatRoomListResponse getMyChatRooms(Long userId, ChatRoomCategory category, String cursor, int size) {
         ChatRoomCursor decoded = cursor != null ? ChatRoomCursor.decode(cursor) : null;
         Long cursorRoomId = decoded != null ? decoded.roomId() : null;
+        LocalDateTime cursorLastMessageAt = decoded != null ? decoded.lastMessageAt() : null;
 
-        List<ChatRoomParticipant> allParticipants = chatRoomGetService.findParticipantsPage(
-                userId, cursorRoomId, decoded != null ? decoded.lastMessageAt() : null, size, category);
+        List<ChatRoomParticipant> myParticipants = chatRoomGetService.findMyDirectParticipantsPage(
+                userId, cursorRoomId, cursorLastMessageAt, size, category);
 
-        // 현재 유저의 participant (unreadCount 조회용)
-        Map<Long, ChatRoomParticipant> myParticipantByRoomId = allParticipants.stream()
-                .filter(p -> p.getUserId().equals(userId))
-                .collect(Collectors.toMap(p -> p.getChatRoom().getId(), p -> p));
+        boolean hasNext = myParticipants.size() > size;
+        List<ChatRoomParticipant> page = hasNext ? myParticipants.subList(0, size) : myParticipants;
+        if (page.isEmpty()) {
+            return ChatRoomListResponse.from(List.of(), null, false);
+        }
 
-        // 파트너 userId (roomId → partnerId)
-        Map<Long, Long> partnerIdByRoomId = allParticipants.stream()
-                .filter(p -> !p.getUserId().equals(userId))
-                .collect(Collectors.toMap(p -> p.getChatRoom().getId(), ChatRoomParticipant::getUserId));
-
-        boolean hasNext = myParticipantByRoomId.size() > size;
-
-        // 마지막 메시지 기준 내림차순 재정렬 후 size로 자르기
-        List<ChatRoomParticipant> sortedPage = myParticipantByRoomId.values().stream()
-                .sorted(Comparator
-                        .comparing((ChatRoomParticipant p) -> p.getChatRoom().getLastMessageAt(),
-                                Comparator.nullsLast(Comparator.reverseOrder()))
-                        .thenComparing(p -> p.getChatRoom().getId(), Comparator.reverseOrder()))
-                .limit(size)
-                .toList();
-
+        List<Long> roomIds = page.stream().map(p -> p.getChatRoom().getId()).toList();
+        Map<Long, Long> partnerIdByRoomId = chatRoomGetService.findPartnerIdsByDirectRoomIds(roomIds, userId);
         Map<Long, User> partnerMap = userGetService.getByIds(partnerIdByRoomId.values());
-
-        List<Long> roomIds = sortedPage.stream().map(p -> p.getChatRoom().getId()).toList();
         Map<Long, Chat> lastMessageMap = chatMessageGetService.findLastMessagesByRoomIds(roomIds);
 
         List<ChatRoomSummaryResponse> rooms = new ArrayList<>();
-        for (ChatRoomParticipant participant : sortedPage) {
+        for (ChatRoomParticipant participant : page) {
             ChatRoom room = participant.getChatRoom();
             User partner = partnerMap.get(partnerIdByRoomId.get(room.getId()));
             Chat lastChat = lastMessageMap.get(room.getId());
             rooms.add(ChatRoomSummaryResponse.from(room, partner, lastChat, participant.getUnreadCount()));
         }
 
-        String nextCursor = hasNext && !sortedPage.isEmpty()
+        String nextCursor = hasNext
                 ? new ChatRoomCursor(
-                        sortedPage.get(sortedPage.size() - 1).getChatRoom().getId(),
-                        sortedPage.get(sortedPage.size() - 1).getChatRoom().getLastMessageAt()
+                        page.get(page.size() - 1).getChatRoom().getId(),
+                        page.get(page.size() - 1).getChatRoom().getLastMessageAt()
                   ).encode()
                 : null;
         return ChatRoomListResponse.from(rooms, nextCursor, hasNext);
