@@ -6,6 +6,7 @@ import com.project.bangjjack.domain.chat.application.exception.CannotChatWithSel
 import com.project.bangjjack.domain.chat.application.usecase.ChatRoomUseCase;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
+import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.user.application.exception.UserNotFoundException;
@@ -37,6 +38,9 @@ class ChatRoomUseCaseCreateDirectRoomTest {
 
     @Mock
     private ChatRoomGetService chatRoomGetService;
+
+    @Mock
+    private ChatMessageGetService chatMessageGetService;
 
     @Mock
     private UserGetService userGetService;
