@@ -3,6 +3,7 @@ package com.project.bangjjack.domain.chat.domain.service;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomParticipantRepository;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
@@ -49,8 +50,20 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
-    public List<Long> findRoomIdsByUserId(Long userId) {
-        return chatRoomParticipantRepository.findRoomIdsByUserIdAndDeletedFalse(userId);
+    public void resetUnreadCount(Long roomId, Long userId) {
+        chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+                .ifPresent(ChatRoomParticipant::resetUnreadCount);
     }
 
+    public List<Long> findRoomIdsByUserId(Long userId) {
+        return chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, null, Integer.MAX_VALUE, null);
+    }
+
+    public List<ChatRoomParticipant> findParticipantsPage(Long userId, Long cursorRoomId, int size, ChatRoomCategory category) {
+        List<Long> roomIds = chatRoomParticipantRepository.findRoomIdsByUserIdWithCursor(userId, cursorRoomId, size, category);
+        if (roomIds.isEmpty()) {
+            return List.of();
+        }
+        return chatRoomParticipantRepository.findAllWithRoomByRoomIds(roomIds);
+    }
 }
