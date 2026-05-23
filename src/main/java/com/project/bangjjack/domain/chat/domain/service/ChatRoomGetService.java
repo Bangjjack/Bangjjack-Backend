@@ -50,9 +50,12 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
-    public void markAsRead(Long roomId, Long userId, Long lastMessageId) {
-        chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
-                .ifPresent(p -> p.markAsRead(lastMessageId));
+    public ChatRoomParticipant getParticipant(Long roomId, Long userId) {
+        if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
+            throw new ChatRoomNotFoundException();
+        }
+        return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+                .orElseThrow(NotChatParticipantException::new);
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {

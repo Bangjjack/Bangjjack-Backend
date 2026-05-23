@@ -9,6 +9,7 @@ import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedExc
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
@@ -67,7 +68,7 @@ public class ChatMessageUseCase {
 
     @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
-        chatRoomGetService.validateParticipant(roomId, currentUserId);
+        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 
@@ -75,7 +76,7 @@ public class ChatMessageUseCase {
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
 
         if (!content.isEmpty()) {
-            chatRoomGetService.markAsRead(roomId, currentUserId, content.get(0).getId());
+            participant.markAsRead(content.get(0).getId());
         }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 
