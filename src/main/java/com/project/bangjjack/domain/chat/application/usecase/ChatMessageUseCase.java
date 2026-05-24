@@ -61,6 +61,9 @@ public class ChatMessageUseCase {
         Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content(), MessageType.USER);
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
 
+        chatRoomGetService.findLeftParticipantsByRoomId(roomId, senderId)
+                .forEach(ChatRoomParticipant::rejoin);
+
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(savedChat, roomId);
         eventPublisher.publishEvent(new ChatMessageSentEvent(roomId, broadcast));
         log.debug("[채팅 송신] 브로드캐스트 이벤트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);

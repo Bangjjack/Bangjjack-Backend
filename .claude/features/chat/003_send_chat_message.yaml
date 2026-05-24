@@ -149,7 +149,8 @@ technical_spec:
         ChatRoomGetService.getById(roomId)로 ChatRoom 조회.
         status=CLOSED 검증 (CLOSED 시 40603).
         ChatSaveService.save(senderId, chatRoom, content, MessageType.USER) 호출 (동기).
-        저장 완료 후 ChatMessageBroadcast 이벤트 발행 (ApplicationEventPublisher).
+        저장 완료 후 수신자 중 status=LEFT인 participant 조회 → status=ACTIVE 복원 (auto-rejoin).
+        ChatMessageBroadcast 이벤트 발행 (ApplicationEventPublisher).
 
     - step: 5
       layer: Domain (ChatSaveService)
@@ -203,7 +204,7 @@ technical_spec:
         name: NOT_CHAT_PARTICIPANT
         message: "채팅방 참여자가 아닙니다."
         http: 403
-        trigger: senderId가 ChatRoomParticipant에 없거나 soft delete된 경우
+        trigger: senderId가 ChatRoomParticipant에 없거나 status=LEFT인 경우 (수신자 LEFT는 auto-rejoin 처리, 송신자 LEFT는 이 에러)
       - code: 40605
         name: NOT_SUBSCRIBED
         message: "먼저 해당 채팅방을 구독해야 합니다."
@@ -241,6 +242,7 @@ testing_strategy:
     - "미참여 방 구독 시도 → ERROR 40604"
     - "구독 없이 SEND → ERROR 40605"
     - "status=CLOSED 채팅방 SEND → ERROR 40603"
+    - "수신자 status=LEFT 상태에서 메시지 수신 → 수신자 auto-rejoin(status=ACTIVE), 채팅방 목록 재노출 확인"
     - "존재하지 않는 roomId SEND → ERROR 40602"
     - "Redis 다운 시 WebSocketBroadcaster fallback 경로로 broadcast 전달 확인"
     - "ChatRepository.save() 실패 → 트랜잭션 롤백, broadcast 미발행 확인"
