@@ -84,6 +84,7 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             // then
             assertThat(myParticipant.getStatus()).isEqualTo(ParticipantStatus.LEFT);
             assertThat(chatRoom.getStatus()).isEqualTo(RoomStatus.CLOSED);
+            assertThat(chatRoom.getDirectRoomKey()).isEqualTo("DM_10_20");
         }
 
         @Test

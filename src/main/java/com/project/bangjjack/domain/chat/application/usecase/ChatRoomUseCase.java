@@ -3,7 +3,6 @@ package com.project.bangjjack.domain.chat.application.usecase;
 import com.project.bangjjack.domain.chat.application.dto.ChatRoomCursor;
 import com.project.bangjjack.domain.chat.application.dto.request.CreateChatRoomRequest;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
-import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomListResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomSummaryResponse;
@@ -47,17 +46,13 @@ public class ChatRoomUseCase {
 
         String directRoomKey = chatRoomCreateService.createDirectKey(currentUserId, request.targetUserId());
 
+        // TODO: 동시 요청 시 두 스레드가 모두 existing=empty를 보고 방을 중복 생성할 수 있음, 빈도가 낮아 현재는 허용하되, 문제가 되면 Redis 분산락으로 directRoomKey 단위 잠금 적용
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {
             ChatRoom chatRoom = existing.get();
             chatRoomGetService.findParticipant(chatRoom.getId(), currentUserId)
                     .filter(ChatRoomParticipant::isLeft)
-                    .ifPresent(p -> {
-                        p.rejoin();
-                        if (chatRoom.getStatus() == RoomStatus.CLOSED) {
-                            chatRoom.reopen();
-                        }
-                    });
+                    .ifPresent(ChatRoomParticipant::rejoin);
             List<ChatRoomParticipant> participants = chatRoomGetService.findAllParticipantsByRoomId(chatRoom.getId());
             return ChatRoomResponse.from(chatRoom, participants, false);
         }
