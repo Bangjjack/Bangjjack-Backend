@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.checklist.application.usecase;
 
 import com.project.bangjjack.domain.checklist.application.dto.request.LifestyleChecklistRequest;
+import com.project.bangjjack.domain.checklist.application.dto.request.UpdateLifestyleChecklistRequest;
 import com.project.bangjjack.domain.checklist.application.dto.response.MyLifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.application.exception.AlreadyChecklistRegisteredException;
 import com.project.bangjjack.domain.checklist.application.exception.ChecklistNotFoundException;
@@ -9,6 +10,7 @@ import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSl
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistCreateService;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
+import com.project.bangjjack.domain.checklist.domain.service.ChecklistUpdateService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ public class ChecklistUseCase {
     private final UserGetService userGetService;
     private final ChecklistCreateService checklistCreateService;
     private final ChecklistGetService checklistGetService;
+    private final ChecklistUpdateService checklistUpdateService;
 
     @Transactional
     public void registerChecklist(Long userId, LifestyleChecklistRequest request) {
@@ -51,5 +54,31 @@ public class ChecklistUseCase {
         List<LifestyleChecklistSleepHabit> sleepHabits = checklistGetService.findSleepHabitsByChecklist(checklist);
 
         return MyLifestyleChecklistResponse.from(new ChecklistBundle(checklist, sleepHabits));
+    }
+
+    @Transactional
+    public void updateMyChecklist(Long userId, UpdateLifestyleChecklistRequest request) {
+        User user = userGetService.getById(userId);
+        LifestyleChecklist checklist = checklistGetService.findByUser(user)
+                .orElseThrow(ChecklistNotFoundException::new);
+
+        checklist.update(
+                request.bedtime(),
+                request.wakeUpTime(),
+                request.cleaningCycle(),
+                request.dormStayTime(),
+                request.callHabit(),
+                request.indoorTemperature(),
+                request.noiseSensitivity(),
+                request.smoking()
+        );
+
+        List<LifestyleChecklistSleepHabit> existingHabits = checklistGetService.findSleepHabitsByChecklist(checklist);
+        checklistUpdateService.softDeleteSleepHabits(existingHabits);
+
+        List<LifestyleChecklistSleepHabit> newHabits = request.sleepHabits().stream()
+                .map(habit -> LifestyleChecklistSleepHabit.create(checklist, habit))
+                .toList();
+        checklistCreateService.createSleepHabits(newHabits);
     }
 }
