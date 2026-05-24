@@ -50,7 +50,7 @@ public class ChatRoomUseCase {
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {
             ChatRoom chatRoom = existing.get();
-            chatRoomGetService.findParticipant(chatRoom.getId(), currentUserId)
+            chatRoomGetService.findParticipantIncludingLeft(chatRoom.getId(), currentUserId)
                     .filter(ChatRoomParticipant::isLeft)
                     .ifPresent(ChatRoomParticipant::rejoin);
             // 상대가 LEFT 상태여도 조회자 입장에서는 채팅방에 존재하는 것으로 표시해야 하므로 LEFT 포함 전체 조회

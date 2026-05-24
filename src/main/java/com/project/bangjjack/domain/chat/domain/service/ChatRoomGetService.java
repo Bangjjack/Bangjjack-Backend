@@ -47,7 +47,7 @@ public class ChatRoomGetService {
                 .toList();
     }
 
-    public Optional<ChatRoomParticipant> findParticipant(Long roomId, Long userId) {
+    public Optional<ChatRoomParticipant> findParticipantIncludingLeft(Long roomId, Long userId) {
         return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId);
     }
 
