@@ -6,6 +6,7 @@ import com.project.bangjjack.domain.chat.application.exception.NotChatParticipan
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
@@ -57,6 +58,11 @@ class ChatMessageUseCaseGetMessagesTest {
         return chat;
     }
 
+    private ChatRoomParticipant createParticipant(Long userId) {
+        ChatRoom chatRoom = ChatRoom.createDirect(1L, "DM_1_2");
+        return ChatRoomParticipant.create(chatRoom, userId);
+    }
+
     @Nested
     @DisplayName("채팅 메시지 조회 시")
     class GetMessages {
@@ -70,6 +76,7 @@ class ChatMessageUseCaseGetMessagesTest {
             int size = 30;
             List<Chat> chats = List.of(createChat());
 
+            given(chatRoomGetService.getParticipant(roomId, currentUserId)).willReturn(createParticipant(currentUserId));
             given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(chats);
 
             // when
@@ -79,7 +86,7 @@ class ChatMessageUseCaseGetMessagesTest {
             assertThat(response.messages()).hasSize(1);
             assertThat(response.hasNext()).isFalse();
             assertThat(response.nextCursor()).isNull();
-            then(chatRoomGetService).should().validateParticipant(roomId, currentUserId);
+            then(chatRoomGetService).should().getParticipant(roomId, currentUserId);
         }
 
         @Test
@@ -91,6 +98,7 @@ class ChatMessageUseCaseGetMessagesTest {
             // size+1개 반환 (도메인 서비스가 size+1 조회 → UseCase가 잘라냄)
             List<Chat> fetched = List.of(createChat(), createChat(), createChat());
 
+            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(fetched);
 
             // when
@@ -111,6 +119,7 @@ class ChatMessageUseCaseGetMessagesTest {
             int size = 2;
             List<Chat> fetched = List.of(createChat(), createChat());
 
+            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(fetched);
 
             // when
@@ -127,6 +136,7 @@ class ChatMessageUseCaseGetMessagesTest {
         void 메시지가_없으면_빈_리스트를_반환한다() {
             // given
             Long roomId = 10L;
+            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, null, 30)).willReturn(Collections.emptyList());
 
             // when
@@ -146,7 +156,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 999L;
 
             doThrow(new ChatRoomNotFoundException())
-                    .when(chatRoomGetService).validateParticipant(roomId, currentUserId);
+                    .when(chatRoomGetService).getParticipant(roomId, currentUserId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(currentUserId, roomId, null, 30))
@@ -161,7 +171,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 10L;
 
             doThrow(new NotChatParticipantException())
-                    .when(chatRoomGetService).validateParticipant(roomId, outsiderId);
+                    .when(chatRoomGetService).getParticipant(roomId, outsiderId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(outsiderId, roomId, null, 30))

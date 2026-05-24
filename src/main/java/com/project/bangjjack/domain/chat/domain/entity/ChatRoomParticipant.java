@@ -27,7 +27,18 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
 
+    @Column(name = "unread_count", nullable = false)
+    private long unreadCount = 0;
+
     public static ChatRoomParticipant create(ChatRoom chatRoom, Long userId) {
-        return new ChatRoomParticipant(chatRoom, userId, null);
+        return new ChatRoomParticipant(chatRoom, userId, null, 0);
+    }
+
+    public void markAsRead(long messageId) {
+        if (this.lastReadMessageId != null && messageId <= this.lastReadMessageId) {
+            return;
+        }
+        this.lastReadMessageId = messageId;
+        this.unreadCount = 0;
     }
 }

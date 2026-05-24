@@ -3,13 +3,16 @@ package com.project.bangjjack.domain.chat.domain.service;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomParticipantRepository;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -49,8 +52,23 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
-    public List<Long> findRoomIdsByUserId(Long userId) {
-        return chatRoomParticipantRepository.findRoomIdsByUserIdAndDeletedFalse(userId);
+    public ChatRoomParticipant getParticipant(Long roomId, Long userId) {
+        if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
+            throw new ChatRoomNotFoundException();
+        }
+        return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+                .orElseThrow(NotChatParticipantException::new);
     }
 
+    public List<Long> findRoomIdsByUserId(Long userId) {
+        return chatRoomParticipantRepository.findAllRoomIdsByUserId(userId);
+    }
+
+    public List<ChatRoomParticipant> findMyDirectParticipantsPage(Long userId, Long cursorRoomId, LocalDateTime cursorLastMessageAt, int size, ChatRoomCategory category) {
+        return chatRoomParticipantRepository.findMyDirectParticipantsWithCursor(userId, cursorRoomId, cursorLastMessageAt, size, category);
+    }
+
+    public Map<Long, Long> findPartnerIdsByDirectRoomIds(List<Long> roomIds, Long myUserId) {
+        return chatRoomParticipantRepository.findPartnerIdsByDirectRoomIds(roomIds, myUserId);
+    }
 }

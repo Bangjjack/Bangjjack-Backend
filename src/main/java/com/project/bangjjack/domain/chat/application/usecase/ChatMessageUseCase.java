@@ -9,6 +9,7 @@ import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedExc
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
@@ -65,13 +66,18 @@ public class ChatMessageUseCase {
         log.debug("[채팅 송신] 브로드캐스트 이벤트 발행 완료 - messageId={}, roomId={}", savedChat.getId(), roomId);
     }
 
+    @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
-        chatRoomGetService.validateParticipant(roomId, currentUserId);
+        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 
         boolean hasNext = fetched.size() > size;
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
+
+        if (!content.isEmpty()) {
+            participant.markAsRead(content.get(0).getId());
+        }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 
         List<ChatMessageResponse> messages = content.stream()
