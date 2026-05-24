@@ -30,8 +30,12 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(name = "unread_count", nullable = false)
     private long unreadCount = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private ParticipantStatus status;
+
     public static ChatRoomParticipant create(ChatRoom chatRoom, Long userId) {
-        return new ChatRoomParticipant(chatRoom, userId, null, 0);
+        return new ChatRoomParticipant(chatRoom, userId, null, 0, ParticipantStatus.ACTIVE);
     }
 
     public void markAsRead(long messageId) {
@@ -40,5 +44,17 @@ public class ChatRoomParticipant extends BaseEntity {
         }
         this.lastReadMessageId = messageId;
         this.unreadCount = 0;
+    }
+
+    public void leave() {
+        this.status = ParticipantStatus.LEFT;
+    }
+
+    public void rejoin() {
+        this.status = ParticipantStatus.ACTIVE;
+    }
+
+    public boolean isLeft() {
+        return this.status == ParticipantStatus.LEFT;
     }
 }
