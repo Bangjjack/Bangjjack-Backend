@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.checklist.presentation;
 
 import com.project.bangjjack.domain.checklist.application.dto.request.LifestyleChecklistRequest;
+import com.project.bangjjack.domain.checklist.application.dto.request.UpdateLifestyleChecklistRequest;
 import com.project.bangjjack.domain.checklist.application.dto.response.MyLifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.application.usecase.ChecklistUseCase;
 import com.project.bangjjack.domain.checklist.presentation.response.ChecklistResponseCode;
@@ -37,5 +38,15 @@ public class ChecklistController {
     public CommonResponse<MyLifestyleChecklistResponse> getMyChecklist(@CurrentMemberId Long memberId) {
         MyLifestyleChecklistResponse response = checklistUseCase.getMyChecklist(memberId);
         return CommonResponse.success(ChecklistResponseCode.MY_CHECKLIST_FOUND, response);
+    }
+
+    @Operation(summary = "본인 생활습관 체크리스트 수정", description = "로그인한 사용자가 본인이 등록한 생활습관 체크리스트(9개 항목)를 전체 교체 갱신합니다.")
+    @PatchMapping("/me/checklist")
+    @ResponseStatus(HttpStatus.OK)
+    public CommonResponse<Void> updateMyChecklist(
+            @CurrentMemberId Long memberId,
+            @RequestBody @Valid UpdateLifestyleChecklistRequest request) {
+        checklistUseCase.updateMyChecklist(memberId, request);
+        return CommonResponse.success(ChecklistResponseCode.MY_CHECKLIST_UPDATED);
     }
 }
