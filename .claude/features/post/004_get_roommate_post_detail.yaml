@@ -19,11 +19,14 @@ overview:
     각 멤버는 userId, username, profileImage, role(LEADER|MEMBER)과 함께
     본인이 등록한 생활습관 체크리스트(9개 항목, sleepHabits 포함)를 제공한다.
     체크리스트를 등록하지 않은 멤버는 lifestyleChecklist=null로 반환한다.
+    체크리스트의 각 항목은 { value, matched } 래퍼 구조로 반환되며,
+    matched는 요청자(viewer) 본인의 체크리스트와 동일한지 여부(true/false)를 나타낸다.
+    요청자가 본인 체크리스트를 등록하지 않은 경우 모든 항목의 matched=null로 반환한다.
   user_story: >
     As a 인증된 사용자, I want to 특정 룸메이트 모집글의 상세 내용을 조회하고,
     so that 지원 여부를 판단하거나 내 글인 경우 수정/삭제 버튼을 표시할 수 있고,
     현재까지 모집된 그룹 구성원(LEADER 포함)이 누구인지,
-    각자의 생활습관(체크리스트)이 어떤지 확인할 수 있다.
+    각자의 생활습관(체크리스트)이 어떤지, 그리고 각 항목이 나와 일치하는지를 한눈에 확인할 수 있다.
   goals:
     - postId로 단건 모집글 상세 조회
     - 삭제된 모집글 조회 차단
@@ -32,6 +35,7 @@ overview:
     - 요청자 본인 작성 여부(isOwner) 반환
     - 연결된 룸메이트 그룹의 활성 멤버(LEADER + 모든 MEMBER) 목록 반환
     - 각 활성 멤버의 생활습관 체크리스트 9개 항목(sleepHabits 포함) 반환
+    - 각 체크리스트 항목별 요청자(viewer) 본인 체크리스트와의 일치 여부(matched) 반환
 
 # ============================================================
 # API 명세
@@ -121,35 +125,35 @@ technical_spec:
                 note: "LEADER | MEMBER"
               - name: lifestyleChecklist
                 type: LifestyleChecklistResponse (nested)
-                note: "해당 멤버 본인이 등록한 체크리스트. 미등록 멤버는 null."
+                note: "해당 멤버 본인이 등록한 체크리스트. 미등록 멤버는 null. 각 항목은 ChecklistField<T> = { value, matched } 래퍼 구조."
                 fields:
                   - name: bedtime
-                    type: String (Enum)
-                    note: "BEFORE_22 | BETWEEN_22_24 | BETWEEN_24_2 | AFTER_2 | IRREGULAR"
+                    type: "ChecklistField<Bedtime>"
+                    note: "value: BEFORE_22 | BETWEEN_22_24 | BETWEEN_24_2 | AFTER_2 | IRREGULAR. matched: viewer와 동일하면 true, 다르면 false, viewer 미등록 시 null."
                   - name: wakeUpTime
-                    type: String (Enum)
-                    note: "BEFORE_6 | BETWEEN_6_8 | BETWEEN_8_10 | AFTER_10 | IRREGULAR"
+                    type: "ChecklistField<WakeUpTime>"
+                    note: "value: BEFORE_6 | BETWEEN_6_8 | BETWEEN_8_10 | AFTER_10 | IRREGULAR. matched 규칙 동일."
                   - name: sleepHabits
-                    type: List<String (Enum)>
-                    note: "NONE | TOSS_AND_TURN | SNORING | TEETH_GRINDING | FREQUENT_WAKING. 복수 가능."
+                    type: "ChecklistField<List<SleepHabit>>"
+                    note: "value: NONE | TOSS_AND_TURN | SNORING | TEETH_GRINDING | FREQUENT_WAKING 복수 가능. matched: viewer의 sleepHabits 집합과 완전 일치(set equality) 시 true."
                   - name: cleaningCycle
-                    type: String (Enum)
-                    note: "ALMOST_DAILY | ONCE_OR_TWICE_A_WEEK | SOMETIMES | RARELY"
+                    type: "ChecklistField<CleaningCycle>"
+                    note: "value: ALMOST_DAILY | ONCE_OR_TWICE_A_WEEK | SOMETIMES | RARELY. matched 규칙 동일."
                   - name: dormStayTime
-                    type: String (Enum)
-                    note: "MOSTLY_OUTSIDE | HALF_AND_HALF | MOSTLY_INSIDE"
+                    type: "ChecklistField<DormStayTime>"
+                    note: "value: MOSTLY_OUTSIDE | HALF_AND_HALF | MOSTLY_INSIDE. matched 규칙 동일."
                   - name: callHabit
-                    type: String (Enum)
-                    note: "INSIDE_OK | OUTSIDE_ONLY | WHISPER"
+                    type: "ChecklistField<CallHabit>"
+                    note: "value: INSIDE_OK | OUTSIDE_ONLY | WHISPER. matched 규칙 동일."
                   - name: indoorTemperature
-                    type: String (Enum)
-                    note: "SENSITIVE_TO_HEAT | SENSITIVE_TO_COLD | BOTH_SENSITIVE | INSENSITIVE"
+                    type: "ChecklistField<IndoorTemperature>"
+                    note: "value: SENSITIVE_TO_HEAT | SENSITIVE_TO_COLD | BOTH_SENSITIVE | INSENSITIVE. matched 규칙 동일."
                   - name: noiseSensitivity
-                    type: String (Enum)
-                    note: "VERY_INSENSITIVE | SLIGHTLY_INSENSITIVE | NORMAL | SLIGHTLY_SENSITIVE | VERY_SENSITIVE"
+                    type: "ChecklistField<NoiseSensitivity>"
+                    note: "value: VERY_INSENSITIVE | SLIGHTLY_INSENSITIVE | NORMAL | SLIGHTLY_SENSITIVE | VERY_SENSITIVE. matched 규칙 동일."
                   - name: smoking
-                    type: String (Enum)
-                    note: "NON_SMOKER | CIGARETTE | ELECTRONIC_CIGARETTE"
+                    type: "ChecklistField<Smoking>"
+                    note: "value: NON_SMOKER | CIGARETTE | ELECTRONIC_CIGARETTE. matched 규칙 동일."
 
   data_flow:
     - step: 1
@@ -169,7 +173,7 @@ technical_spec:
       action: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) 호출 → 해당 모집글에 연결된 룸메이트 그룹의 활성 멤버 전체(LEADER + MEMBER)를 user fetch join으로 조회"
     - step: 6
       layer: UseCase (RoommatePostUseCase)
-      action: "멤버 목록에서 userIds 추출 후 ChecklistGetService.getChecklistsWithSleepHabitsByUserIds(userIds) 호출 → Map<Long userId, LifestyleChecklist> 형태로 반환받음. 체크리스트는 sleepHabits까지 1~2회 쿼리로 로드(JOIN FETCH 또는 IN 절 분리)"
+      action: "멤버 목록에서 userIds 추출 후 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId) 호출 → Map<Long userId, LifestyleChecklistResponse> 반환. 내부에서 memberUserIds ∪ {viewerUserId} 전체에 대해 체크리스트 IN(1) + sleepHabits IN(1) 쿼리로 로드 후 viewer 데이터와 비교하여 각 항목 matched 값을 계산."
     - step: 7
       layer: UseCase (RoommatePostUseCase)
       action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members, checklistByUserId) 생성 후 반환 (members는 RoommateMemberDetailResponse.from(member, checklistByUserId.get(member.user.id))으로 매핑, 체크리스트 없으면 lifestyleChecklist=null)"
@@ -190,7 +194,9 @@ technical_spec:
             note: "post 도메인 신규 DTO. static factory method from(RoommateGroupMember, LifestyleChecklist nullable) 사용. 필드: userId, username, profileImage, role, lifestyleChecklist(nullable). 기존 roommategroup.GroupMemberResponse 재사용 대신 신규 도입(체크리스트 결합으로 인한 도메인 간 DTO 오염 회피)"
             source: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) + ChecklistGetService.getChecklistsWithSleepHabitsByUserIds(userIds)"
         - LifestyleChecklistResponse:
-            note: "checklist 도메인 신규 DTO. static factory method from(LifestyleChecklist) 사용. sleepHabits는 checklist.getSleepHabits() 또는 별도 조회 결과를 List<SleepHabit>으로 매핑."
+            note: "checklist 도메인 신규 DTO. 각 9개 필드는 ChecklistField<T> = { value, matched } 래퍼. static factory method from(LifestyleChecklist, List<SleepHabit>, LifestyleChecklist viewerChecklist nullable, List<SleepHabit> viewerSleepHabits) 사용. viewerChecklist=null 이면 모든 matched=null, 아니면 viewer 값과 equals 비교(sleepHabits는 Set equality)."
+        - ChecklistField:
+            note: "checklist 도메인 신규 generic record { T value, Boolean matched }. matched는 nullable(viewer 미등록 시 null). of(T value, Boolean matched) 헬퍼 제공."
 
   error_codes:
     domain_range: "407xx (Post 도메인)"
@@ -216,18 +222,22 @@ technical_spec:
     - "체크리스트는 모든 인증 사용자에게 노출 가능(매칭 의사결정 정보로 공개)."
     - "체크리스트를 등록하지 않은 멤버는 lifestyleChecklist=null로 반환(예외 발생 X). LEADER도 동일 정책."
     - "체크리스트의 sleepHabits 는 활성(deleted=false) 항목만 포함."
+    - "viewer 본인이 체크리스트 미등록인 경우 모든 멤버의 모든 항목 matched=null."
+    - "viewer 본인이 체크리스트 등록 상태이면 각 항목별 viewer.value.equals(member.value)로 matched 계산. sleepHabits는 Set 동일 비교."
+    - "viewer 본인의 체크리스트와 비교할 때, viewer가 멤버 목록에 포함되어 있다면 자기 자신의 모든 항목은 matched=true."
 
 # ============================================================
 # 구현 대상 파일 (Implementation Phase)
 # ============================================================
 implementation_targets:
   new_files:
-    - "post/application/dto/response/RoommateMemberDetailResponse.java — userId/username/profileImage/role/lifestyleChecklist(nullable) 필드. static factory from(RoommateGroupMember, LifestyleChecklist nullable)"
-    - "checklist/application/dto/response/LifestyleChecklistResponse.java — 9개 항목 + sleepHabits 매핑 DTO. static factory from(LifestyleChecklist)"
+    - "post/application/dto/response/RoommateMemberDetailResponse.java — userId/username/profileImage/role/lifestyleChecklist(nullable) 필드. static factory from(RoommateGroupMember, LifestyleChecklistResponse nullable)"
+    - "checklist/application/dto/response/LifestyleChecklistResponse.java — 9개 ChecklistField<T> 항목. static factory from(LifestyleChecklist, List<LifestyleChecklistSleepHabit>, LifestyleChecklist viewerChecklist nullable, List<LifestyleChecklistSleepHabit> viewerSleepHabits)"
+    - "checklist/application/dto/response/ChecklistField.java — generic record { T value, Boolean matched }. of(value, matched) 헬퍼 제공"
   modified_files:
-    - "post/application/dto/response/RoommatePostDetailResponse.java — members 타입을 List<RoommateMemberDetailResponse>로 변경, from(post, sharedLifestyle, isOwner, members, checklistByUserId) 시그니처 확장"
-    - "post/application/usecase/RoommatePostUseCase.java — getPostDetail에서 멤버 조회 후 ChecklistGetService로 체크리스트 일괄 조회 및 Map<userId, checklist> 생성 후 응답 조립"
-    - "checklist/domain/service/ChecklistGetService.java — getChecklistsWithSleepHabitsByUserIds(List<Long> userIds): Map<Long, LifestyleChecklist> 메서드 추가. 체크리스트 IN 조회 → sleepHabits IN 조회 후 매핑"
+    - "post/application/dto/response/RoommatePostDetailResponse.java — members 타입을 List<RoommateMemberDetailResponse>로 변경, from(post, sharedLifestyle, isOwner, isBookmarked, members, checklistByUserId, roommatePreference) 시그니처로 확장"
+    - "post/application/usecase/RoommatePostUseCase.java — getPostDetail에서 멤버 조회 후 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId) 호출 → Map<userId, LifestyleChecklistResponse> 받아 응답 조립"
+    - "checklist/domain/service/ChecklistGetService.java — getChecklistResponsesByUserIds(Collection<Long> memberUserIds, Long viewerUserId): Map<Long, LifestyleChecklistResponse> 메서드 추가. 체크리스트 IN(memberUserIds ∪ {viewerUserId}) 조회 → sleepHabits IN 조회 → viewer 데이터 추출 후 멤버별 matched 계산"
     - "checklist/domain/repository/ChecklistRepository.java — findAllByUserIdInAndDeletedFalse(Collection<Long> userIds) 추가"
     - "checklist/domain/repository/LifestyleChecklistSleepHabitRepository.java — findByChecklistIdInAndDeletedFalse(Collection<Long> checklistIds) 추가 (없으면 신규)"
   reused_files:
@@ -248,17 +258,21 @@ testing_strategy:
     - "타인이 조회하면 isOwner=false 반환"
     - "members에 LEADER + 모든 MEMBER가 userId/username/profileImage/role/lifestyleChecklist 로 매핑되어 포함됨 확인"
     - "LEADER 단독 그룹(MEMBER 0명)도 members에 LEADER 1건 포함됨 확인"
-    - "체크리스트 등록한 멤버의 lifestyleChecklist에 9개 필드 + sleepHabits 리스트가 채워져 반환됨 확인"
-    - "sleepHabits 복수 등록(e.g. TOSS_AND_TURN + SNORING)이 리스트로 정확히 매핑되어 응답되는지 확인"
+    - "체크리스트 등록한 멤버의 lifestyleChecklist에 9개 ChecklistField 항목 + sleepHabits value 리스트가 채워져 반환됨 확인"
+    - "sleepHabits 복수 등록(e.g. TOSS_AND_TURN + SNORING)이 value 리스트로 정확히 매핑되어 응답되는지 확인"
+    - "viewer가 체크리스트 등록 상태에서 동일한 값을 가진 멤버의 항목은 matched=true"
+    - "viewer가 체크리스트 등록 상태에서 다른 값을 가진 멤버의 항목은 matched=false"
+    - "viewer.sleepHabits 와 member.sleepHabits 가 순서 무관 동일 집합이면 matched=true, 다른 집합이면 false"
   edge_cases:
     - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "이미 삭제된 postId → 404 POST_NOT_FOUND"
     - "탈퇴(Soft Delete)한 멤버는 members 목록에서 제외됨 확인"
     - "체크리스트 미등록 멤버 → lifestyleChecklist=null 로 반환되고 예외 발생하지 않음"
     - "LEADER가 체크리스트 미등록(이론적 케이스)인 경우에도 lifestyleChecklist=null 처리"
-    - "삭제(deleted=true)된 sleepHabit 항목은 lifestyleChecklist.sleepHabits에 포함되지 않음"
+    - "삭제(deleted=true)된 sleepHabit 항목은 lifestyleChecklist.sleepHabits.value에 포함되지 않음"
+    - "viewer 본인이 체크리스트 미등록인 경우 모든 멤버의 모든 ChecklistField.matched=null"
   query_verification:
-    - "모집글 조회 1회 + 그룹 멤버 조회 1회 + 체크리스트 IN 조회 1회 + sleepHabits IN 조회 1회 = 총 4회로 처리 확인(N+1 미발생)"
+    - "모집글 조회 1회 + 그룹 멤버 조회 1회 + 체크리스트 IN 조회 1회(memberUserIds ∪ {viewerUserId}) + sleepHabits IN 조회 1회 = 총 4회로 처리 확인(N+1 미발생)"
     - "JOIN FETCH m.user 로 멤버 조회 시 user 추가 쿼리 발생하지 않음 확인"
 
 # ============================================================
@@ -271,7 +285,8 @@ notes:
   - "PostSharedLifestyle 조회는 기존 RoommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId)를 재사용 (post + user fetch join)."
   - "그룹 멤버 조회는 RoommateGroupMemberRepository.findActiveMembersWithUserByPostId(postId)로 m.group.post.id 조인 + m.user fetch join. 그룹을 별도 조회하지 않아 쿼리 1회로 처리."
   - "응답 멤버 매핑은 기존 roommategroup.GroupMemberResponse 대신 post 도메인 전용 RoommateMemberDetailResponse 신규 도입. 이유: 체크리스트 필드는 본 API에만 필요하므로 타 API(예: my-roommate-groups) 응답을 오염시키지 않기 위함."
-  - "체크리스트 일괄 조회는 ChecklistGetService.getChecklistsWithSleepHabitsByUserIds(userIds)로 캡슐화. 내부에서 ChecklistRepository.findAllByUserIdInAndDeletedFalse → 결과 checklistIds로 LifestyleChecklistSleepHabitRepository.findByChecklistIdInAndDeletedFalse 호출 후 Map<Long userId, LifestyleChecklist+List<SleepHabit>> 형태로 조립."
+  - "체크리스트 일괄 조회는 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId)로 캡슐화. 내부에서 memberUserIds ∪ {viewerUserId}로 ChecklistRepository.findAllByUserIdInAndDeletedFalse → 결과 checklistIds로 LifestyleChecklistSleepHabitRepository.findByChecklistIdInAndDeletedFalse 호출 → viewer 본인 데이터를 분리 추출 후 멤버 데이터와 비교하여 ChecklistField.matched 계산. 결과는 Map<Long userId, LifestyleChecklistResponse> 형태."
+  - "각 ChecklistField.matched 계산 규칙: viewer 체크리스트 미등록(null) → 모든 항목 matched=null. 등록 상태 → Objects.equals(viewer.value, member.value)로 비교, sleepHabits 한정 Set 동일 비교."
   - "체크리스트 미등록 멤버는 lifestyleChecklist=null. 프론트엔드는 null일 때 '미등록' UI 표시 정책 협의 필요."
   - "체크리스트 노출 권한: 모든 인증 사용자(외부인 포함). 매칭 의사결정 정보로 공개되는 것이 의도된 정책. 향후 권한 축소(그룹 멤버 한정 등) 요구가 생기면 별도 정책 결정."
   - "탈퇴/해체된 그룹의 모집글은 RoommatePost.deleted=true이므로 본 조회에서 POST_NOT_FOUND로 사전 차단된다."
