@@ -69,11 +69,10 @@ public class ChatRoomGetService {
     }
 
     public ChatRoomParticipant getActiveParticipant(Long roomId, Long userId) {
-        if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
-            throw new ChatRoomNotFoundException();
-        }
         return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndStatusAndDeletedFalse(roomId, userId, ParticipantStatus.ACTIVE)
-                .orElseThrow(NotChatParticipantException::new);
+                .orElseThrow(() -> chatRoomRepository.existsByIdAndDeletedFalse(roomId)
+                        ? new NotChatParticipantException()
+                        : new ChatRoomNotFoundException());
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {
