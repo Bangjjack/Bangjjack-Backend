@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
+import com.project.bangjjack.domain.checklist.application.dto.response.ChecklistField;
 import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.domain.entity.Bedtime;
 import com.project.bangjjack.domain.checklist.domain.entity.CallHabit;
@@ -45,6 +46,7 @@ import static com.project.bangjjack.domain.post.application.usecase.RoommatePost
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -78,17 +80,17 @@ class RoommatePostUseCaseGetDetailTest {
         return member;
     }
 
-    private static LifestyleChecklistResponse checklistResponse(List<SleepHabit> sleepHabits) {
+    private static LifestyleChecklistResponse checklistResponse(List<SleepHabit> sleepHabits, Boolean matched) {
         return new LifestyleChecklistResponse(
-                Bedtime.BETWEEN_22_24,
-                WakeUpTime.BETWEEN_6_8,
-                sleepHabits,
-                CleaningCycle.ONCE_OR_TWICE_A_WEEK,
-                DormStayTime.HALF_AND_HALF,
-                CallHabit.OUTSIDE_ONLY,
-                IndoorTemperature.INSENSITIVE,
-                NoiseSensitivity.NORMAL,
-                Smoking.NON_SMOKER
+                ChecklistField.of(Bedtime.BETWEEN_22_24, matched),
+                ChecklistField.of(WakeUpTime.BETWEEN_6_8, matched),
+                ChecklistField.of(sleepHabits, matched),
+                ChecklistField.of(CleaningCycle.ONCE_OR_TWICE_A_WEEK, matched),
+                ChecklistField.of(DormStayTime.HALF_AND_HALF, matched),
+                ChecklistField.of(CallHabit.OUTSIDE_ONLY, matched),
+                ChecklistField.of(IndoorTemperature.INSENSITIVE, matched),
+                ChecklistField.of(NoiseSensitivity.NORMAL, matched),
+                ChecklistField.of(Smoking.NON_SMOKER, matched)
         );
     }
 
@@ -110,7 +112,7 @@ class RoommatePostUseCaseGetDetailTest {
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -137,7 +139,7 @@ class RoommatePostUseCaseGetDetailTest {
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(viewerId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -159,7 +161,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(true);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -181,7 +183,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -208,7 +210,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -237,7 +239,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -250,7 +252,7 @@ class RoommatePostUseCaseGetDetailTest {
         }
 
         @Test
-        @DisplayName("체크리스트 등록한 멤버는 9개 항목 + sleepHabits 리스트가 채워져 응답된다")
+        @DisplayName("체크리스트 등록한 멤버는 9개 ChecklistField + sleepHabits.value 리스트가 채워져 응답된다")
         void 체크리스트_등록_멤버_응답_매핑() {
             // given
             Long ownerId = 1L;
@@ -261,11 +263,11 @@ class RoommatePostUseCaseGetDetailTest {
             RoommateGroupMember leader = mockMember(owner, GroupMemberRole.LEADER);
             RoommateGroupMember m1 = mockMember(member1, GroupMemberRole.MEMBER);
             List<RoommateGroupMember> members = List.of(leader, m1);
-            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.SNORING));
+            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.SNORING), true);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection()))
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong()))
                     .willReturn(Map.of(ownerId, leaderChecklist));
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
@@ -276,8 +278,8 @@ class RoommatePostUseCaseGetDetailTest {
             assertThat(response.members()).hasSize(2);
             RoommateMemberDetailResponse leaderResponse = response.members().getFirst();
             assertThat(leaderResponse.lifestyleChecklist()).isNotNull();
-            assertThat(leaderResponse.lifestyleChecklist().bedtime()).isEqualTo(Bedtime.BETWEEN_22_24);
-            assertThat(leaderResponse.lifestyleChecklist().sleepHabits())
+            assertThat(leaderResponse.lifestyleChecklist().bedtime().value()).isEqualTo(Bedtime.BETWEEN_22_24);
+            assertThat(leaderResponse.lifestyleChecklist().sleepHabits().value())
                     .containsExactly(SleepHabit.TOSS_AND_TURN, SleepHabit.SNORING);
         }
 
@@ -293,11 +295,11 @@ class RoommatePostUseCaseGetDetailTest {
             RoommateGroupMember leader = mockMember(owner, GroupMemberRole.LEADER);
             RoommateGroupMember m1 = mockMember(member1, GroupMemberRole.MEMBER);
             List<RoommateGroupMember> members = List.of(leader, m1);
-            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.NONE));
+            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.NONE), true);
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection()))
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong()))
                     .willReturn(Map.of(ownerId, leaderChecklist));
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
@@ -311,9 +313,10 @@ class RoommatePostUseCaseGetDetailTest {
         }
 
         @Test
-        @DisplayName("체크리스트 일괄 조회는 활성 멤버의 userId 전체를 IN 절로 전달한다")
+        @DisplayName("체크리스트 일괄 조회는 활성 멤버의 userId 전체와 viewer userId를 전달한다")
         void 체크리스트_일괄_조회_userIds_전달() {
             // given
+            Long viewerId = 99L;
             Long ownerId = 1L;
             User owner = userWithId(ownerId);
             User member1 = userWithId(2L);
@@ -328,16 +331,18 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection())).willReturn(Map.of());
+            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
-            roommatePostUseCase.getPostDetail(ownerId, 1L);
+            roommatePostUseCase.getPostDetail(viewerId, 1L);
 
             // then
-            ArgumentCaptor<Collection<Long>> captor = ArgumentCaptor.forClass(Collection.class);
-            verify(checklistGetService).getChecklistResponsesByUserIds(captor.capture());
-            assertThat(captor.getValue()).containsExactly(1L, 2L, 3L);
+            ArgumentCaptor<Collection<Long>> userIdsCaptor = ArgumentCaptor.forClass(Collection.class);
+            ArgumentCaptor<Long> viewerCaptor = ArgumentCaptor.forClass(Long.class);
+            verify(checklistGetService).getChecklistResponsesByUserIds(userIdsCaptor.capture(), viewerCaptor.capture());
+            assertThat(userIdsCaptor.getValue()).containsExactly(1L, 2L, 3L);
+            assertThat(viewerCaptor.getValue()).isEqualTo(viewerId);
         }
 
         @Test
