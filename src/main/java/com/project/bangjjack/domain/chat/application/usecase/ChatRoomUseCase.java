@@ -81,8 +81,10 @@ public class ChatRoomUseCase {
     }
 
     private ChatRoomCursor decodeCursor(String cursor) {
-        ChatRoomCursor decoded = ChatRoomCursor.decodeOrNull(cursor);
-        return decoded != null ? decoded : new ChatRoomCursor(null, null);
+        if (cursor == null) {
+            return new ChatRoomCursor(null, null);
+        }
+        return ChatRoomCursor.decode(cursor);
     }
 
     private List<ChatRoomSummaryResponse> buildChatRoomSummaries(

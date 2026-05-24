@@ -6,11 +6,6 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 
 public record ChatRoomCursor(Long roomId, LocalDateTime lastMessageAt) {
-
-    public static ChatRoomCursor decodeOrNull(String encoded) {
-        return encoded != null ? decode(encoded) : null;
-    }
-
     public static ChatRoomCursor decode(String encoded) {
         try {
             String raw = new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
