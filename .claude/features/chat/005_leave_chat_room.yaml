@@ -1,6 +1,6 @@
 # Feature Specification: 채팅방 나가기
 # Status: Draft
-# Last Updated: 2026-05-24
+# Last Updated: 2026-05-25
 
 meta:
   id: FEAT-CHAT-005
@@ -87,13 +87,15 @@ technical_spec:
 
   auto_rejoin:
     trigger: "파트너가 메시지 전송 시 수신자 status=LEFT 감지 (003 메시지 전송 UseCase에서 처리)"
-    action: "수신자 participant.status=ACTIVE 복원. ChatRoom.status=CLOSED이면 reopen()."
+    action: "수신자 participant.status=ACTIVE 복원."
+    note: "ChatRoom.status=CLOSED인 경우 양쪽 모두 LEFT이므로 auto_rejoin 대상 아님. 재대화는 채팅방 생성 API(001) 재호출로 새 방 생성."
     result: "수신자 채팅방 목록 재노출. 전체 히스토리 그대로 유지."
 
   side_effects:
     my_view:
       - "채팅방 목록 조회 시 해당 방 미노출 (status=LEFT 필터)"
       - "메시지 전송 시 NOT_CHAT_PARTICIPANT(40604) 예외"
+      - "메시지 조회 시 NOT_CHAT_PARTICIPANT(40604) 예외 (LEFT 상태에서는 조회 불가)"
       - "파트너 메시지 수신 시 자동 재참여 → 채팅방 목록 재노출, 전체 히스토리 유지"
     partner_view:
       - "채팅방 목록에서 해당 방 유지"
