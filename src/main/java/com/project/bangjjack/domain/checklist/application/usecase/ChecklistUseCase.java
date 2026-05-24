@@ -1,10 +1,14 @@
 package com.project.bangjjack.domain.checklist.application.usecase;
 
 import com.project.bangjjack.domain.checklist.application.dto.request.LifestyleChecklistRequest;
+import com.project.bangjjack.domain.checklist.application.dto.response.MyLifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.application.exception.AlreadyChecklistRegisteredException;
+import com.project.bangjjack.domain.checklist.application.exception.ChecklistNotFoundException;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
+import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistCreateService;
+import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +24,7 @@ public class ChecklistUseCase {
 
     private final UserGetService userGetService;
     private final ChecklistCreateService checklistCreateService;
+    private final ChecklistGetService checklistGetService;
 
     @Transactional
     public void registerChecklist(Long userId, LifestyleChecklistRequest request) {
@@ -37,5 +42,14 @@ public class ChecklistUseCase {
         checklistCreateService.createSleepHabits(sleepHabits);
 
         user.completeChecklistRegistration();
+    }
+
+    public MyLifestyleChecklistResponse getMyChecklist(Long userId) {
+        User user = userGetService.getById(userId);
+        LifestyleChecklist checklist = checklistGetService.findByUser(user)
+                .orElseThrow(ChecklistNotFoundException::new);
+        List<LifestyleChecklistSleepHabit> sleepHabits = checklistGetService.findSleepHabitsByChecklist(checklist);
+
+        return MyLifestyleChecklistResponse.from(new ChecklistBundle(checklist, sleepHabits));
     }
 }
