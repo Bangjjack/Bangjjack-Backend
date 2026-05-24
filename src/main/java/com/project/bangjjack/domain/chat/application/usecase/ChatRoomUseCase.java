@@ -127,7 +127,7 @@ public class ChatRoomUseCase {
     }
 
     @Transactional
-    public void leaveChatRoom(long roomId, Long userId) {
+    public void leaveChatRoom(Long roomId, Long userId) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
         participant.leave();
 

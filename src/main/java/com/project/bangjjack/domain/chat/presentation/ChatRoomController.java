@@ -66,7 +66,7 @@ public class ChatRoomController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public CommonResponse<Void> leaveChatRoom(
             @CurrentMemberId Long currentMemberId,
-            @PathVariable long roomId) {
+            @PathVariable Long roomId) {
         chatRoomUseCase.leaveChatRoom(roomId, currentMemberId);
         return CommonResponse.success(ChatRoomResponseCode.CHAT_ROOM_LEFT, null);
     }
