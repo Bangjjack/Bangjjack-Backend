@@ -1,0 +1,176 @@
+# Feature Specification: 본인 생활습관 체크리스트 조회
+# Status: Draft
+# Last Updated: 2026-05-24
+
+meta:
+  id: FEAT-006
+  title: 본인 생활습관 체크리스트 조회
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    로그인한 사용자가 본인이 등록한 생활습관 체크리스트(9개 항목)를 단건 조회한다.
+  user_story: >
+    As a 체크리스트를 등록한 사용자, I want to 내가 등록한 생활습관 체크리스트를 조회하고,
+    so that 등록한 내용을 다시 확인하거나 향후 수정 화면에 진입할 수 있다.
+  goals:
+    - 본인 체크리스트 9개 항목을 단일 GET API로 조회
+    - 미등록 사용자는 404로 명시하여 클라이언트가 등록 안내 화면으로 분기 가능
+    - 타인 비교용(matched) 로직과 분리된 본인 전용 응답 DTO 제공
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/users/me/checklist
+      summary: 본인 생활습관 체크리스트 단건 조회
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        dto: 없음 (Path/Query/Body 파라미터 없음)
+        fields: []
+      response:
+        dto: MyLifestyleChecklistResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<MyLifestyleChecklistResponse>
+        fields:
+          - name: bedtime
+            type: String (Enum: Bedtime)
+            description: "취침 시간"
+          - name: wakeUpTime
+            type: String (Enum: WakeUpTime)
+            description: "기상 시간"
+          - name: sleepHabits
+            type: List<String (Enum: SleepHabit)>
+            description: "잠버릇 목록 (복수)"
+          - name: cleaningCycle
+            type: String (Enum: CleaningCycle)
+            description: "청소 주기"
+          - name: dormStayTime
+            type: String (Enum: DormStayTime)
+            description: "기숙사 체류 시간"
+          - name: callHabit
+            type: String (Enum: CallHabit)
+            description: "통화 습관"
+          - name: indoorTemperature
+            type: String (Enum: IndoorTemperature)
+            description: "실내 온도 민감도"
+          - name: noiseSensitivity
+            type: String (Enum: NoiseSensitivity)
+            description: "소음 민감도"
+          - name: smoking
+            type: String (Enum: Smoking)
+            description: "흡연 여부"
+
+  data_flow:
+    - step: 1
+      layer: Presentation (ChecklistController)
+      action: "@CurrentMemberId로 JWT에서 userId 추출 후 ChecklistUseCase.getMyChecklist(userId) 호출"
+    - step: 2
+      layer: UseCase (ChecklistUseCase)
+      action: "UserGetService.getById(userId)로 User 조회"
+      transaction: "@Transactional(readOnly = true) (클래스 기본값 적용)"
+    - step: 3
+      layer: Domain (ChecklistGetService)
+      action: "findByUser(user)로 LifestyleChecklist 조회. Optional이 비어 있으면 ChecklistNotFoundException 발생"
+    - step: 4
+      layer: Domain (ChecklistGetService)
+      action: "findSleepHabitsByChecklist(checklist)로 잠버릇 목록 조회"
+    - step: 5
+      layer: UseCase (ChecklistUseCase)
+      action: "ChecklistBundle(checklist, sleepHabits) 구성 후 MyLifestyleChecklistResponse.from(bundle) 변환"
+    - step: 6
+      layer: Response
+      action: "200 OK with CommonResponse<MyLifestyleChecklistResponse>"
+
+  database:
+    entities:
+      - name: LifestyleChecklist
+        action: Read
+        fields: "user_id 기준 단건 조회 (deleted = false). user_id에 UNIQUE 인덱스 존재."
+      - name: LifestyleChecklistSleepHabit
+        action: Read
+        fields: "checklist_id 기준 다건 조회 (deleted = false)"
+
+  validation_rules:
+    - "MEMBER 권한 필요 (JWT 미존재/만료 → 401)"
+    - "userId로 User 조회 실패 시 → 404 USER_NOT_FOUND (User 도메인 공용 코드 40203)"
+    - "본인 체크리스트 미등록(LifestyleChecklist 없음) 시 → 404 CHECKLIST_NOT_FOUND (40502)"
+
+  error_codes:
+    domain_range: "405xx (Checklist 도메인) — 기존 코드 재사용. 신규 코드 없음."
+    codes:
+      - code: 40502
+        name: CHECKLIST_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "생활습관 체크리스트를 찾을 수 없습니다."
+        trigger: "본인 체크리스트 조회 시 등록 이력이 없는 경우"
+        note: "기존 등록 스펙에서 예약된 코드 재사용 (ChecklistErrorCode.CHECKLIST_NOT_FOUND). 클라이언트는 4xx 분기로 '체크리스트 등록' 화면으로 라우팅."
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "JWT userId로 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 사용"
+
+  response_codes:
+    new_code:
+      - code: 200
+        name: MY_CHECKLIST_FOUND
+        status: 200 OK
+        message: "본인 생활습관 체크리스트를 조회했습니다."
+        note: "ChecklistResponseCode enum에 추가 필요 — 기존 등록/선호도 등록 코드와 동일 enum 내 정의"
+
+# ============================================================
+# 신규/변경 컴포넌트
+# ============================================================
+components:
+  new:
+    - layer: Application/DTO
+      file: domain/checklist/application/dto/response/MyLifestyleChecklistResponse.java
+      type: record
+      description: "본인 조회 전용 응답. ChecklistField 미사용 (matched 비교 로직 없음). value만 노출."
+      factory: "static from(ChecklistBundle bundle): bundle.checklist()의 9개 필드 + sleepHabits 매핑"
+    - layer: Application/UseCase
+      method: "ChecklistUseCase.getMyChecklist(Long userId): MyLifestyleChecklistResponse"
+      description: "본인 체크리스트 조회. 미등록 시 ChecklistNotFoundException."
+    - layer: Presentation/Controller
+      method: "ChecklistController.getMyChecklist(@CurrentMemberId Long memberId)"
+      mapping: "GET /api/v1/users/me/checklist"
+      status: 200 OK
+    - layer: Presentation/ResponseCode
+      file: domain/checklist/presentation/response/ChecklistResponseCode.java
+      enum_value: "MY_CHECKLIST_FOUND(200, HttpStatus.OK, \"본인 생활습관 체크리스트를 조회했습니다.\")"
+  reuse:
+    - "ChecklistGetService.findByUser(User): Optional<LifestyleChecklist> — 기존 메서드 재사용"
+    - "ChecklistGetService.findSleepHabitsByChecklist(LifestyleChecklist): List<LifestyleChecklistSleepHabit> — 기존 메서드 재사용"
+    - "ChecklistBundle(checklist, sleepHabits) record — 기존 재사용"
+    - "ChecklistNotFoundException — 기존 재사용"
+    - "UserGetService.getById(userId) — User 도메인 공용 메서드 재사용"
+    - "@CurrentMemberId 어노테이션 — 기존 인증 컨텍스트 재사용"
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "체크리스트 등록된 사용자가 GET 호출 시 200 OK + 9개 필드 모두 채워진 응답 반환"
+    - "sleepHabits가 복수(예: [TOSS_AND_TURN, SNORING])인 경우 List에 모두 포함되어 응답"
+    - "sleepHabits가 단일(예: [NONE])인 경우에도 List로 정상 응답"
+  edge_cases:
+    - "체크리스트 미등록 사용자가 GET 호출 시 → 404 CHECKLIST_NOT_FOUND (40502)"
+    - "JWT가 가리키는 userId로 User 조회 실패 시 → 404 USER_NOT_FOUND (40203)"
+    - "JWT 누락 또는 만료 → 401 UNAUTHORIZED (글로벌 인증 필터)"
+    - "soft delete된 체크리스트(deletedAt 존재) → findByUserAndDeletedFalse 쿼리로 제외되어 404"
+
+# ============================================================
+# 주의사항
+# ============================================================
+notes:
+  - "본인 조회는 matched 비교가 무의미하므로 기존 LifestyleChecklistResponse(viewerBundle 기반)와 분리된 신규 DTO 사용."
+  - "쿼리 2회(checklist 단건 + sleepHabits 단건) 발생. 사용자당 체크리스트 1개·잠버릇 최대 5건 수준이라 N+1 이슈 없음."
+  - "향후 체크리스트 수정(PATCH) API 추가 시 동일 GET 응답 DTO 재사용 가능."
+  - "User.isChecklistRegistered 플래그로 사전 분기도 가능하나, 정합성(플래그-실제 row) 보장 부담을 줄이기 위해 실제 LifestyleChecklist 조회 결과로 판정."
+  - "check_error_codes.py 실행 불필요 (신규 ErrorCode 추가 없음). ChecklistResponseCode에 MY_CHECKLIST_FOUND 추가만 발생."
