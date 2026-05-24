@@ -14,6 +14,8 @@ public interface ChatRoomParticipantRepository extends JpaRepository<ChatRoomPar
 
     List<ChatRoomParticipant> findByChatRoomIdAndStatusAndDeletedFalse(Long chatRoomId, ParticipantStatus status);
 
+    List<ChatRoomParticipant> findByChatRoomIdAndDeletedFalse(Long chatRoomId);
+
     boolean existsByChatRoomIdAndUserIdAndStatusAndDeletedFalse(Long chatRoomId, Long userId, ParticipantStatus status);
 
     Optional<ChatRoomParticipant> findByChatRoomIdAndUserIdAndStatusAndDeletedFalse(Long chatRoomId, Long userId, ParticipantStatus status);

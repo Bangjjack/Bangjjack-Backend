@@ -32,6 +32,10 @@ public class ChatRoomGetService {
                 .orElseThrow(ChatRoomNotFoundException::new);
     }
 
+    public List<ChatRoomParticipant> findAllParticipantsByRoomId(Long roomId) {
+        return chatRoomParticipantRepository.findByChatRoomIdAndDeletedFalse(roomId);
+    }
+
     public List<ChatRoomParticipant> findParticipantsByRoomId(Long roomId) {
         return chatRoomParticipantRepository.findByChatRoomIdAndStatusAndDeletedFalse(roomId, ParticipantStatus.ACTIVE);
     }

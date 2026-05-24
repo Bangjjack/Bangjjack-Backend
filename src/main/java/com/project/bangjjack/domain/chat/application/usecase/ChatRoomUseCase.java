@@ -58,7 +58,7 @@ public class ChatRoomUseCase {
                             chatRoom.reopen();
                         }
                     });
-            List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
+            List<ChatRoomParticipant> participants = chatRoomGetService.findAllParticipantsByRoomId(chatRoom.getId());
             return ChatRoomResponse.from(chatRoom, participants, false);
         }
 
