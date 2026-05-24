@@ -60,12 +60,10 @@ public class ChatRoomGetService {
         }
     }
 
-    public ChatRoom getByIdAndValidateParticipant(Long roomId, Long userId) {
-        ChatRoom chatRoom = getById(roomId);
+    public void validateActiveParticipant(Long roomId, Long userId) {
         if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndStatusAndDeletedFalse(roomId, userId, ParticipantStatus.ACTIVE)) {
             throw new NotChatParticipantException();
         }
-        return chatRoom;
     }
 
     public ChatRoomParticipant getActiveParticipant(Long roomId, Long userId) {

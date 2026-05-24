@@ -51,12 +51,14 @@ public class ChatMessageUseCase {
         // TODO: 운영 환경 전환 시 content 제거 또는 contentLength로 변경 (PII)
         log.debug("[채팅 송신] 시작 - senderId={}, roomId={}, content='{}'", senderId, roomId, request.content());
 
-        ChatRoom chatRoom = chatRoomGetService.getByIdAndValidateParticipant(roomId, senderId);
+        ChatRoom chatRoom = chatRoomGetService.getById(roomId);
 
         if (chatRoom.getStatus() == RoomStatus.CLOSED) {
             log.warn("[채팅 송신] 종료된 채팅방 전송 시도 - senderId={}, roomId={}", senderId, roomId);
             throw new ChatRoomClosedException();
         }
+
+        chatRoomGetService.validateActiveParticipant(roomId, senderId);
 
         chatRoomGetService.findLeftParticipantsByRoomId(roomId, senderId)
                 .forEach(ChatRoomParticipant::rejoin);
