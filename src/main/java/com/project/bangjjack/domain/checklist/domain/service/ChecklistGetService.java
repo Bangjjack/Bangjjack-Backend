@@ -11,9 +11,11 @@ import org.springframework.stereotype.Service;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,12 +33,17 @@ public class ChecklistGetService {
         return sleepHabitRepository.findByChecklistAndDeletedFalse(checklist);
     }
 
-    public Map<Long, LifestyleChecklistResponse> getChecklistResponsesByUserIds(Collection<Long> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
+    public Map<Long, LifestyleChecklistResponse> getChecklistResponsesByUserIds(Collection<Long> memberUserIds, Long viewerUserId) {
+        if (memberUserIds == null || memberUserIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        List<LifestyleChecklist> checklists = checklistRepository.findAllByUserIdInAndDeletedFalse(userIds);
+        Set<Long> lookupIds = new HashSet<>(memberUserIds);
+        if (viewerUserId != null) {
+            lookupIds.add(viewerUserId);
+        }
+
+        List<LifestyleChecklist> checklists = checklistRepository.findAllByUserIdInAndDeletedFalse(lookupIds);
         if (checklists.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -46,12 +53,25 @@ public class ChecklistGetService {
                 .findByChecklistIdInAndDeletedFalse(checklistIds).stream()
                 .collect(Collectors.groupingBy(habit -> habit.getChecklist().getId()));
 
-        return checklists.stream().collect(Collectors.toMap(
-                checklist -> checklist.getUser().getId(),
-                checklist -> LifestyleChecklistResponse.from(
-                        checklist,
-                        sleepHabitsByChecklistId.getOrDefault(checklist.getId(), List.of())
-                )
-        ));
+        LifestyleChecklist viewerChecklist = viewerUserId == null ? null : checklists.stream()
+                .filter(c -> viewerUserId.equals(c.getUser().getId()))
+                .findFirst()
+                .orElse(null);
+        List<LifestyleChecklistSleepHabit> viewerSleepHabits = viewerChecklist == null
+                ? List.of()
+                : sleepHabitsByChecklistId.getOrDefault(viewerChecklist.getId(), List.of());
+
+        Set<Long> memberIdSet = new HashSet<>(memberUserIds);
+        return checklists.stream()
+                .filter(c -> memberIdSet.contains(c.getUser().getId()))
+                .collect(Collectors.toMap(
+                        c -> c.getUser().getId(),
+                        c -> LifestyleChecklistResponse.from(
+                                c,
+                                sleepHabitsByChecklistId.getOrDefault(c.getId(), List.of()),
+                                viewerChecklist,
+                                viewerSleepHabits
+                        )
+                ));
     }
 }

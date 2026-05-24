@@ -119,7 +119,7 @@ public class RoommatePostUseCase {
         boolean isBookmarked = bookmarkGetService.existsActiveBookmark(userId, postId);
         List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
         List<Long> memberUserIds = members.stream().map(member -> member.getUser().getId()).toList();
-        Map<Long, LifestyleChecklistResponse> checklistByUserId = checklistGetService.getChecklistResponsesByUserIds(memberUserIds);
+        Map<Long, LifestyleChecklistResponse> checklistByUserId = checklistGetService.getChecklistResponsesByUserIds(memberUserIds, userId);
         RoommatePreference preference = roommatePreferenceGetService.getByUser(post.getUser());
         return RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members, checklistByUserId, RoommatePreferenceResponse.from(preference));
     }
