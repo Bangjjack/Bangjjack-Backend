@@ -166,5 +166,5 @@ testing_strategy:
     - APPLICATION 필터 + hasNext=true → nextCursor 설정
   edge_cases:
     - APPLICATION 필터 + 해당 방 없음 → 빈 리스트
-    - CLOSED 상태 채팅방도 목록에 포함
+    - CLOSED 상태 채팅방은 목록에서 제외
     - 파트너 participant soft-delete → partner 필드 null로 반환
