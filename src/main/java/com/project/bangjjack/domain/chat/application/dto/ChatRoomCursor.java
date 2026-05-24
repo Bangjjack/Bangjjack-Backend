@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.chat.application.dto;
 
+import com.project.bangjjack.domain.chat.application.exception.InvalidChatRoomCursorException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
@@ -19,7 +20,7 @@ public record ChatRoomCursor(Long roomId, LocalDateTime lastMessageAt) {
             LocalDateTime lastMessageAt = timeStr.isEmpty() ? null : LocalDateTime.parse(timeStr);
             return new ChatRoomCursor(roomId, lastMessageAt);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid cursor format", e);
+            throw new InvalidChatRoomCursorException();
         }
     }
 

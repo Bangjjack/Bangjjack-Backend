@@ -17,6 +17,7 @@ public enum ChatRoomErrorCode implements ErrorCodeInterface {
     INVALID_MESSAGE_CONTENT(40606, HttpStatus.BAD_REQUEST, "유효하지 않은 메시지 내용입니다."),
     INVALID_WS_MESSAGE_FORMAT(40607, HttpStatus.BAD_REQUEST, "메시지 형식이 올바르지 않습니다."),
     MISSING_MESSAGE_TYPE(40608, HttpStatus.BAD_REQUEST, "메시지 타입이 없습니다."),
+    INVALID_CHAT_ROOM_CURSOR(40609, HttpStatus.BAD_REQUEST, "채팅방 커서 형식이 올바르지 않습니다."),
     WS_INTERNAL_ERROR(50601, HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다.");
 
     private final int code;
