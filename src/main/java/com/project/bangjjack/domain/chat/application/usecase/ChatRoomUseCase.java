@@ -46,7 +46,6 @@ public class ChatRoomUseCase {
 
         String directRoomKey = chatRoomCreateService.createDirectKey(currentUserId, request.targetUserId());
 
-        // TODO: 동시 요청 시 두 스레드가 모두 existing=empty를 보고 방을 중복 생성할 수 있음, 빈도가 낮아 현재는 허용하되, 문제가 되면 Redis 분산락으로 directRoomKey 단위 잠금 적용
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {
             ChatRoom chatRoom = existing.get();
@@ -58,6 +57,7 @@ public class ChatRoomUseCase {
             return ChatRoomResponse.from(chatRoom, participants, false);
         }
 
+        // TODO: 최초 방 생성 시 동시 요청이 들어오면 directRoomKey unique 충돌로 500 가능. 필요 시 Redis 분산락 적용
         ChatRoom chatRoom = chatRoomCreateService.createDirectRoom(currentUserId, request.targetUserId(), directRoomKey);
         List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
         eventPublisher.publishEvent(new ChatRoomCreatedEvent(chatRoom.getId(), List.of(currentUserId, request.targetUserId())));
@@ -126,10 +126,5 @@ public class ChatRoomUseCase {
     public void leaveChatRoom(Long roomId, Long userId) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
         participant.leave();
-
-        List<ChatRoomParticipant> remaining = chatRoomGetService.findParticipantsByRoomId(roomId);
-        if (remaining.isEmpty()) {
-            participant.getChatRoom().close();
-        }
     }
 }

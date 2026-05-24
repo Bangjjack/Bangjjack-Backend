@@ -5,13 +5,11 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBro
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
-import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
-import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -51,14 +49,7 @@ public class ChatMessageUseCase {
         // TODO: 운영 환경 전환 시 content 제거 또는 contentLength로 변경 (PII)
         log.debug("[채팅 송신] 시작 - senderId={}, roomId={}, content='{}'", senderId, roomId, request.content());
 
-        ChatRoom chatRoom = chatRoomGetService.getById(roomId);
-
-        if (chatRoom.getStatus() == RoomStatus.CLOSED) {
-            log.warn("[채팅 송신] 종료된 채팅방 전송 시도 - senderId={}, roomId={}", senderId, roomId);
-            throw new ChatRoomClosedException();
-        }
-
-        chatRoomGetService.validateActiveParticipant(roomId, senderId);
+        ChatRoom chatRoom = chatRoomGetService.getByIdAndValidateParticipant(roomId, senderId);
 
         chatRoomGetService.findLeftParticipantsByRoomId(roomId, senderId)
                 .forEach(ChatRoomParticipant::rejoin);

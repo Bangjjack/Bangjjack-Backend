@@ -55,7 +55,6 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             ChatRoomParticipant partnerParticipant = ChatRoomParticipant.create(chatRoom, partnerId);
 
             given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
-            given(chatRoomGetService.findParticipantsByRoomId(roomId)).willReturn(List.of(partnerParticipant));
 
             // when
             chatRoomUseCase.leaveChatRoom(roomId, userId);
@@ -66,8 +65,8 @@ class ChatRoomUseCaseLeaveChatRoomTest {
         }
 
         @Test
-        @DisplayName("마지막 참여자가 나가면 ChatRoom.status=CLOSED가 된다")
-        void 마지막_참여자가_나가면_채팅방이_CLOSED된다() {
+        @DisplayName("마지막 참여자가 나가도 채팅방은 OPEN 유지된다")
+        void 마지막_참여자가_나가도_채팅방은_OPEN_유지된다() {
             // given
             Long roomId = 1L;
             Long userId = 10L;
@@ -76,15 +75,13 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             ChatRoomParticipant myParticipant = ChatRoomParticipant.create(chatRoom, userId);
 
             given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
-            given(chatRoomGetService.findParticipantsByRoomId(roomId)).willReturn(List.of());
 
             // when
             chatRoomUseCase.leaveChatRoom(roomId, userId);
 
             // then
             assertThat(myParticipant.getStatus()).isEqualTo(ParticipantStatus.LEFT);
-            assertThat(chatRoom.getStatus()).isEqualTo(RoomStatus.CLOSED);
-            assertThat(chatRoom.getDirectRoomKey()).isEqualTo("DM_10_20");
+            assertThat(chatRoom.getStatus()).isEqualTo(RoomStatus.OPEN);
         }
 
         @Test
