@@ -54,7 +54,7 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             ChatRoomParticipant myParticipant = ChatRoomParticipant.create(chatRoom, userId);
             ChatRoomParticipant partnerParticipant = ChatRoomParticipant.create(chatRoom, partnerId);
 
-            given(chatRoomGetService.getParticipant(roomId, userId)).willReturn(myParticipant);
+            given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
             given(chatRoomGetService.findParticipantsByRoomId(roomId)).willReturn(List.of(partnerParticipant));
 
             // when
@@ -75,7 +75,7 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             ChatRoom chatRoom = ChatRoom.createDirect(userId, "DM_10_20");
             ChatRoomParticipant myParticipant = ChatRoomParticipant.create(chatRoom, userId);
 
-            given(chatRoomGetService.getParticipant(roomId, userId)).willReturn(myParticipant);
+            given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
             given(chatRoomGetService.findParticipantsByRoomId(roomId)).willReturn(List.of());
 
             // when
@@ -93,7 +93,7 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             long roomId = 999L;
             Long userId = 10L;
 
-            given(chatRoomGetService.getParticipant(roomId, userId))
+            given(chatRoomGetService.getActiveParticipant(roomId, userId))
                     .willThrow(new ChatRoomNotFoundException());
 
             // when & then
@@ -108,7 +108,7 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             long roomId = 1L;
             Long userId = 10L;
 
-            given(chatRoomGetService.getParticipant(roomId, userId))
+            given(chatRoomGetService.getActiveParticipant(roomId, userId))
                     .willThrow(new NotChatParticipantException());
 
             // when & then

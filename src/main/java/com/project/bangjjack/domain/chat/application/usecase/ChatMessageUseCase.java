@@ -71,7 +71,7 @@ public class ChatMessageUseCase {
 
     @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
-        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, currentUserId);
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, currentUserId);
 
         List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
 

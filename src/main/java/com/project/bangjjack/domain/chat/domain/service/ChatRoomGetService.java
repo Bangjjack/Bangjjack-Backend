@@ -64,7 +64,7 @@ public class ChatRoomGetService {
         return chatRoom;
     }
 
-    public ChatRoomParticipant getParticipant(Long roomId, Long userId) {
+    public ChatRoomParticipant getActiveParticipant(Long roomId, Long userId) {
         if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
             throw new ChatRoomNotFoundException();
         }

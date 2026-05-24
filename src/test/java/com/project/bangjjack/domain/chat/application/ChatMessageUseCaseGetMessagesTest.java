@@ -76,7 +76,7 @@ class ChatMessageUseCaseGetMessagesTest {
             int size = 30;
             List<Chat> chats = List.of(createChat());
 
-            given(chatRoomGetService.getParticipant(roomId, currentUserId)).willReturn(createParticipant(currentUserId));
+            given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(createParticipant(currentUserId));
             given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(chats);
 
             // when
@@ -86,7 +86,7 @@ class ChatMessageUseCaseGetMessagesTest {
             assertThat(response.messages()).hasSize(1);
             assertThat(response.hasNext()).isFalse();
             assertThat(response.nextCursor()).isNull();
-            then(chatRoomGetService).should().getParticipant(roomId, currentUserId);
+            then(chatRoomGetService).should().getActiveParticipant(roomId, currentUserId);
         }
 
         @Test
@@ -98,7 +98,7 @@ class ChatMessageUseCaseGetMessagesTest {
             // size+1개 반환 (도메인 서비스가 size+1 조회 → UseCase가 잘라냄)
             List<Chat> fetched = List.of(createChat(), createChat(), createChat());
 
-            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(fetched);
 
             // when
@@ -119,7 +119,7 @@ class ChatMessageUseCaseGetMessagesTest {
             int size = 2;
             List<Chat> fetched = List.of(createChat(), createChat());
 
-            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(fetched);
 
             // when
@@ -136,7 +136,7 @@ class ChatMessageUseCaseGetMessagesTest {
         void 메시지가_없으면_빈_리스트를_반환한다() {
             // given
             Long roomId = 10L;
-            given(chatRoomGetService.getParticipant(roomId, 1L)).willReturn(createParticipant(1L));
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
             given(chatMessageGetService.getMessages(roomId, null, 30)).willReturn(Collections.emptyList());
 
             // when
@@ -156,7 +156,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 999L;
 
             doThrow(new ChatRoomNotFoundException())
-                    .when(chatRoomGetService).getParticipant(roomId, currentUserId);
+                    .when(chatRoomGetService).getActiveParticipant(roomId, currentUserId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(currentUserId, roomId, null, 30))
@@ -171,7 +171,7 @@ class ChatMessageUseCaseGetMessagesTest {
             Long roomId = 10L;
 
             doThrow(new NotChatParticipantException())
-                    .when(chatRoomGetService).getParticipant(roomId, outsiderId);
+                    .when(chatRoomGetService).getActiveParticipant(roomId, outsiderId);
 
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(outsiderId, roomId, null, 30))

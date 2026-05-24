@@ -128,7 +128,7 @@ public class ChatRoomUseCase {
 
     @Transactional
     public void leaveChatRoom(long roomId, Long userId) {
-        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, userId);
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
         participant.leave();
 
         List<ChatRoomParticipant> remaining = chatRoomGetService.findParticipantsByRoomId(roomId);
