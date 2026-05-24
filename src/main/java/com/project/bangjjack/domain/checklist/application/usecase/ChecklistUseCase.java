@@ -73,12 +73,6 @@ public class ChecklistUseCase {
                 request.smoking()
         );
 
-        List<LifestyleChecklistSleepHabit> existingHabits = checklistGetService.findSleepHabitsByChecklist(checklist);
-        checklistUpdateService.softDeleteSleepHabits(existingHabits);
-
-        List<LifestyleChecklistSleepHabit> newHabits = request.sleepHabits().stream()
-                .map(habit -> LifestyleChecklistSleepHabit.create(checklist, habit))
-                .toList();
-        checklistCreateService.createSleepHabits(newHabits);
+        checklistUpdateService.replaceSleepHabits(checklist, request.sleepHabits());
     }
 }

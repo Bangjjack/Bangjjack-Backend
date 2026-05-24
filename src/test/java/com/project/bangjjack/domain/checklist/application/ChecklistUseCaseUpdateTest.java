@@ -10,7 +10,6 @@ import com.project.bangjjack.domain.checklist.domain.entity.CleaningCycle;
 import com.project.bangjjack.domain.checklist.domain.entity.DormStayTime;
 import com.project.bangjjack.domain.checklist.domain.entity.IndoorTemperature;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
-import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.NoiseSensitivity;
 import com.project.bangjjack.domain.checklist.domain.entity.SleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.Smoking;
@@ -24,17 +23,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -99,7 +97,6 @@ class ChecklistUseCaseUpdateTest {
 
             given(userGetService.getById(userId)).willReturn(user);
             given(checklistGetService.findByUser(user)).willReturn(Optional.of(checklist));
-            given(checklistGetService.findSleepHabitsByChecklist(checklist)).willReturn(new ArrayList<>());
 
             // when
             checklistUseCase.updateMyChecklist(userId, updateRequest(List.of(SleepHabit.TOSS_AND_TURN)));
@@ -116,36 +113,23 @@ class ChecklistUseCaseUpdateTest {
         }
 
         @Test
-        @DisplayName("수정 시 기존 잠버릇은 모두 소프트 삭제되고 신규 잠버릇이 일괄 삽입된다")
-        void 잠버릇_교체_검증() {
+        @DisplayName("수정 시 잠버릇 교체는 ChecklistUpdateService에 위임된다")
+        void 잠버릇_교체_위임_검증() {
             // given
             Long userId = 1L;
             User user = User.create("provider-123", "테스트유저", "test@gachon.ac.kr", null);
             LifestyleChecklist checklist = LifestyleChecklist.create(user, initialRequest());
-            List<LifestyleChecklistSleepHabit> existingHabits = new ArrayList<>(List.of(
-                    LifestyleChecklistSleepHabit.create(checklist, SleepHabit.SNORING)
-            ));
+            List<SleepHabit> newHabitTypes = List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.TEETH_GRINDING);
 
             given(userGetService.getById(userId)).willReturn(user);
             given(checklistGetService.findByUser(user)).willReturn(Optional.of(checklist));
-            given(checklistGetService.findSleepHabitsByChecklist(checklist)).willReturn(existingHabits);
 
             // when
-            checklistUseCase.updateMyChecklist(
-                    userId,
-                    updateRequest(List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.TEETH_GRINDING))
-            );
+            checklistUseCase.updateMyChecklist(userId, updateRequest(newHabitTypes));
 
             // then
-            then(checklistUpdateService).should().softDeleteSleepHabits(existingHabits);
-
-            @SuppressWarnings("unchecked")
-            ArgumentCaptor<List<LifestyleChecklistSleepHabit>> captor = ArgumentCaptor.forClass(List.class);
-            then(checklistCreateService).should().createSleepHabits(captor.capture());
-            List<LifestyleChecklistSleepHabit> saved = captor.getValue();
-            assertThat(saved).hasSize(2);
-            assertThat(saved.stream().map(LifestyleChecklistSleepHabit::getSleepHabit).toList())
-                    .containsExactly(SleepHabit.TOSS_AND_TURN, SleepHabit.TEETH_GRINDING);
+            then(checklistUpdateService).should().replaceSleepHabits(checklist, newHabitTypes);
+            then(checklistCreateService).shouldHaveNoInteractions();
         }
 
         @Test
@@ -159,7 +143,6 @@ class ChecklistUseCaseUpdateTest {
 
             given(userGetService.getById(userId)).willReturn(user);
             given(checklistGetService.findByUser(user)).willReturn(Optional.of(checklist));
-            given(checklistGetService.findSleepHabitsByChecklist(checklist)).willReturn(new ArrayList<>());
 
             // when
             checklistUseCase.updateMyChecklist(userId, updateRequest(List.of(SleepHabit.NONE)));
@@ -182,8 +165,8 @@ class ChecklistUseCaseUpdateTest {
             assertThatThrownBy(() -> checklistUseCase.updateMyChecklist(userId, updateRequest(List.of(SleepHabit.SNORING))))
                     .isInstanceOf(ChecklistNotFoundException.class);
 
-            then(checklistUpdateService).shouldHaveNoInteractions();
-            then(checklistCreateService).should(org.mockito.Mockito.never()).createSleepHabits(anyList());
+            then(checklistUpdateService).should(org.mockito.Mockito.never()).replaceSleepHabits(any(), anyList());
+            then(checklistCreateService).shouldHaveNoInteractions();
         }
     }
 }
