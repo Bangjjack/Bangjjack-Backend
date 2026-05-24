@@ -3,6 +3,7 @@ package com.project.bangjjack.domain.chat.application.usecase;
 import com.project.bangjjack.domain.chat.application.dto.ChatRoomCursor;
 import com.project.bangjjack.domain.chat.application.dto.request.CreateChatRoomRequest;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
+import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomListResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatRoomSummaryResponse;
@@ -49,6 +50,14 @@ public class ChatRoomUseCase {
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {
             ChatRoom chatRoom = existing.get();
+            chatRoomGetService.findParticipant(chatRoom.getId(), currentUserId)
+                    .filter(ChatRoomParticipant::isLeft)
+                    .ifPresent(p -> {
+                        p.rejoin();
+                        if (chatRoom.getStatus() == RoomStatus.CLOSED) {
+                            chatRoom.reopen();
+                        }
+                    });
             List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
             return ChatRoomResponse.from(chatRoom, participants, false);
         }

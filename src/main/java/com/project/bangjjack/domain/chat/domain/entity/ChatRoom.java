@@ -62,4 +62,8 @@ public class ChatRoom extends BaseEntity {
     public void close() {
         this.status = RoomStatus.CLOSED;
     }
+
+    public void reopen() {
+        this.status = RoomStatus.OPEN;
+    }
 }
