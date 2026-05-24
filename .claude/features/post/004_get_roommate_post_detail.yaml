@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 모집글 단건 조회
 # Status: Draft
-# Last Updated: 2026-05-24
+# Last Updated: 2026-05-24 (Domain Service의 Application DTO 반환 제거, ChecklistBundle 도입으로 레이어 의존 정상화)
 
 meta:
   id: FEAT-010
@@ -173,11 +173,14 @@ technical_spec:
       action: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) 호출 → 해당 모집글에 연결된 룸메이트 그룹의 활성 멤버 전체(LEADER + MEMBER)를 user fetch join으로 조회"
     - step: 6
       layer: UseCase (RoommatePostUseCase)
-      action: "멤버 목록에서 userIds 추출 후 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId) 호출 → Map<Long userId, LifestyleChecklistResponse> 반환. 내부에서 memberUserIds ∪ {viewerUserId} 전체에 대해 체크리스트 IN(1) + sleepHabits IN(1) 쿼리로 로드 후 viewer 데이터와 비교하여 각 항목 matched 값을 계산."
+      action: "memberUserIds ∪ {viewerUserId}로 ChecklistGetService.getChecklistBundlesByUserIds(userIds) 호출 → Map<Long userId, ChecklistBundle> 반환. 내부에서 체크리스트 IN(1) + sleepHabits IN(1) 쿼리로 로드 후 사용자별로 묶어서 반환(순수 데이터 조회)."
     - step: 7
       layer: UseCase (RoommatePostUseCase)
-      action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, members, checklistByUserId) 생성 후 반환 (members는 RoommateMemberDetailResponse.from(member, checklistByUserId.get(member.user.id))으로 매핑, 체크리스트 없으면 lifestyleChecklist=null)"
+      action: "viewerBundle = bundlesByUserId.get(viewerUserId) 추출 후, 멤버별 LifestyleChecklistResponse.from(memberBundle, viewerBundle)로 변환하여 Map<Long, LifestyleChecklistResponse> 조립. 멤버 bundle이 없으면 응답 맵에 포함하지 않음(미등록 멤버 표현)."
     - step: 8
+      layer: UseCase (RoommatePostUseCase)
+      action: "RoommatePostDetailResponse.from(post, sharedLifestyle, isOwner, isBookmarked, members, checklistByUserId, roommatePreference) 생성 후 반환 (members는 RoommateMemberDetailResponse.from(member, checklistByUserId.get(member.user.id))으로 매핑, 체크리스트 없으면 lifestyleChecklist=null)"
+    - step: 9
       layer: Response
       action: "200 OK, CommonResponse<RoommatePostDetailResponse> 반환"
 
@@ -191,12 +194,14 @@ technical_spec:
         - SharedLifestyleResponse:
             note: "static factory method from(PostSharedLifestyle) 사용"
         - RoommateMemberDetailResponse (List):
-            note: "post 도메인 신규 DTO. static factory method from(RoommateGroupMember, LifestyleChecklist nullable) 사용. 필드: userId, username, profileImage, role, lifestyleChecklist(nullable). 기존 roommategroup.GroupMemberResponse 재사용 대신 신규 도입(체크리스트 결합으로 인한 도메인 간 DTO 오염 회피)"
-            source: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) + ChecklistGetService.getChecklistsWithSleepHabitsByUserIds(userIds)"
+            note: "post 도메인 신규 DTO. static factory method from(RoommateGroupMember, LifestyleChecklistResponse nullable) 사용. 필드: userId, username, profileImage, role, lifestyleChecklist(nullable). 기존 roommategroup.GroupMemberResponse 재사용 대신 신규 도입(체크리스트 결합으로 인한 도메인 간 DTO 오염 회피)"
+            source: "RoommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId) + UseCase에서 조립한 Map<Long, LifestyleChecklistResponse>"
         - LifestyleChecklistResponse:
-            note: "checklist 도메인 신규 DTO. 각 9개 필드는 ChecklistField<T> = { value, matched } 래퍼. static factory method from(LifestyleChecklist, List<SleepHabit>, LifestyleChecklist viewerChecklist nullable, List<SleepHabit> viewerSleepHabits) 사용. viewerChecklist=null 이면 모든 matched=null, 아니면 viewer 값과 equals 비교(sleepHabits는 Set equality)."
+            note: "checklist 도메인 신규 DTO. 각 9개 필드는 ChecklistField<T> = { value, matched } 래퍼. static factory method from(ChecklistBundle bundle, ChecklistBundle viewerBundle nullable) 사용. viewerBundle=null 이면 모든 matched=null, 아니면 viewer 값과 equals 비교(sleepHabits는 Set equality)."
         - ChecklistField:
             note: "checklist 도메인 신규 generic record { T value, Boolean matched }. matched는 nullable(viewer 미등록 시 null). of(T value, Boolean matched) 헬퍼 제공."
+        - ChecklistBundle:
+            note: "checklist 도메인 신규 record { LifestyleChecklist checklist, List<LifestyleChecklistSleepHabit> sleepHabits }. Domain Service가 Application DTO를 반환하지 않도록 분리한 도메인 값 객체(레이어 의존 역전 회피)."
 
   error_codes:
     domain_range: "407xx (Post 도메인)"
@@ -232,12 +237,13 @@ technical_spec:
 implementation_targets:
   new_files:
     - "post/application/dto/response/RoommateMemberDetailResponse.java — userId/username/profileImage/role/lifestyleChecklist(nullable) 필드. static factory from(RoommateGroupMember, LifestyleChecklistResponse nullable)"
-    - "checklist/application/dto/response/LifestyleChecklistResponse.java — 9개 ChecklistField<T> 항목. static factory from(LifestyleChecklist, List<LifestyleChecklistSleepHabit>, LifestyleChecklist viewerChecklist nullable, List<LifestyleChecklistSleepHabit> viewerSleepHabits)"
+    - "checklist/application/dto/response/LifestyleChecklistResponse.java — 9개 ChecklistField<T> 항목. static factory from(ChecklistBundle bundle, ChecklistBundle viewerBundle nullable). viewerBundle null이면 모든 matched=null, 그 외에는 viewer 값과 equals 비교(sleepHabits는 Set equality)."
     - "checklist/application/dto/response/ChecklistField.java — generic record { T value, Boolean matched }. of(value, matched) 헬퍼 제공"
+    - "checklist/domain/service/ChecklistBundle.java — domain record { LifestyleChecklist checklist, List<LifestyleChecklistSleepHabit> sleepHabits }. 일괄 조회 결과를 사용자별로 묶기 위한 도메인 값 객체."
   modified_files:
     - "post/application/dto/response/RoommatePostDetailResponse.java — members 타입을 List<RoommateMemberDetailResponse>로 변경, from(post, sharedLifestyle, isOwner, isBookmarked, members, checklistByUserId, roommatePreference) 시그니처로 확장"
-    - "post/application/usecase/RoommatePostUseCase.java — getPostDetail에서 멤버 조회 후 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId) 호출 → Map<userId, LifestyleChecklistResponse> 받아 응답 조립"
-    - "checklist/domain/service/ChecklistGetService.java — getChecklistResponsesByUserIds(Collection<Long> memberUserIds, Long viewerUserId): Map<Long, LifestyleChecklistResponse> 메서드 추가. 체크리스트 IN(memberUserIds ∪ {viewerUserId}) 조회 → sleepHabits IN 조회 → viewer 데이터 추출 후 멤버별 matched 계산"
+    - "post/application/usecase/RoommatePostUseCase.java — getPostDetail에서 멤버 조회 후 ChecklistGetService.getChecklistBundlesByUserIds(memberUserIds ∪ {viewerUserId}) 호출 → Map<userId, ChecklistBundle> 수신. private buildChecklistResponses 헬퍼에서 viewerBundle 분리 후 LifestyleChecklistResponse.from(memberBundle, viewerBundle)으로 변환하여 Map<userId, LifestyleChecklistResponse> 조립."
+    - "checklist/domain/service/ChecklistGetService.java — getChecklistBundlesByUserIds(Collection<Long> userIds): Map<Long, ChecklistBundle> 메서드 추가. 체크리스트 IN(userIds) 조회 → sleepHabits IN 조회 후 사용자별 ChecklistBundle로 묶어 반환. 변환·matched 계산은 application 레이어 책임."
     - "checklist/domain/repository/ChecklistRepository.java — findAllByUserIdInAndDeletedFalse(Collection<Long> userIds) 추가"
     - "checklist/domain/repository/LifestyleChecklistSleepHabitRepository.java — findByChecklistIdInAndDeletedFalse(Collection<Long> checklistIds) 추가 (없으면 신규)"
   reused_files:
@@ -245,6 +251,7 @@ implementation_targets:
   layer_rules:
     - "UseCase는 Repository 직접 접근 금지 → ChecklistGetService / RoommateGroupMemberGetService 경유"
     - "도메인 간 UseCase 오케스트레이션 허용. 응답 DTO는 post 도메인 소속이되, 체크리스트 DTO는 소유 도메인(checklist)에서 정의."
+    - "Domain Service는 Application DTO를 반환하지 않는다(레이어 의존 역전 금지). 일괄 조회 결과는 도메인 record(ChecklistBundle)로 묶어 반환하고, DTO 변환·matched 계산은 UseCase가 LifestyleChecklistResponse.from(...)을 호출하여 수행한다."
 
 # ============================================================
 # 테스트 전략
@@ -285,8 +292,9 @@ notes:
   - "PostSharedLifestyle 조회는 기존 RoommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(postId)를 재사용 (post + user fetch join)."
   - "그룹 멤버 조회는 RoommateGroupMemberRepository.findActiveMembersWithUserByPostId(postId)로 m.group.post.id 조인 + m.user fetch join. 그룹을 별도 조회하지 않아 쿼리 1회로 처리."
   - "응답 멤버 매핑은 기존 roommategroup.GroupMemberResponse 대신 post 도메인 전용 RoommateMemberDetailResponse 신규 도입. 이유: 체크리스트 필드는 본 API에만 필요하므로 타 API(예: my-roommate-groups) 응답을 오염시키지 않기 위함."
-  - "체크리스트 일괄 조회는 ChecklistGetService.getChecklistResponsesByUserIds(memberUserIds, viewerUserId)로 캡슐화. 내부에서 memberUserIds ∪ {viewerUserId}로 ChecklistRepository.findAllByUserIdInAndDeletedFalse → 결과 checklistIds로 LifestyleChecklistSleepHabitRepository.findByChecklistIdInAndDeletedFalse 호출 → viewer 본인 데이터를 분리 추출 후 멤버 데이터와 비교하여 ChecklistField.matched 계산. 결과는 Map<Long userId, LifestyleChecklistResponse> 형태."
-  - "각 ChecklistField.matched 계산 규칙: viewer 체크리스트 미등록(null) → 모든 항목 matched=null. 등록 상태 → Objects.equals(viewer.value, member.value)로 비교, sleepHabits 한정 Set 동일 비교."
+  - "체크리스트 일괄 조회는 ChecklistGetService.getChecklistBundlesByUserIds(memberUserIds ∪ {viewerUserId})로 수행. 내부에서 ChecklistRepository.findAllByUserIdInAndDeletedFalse → 결과 checklistIds로 LifestyleChecklistSleepHabitRepository.findByChecklistIdInAndDeletedFalse 호출 후 Map<Long userId, ChecklistBundle>로 묶어 반환(레이어 의존 역전 회피)."
+  - "matched 계산은 UseCase 레이어에서 수행. viewerBundle = bundlesByUserId.get(viewerUserId)을 추출 후, 멤버별로 LifestyleChecklistResponse.from(memberBundle, viewerBundle)을 호출하여 Map<Long userId, LifestyleChecklistResponse>를 조립한다."
+  - "각 ChecklistField.matched 계산 규칙: viewerBundle=null(viewer 체크리스트 미등록) → 모든 항목 matched=null. 등록 상태 → Objects.equals(viewer.value, member.value)로 비교, sleepHabits 한정 Set 동일 비교."
   - "체크리스트 미등록 멤버는 lifestyleChecklist=null. 프론트엔드는 null일 때 '미등록' UI 표시 정책 협의 필요."
   - "체크리스트 노출 권한: 모든 인증 사용자(외부인 포함). 매칭 의사결정 정보로 공개되는 것이 의도된 정책. 향후 권한 축소(그룹 멤버 한정 등) 요구가 생기면 별도 정책 결정."
   - "탈퇴/해체된 그룹의 모집글은 RoommatePost.deleted=true이므로 본 조회에서 POST_NOT_FOUND로 사전 차단된다."

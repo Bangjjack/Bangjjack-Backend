@@ -1,18 +1,19 @@
 package com.project.bangjjack.domain.post.application.usecase;
 
 import com.project.bangjjack.domain.bookmark.domain.service.BookmarkGetService;
-import com.project.bangjjack.domain.checklist.application.dto.response.ChecklistField;
-import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.domain.entity.Bedtime;
 import com.project.bangjjack.domain.checklist.domain.entity.CallHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.CleaningCycle;
 import com.project.bangjjack.domain.checklist.domain.entity.DormStayTime;
 import com.project.bangjjack.domain.checklist.domain.entity.IndoorTemperature;
+import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
+import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.NoiseSensitivity;
 import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
 import com.project.bangjjack.domain.checklist.domain.entity.SleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.Smoking;
 import com.project.bangjjack.domain.checklist.domain.entity.WakeUpTime;
+import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
 import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.response.RoommateMemberDetailResponse;
@@ -46,7 +47,6 @@ import static com.project.bangjjack.domain.post.application.usecase.RoommatePost
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -80,18 +80,23 @@ class RoommatePostUseCaseGetDetailTest {
         return member;
     }
 
-    private static LifestyleChecklistResponse checklistResponse(List<SleepHabit> sleepHabits, Boolean matched) {
-        return new LifestyleChecklistResponse(
-                ChecklistField.of(Bedtime.BETWEEN_22_24, matched),
-                ChecklistField.of(WakeUpTime.BETWEEN_6_8, matched),
-                ChecklistField.of(sleepHabits, matched),
-                ChecklistField.of(CleaningCycle.ONCE_OR_TWICE_A_WEEK, matched),
-                ChecklistField.of(DormStayTime.HALF_AND_HALF, matched),
-                ChecklistField.of(CallHabit.OUTSIDE_ONLY, matched),
-                ChecklistField.of(IndoorTemperature.INSENSITIVE, matched),
-                ChecklistField.of(NoiseSensitivity.NORMAL, matched),
-                ChecklistField.of(Smoking.NON_SMOKER, matched)
-        );
+    private static ChecklistBundle bundleOf(User user, List<SleepHabit> sleepHabits) {
+        LifestyleChecklist checklist = mock(LifestyleChecklist.class);
+        lenient().when(checklist.getUser()).thenReturn(user);
+        lenient().when(checklist.getBedtime()).thenReturn(Bedtime.BETWEEN_22_24);
+        lenient().when(checklist.getWakeUpTime()).thenReturn(WakeUpTime.BETWEEN_6_8);
+        lenient().when(checklist.getCleaningCycle()).thenReturn(CleaningCycle.ONCE_OR_TWICE_A_WEEK);
+        lenient().when(checklist.getDormStayTime()).thenReturn(DormStayTime.HALF_AND_HALF);
+        lenient().when(checklist.getCallHabit()).thenReturn(CallHabit.OUTSIDE_ONLY);
+        lenient().when(checklist.getIndoorTemperature()).thenReturn(IndoorTemperature.INSENSITIVE);
+        lenient().when(checklist.getNoiseSensitivity()).thenReturn(NoiseSensitivity.NORMAL);
+        lenient().when(checklist.getSmoking()).thenReturn(Smoking.NON_SMOKER);
+        List<LifestyleChecklistSleepHabit> habitEntities = sleepHabits.stream().map(habit -> {
+            LifestyleChecklistSleepHabit entity = mock(LifestyleChecklistSleepHabit.class);
+            lenient().when(entity.getSleepHabit()).thenReturn(habit);
+            return entity;
+        }).toList();
+        return new ChecklistBundle(checklist, habitEntities);
     }
 
     @Nested
@@ -112,7 +117,7 @@ class RoommatePostUseCaseGetDetailTest {
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -139,7 +144,7 @@ class RoommatePostUseCaseGetDetailTest {
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(viewerId, 1L)).willReturn(false);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -161,7 +166,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(true);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -183,7 +188,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(bookmarkGetService.existsActiveBookmark(userId, 1L)).willReturn(false);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preference);
 
             // when
@@ -210,7 +215,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -239,7 +244,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -263,12 +268,12 @@ class RoommatePostUseCaseGetDetailTest {
             RoommateGroupMember leader = mockMember(owner, GroupMemberRole.LEADER);
             RoommateGroupMember m1 = mockMember(member1, GroupMemberRole.MEMBER);
             List<RoommateGroupMember> members = List.of(leader, m1);
-            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.SNORING), true);
+            ChecklistBundle ownerBundle = bundleOf(owner, List.of(SleepHabit.TOSS_AND_TURN, SleepHabit.SNORING));
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong()))
-                    .willReturn(Map.of(ownerId, leaderChecklist));
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection()))
+                    .willReturn(Map.of(ownerId, ownerBundle));
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -295,12 +300,12 @@ class RoommatePostUseCaseGetDetailTest {
             RoommateGroupMember leader = mockMember(owner, GroupMemberRole.LEADER);
             RoommateGroupMember m1 = mockMember(member1, GroupMemberRole.MEMBER);
             List<RoommateGroupMember> members = List.of(leader, m1);
-            LifestyleChecklistResponse leaderChecklist = checklistResponse(List.of(SleepHabit.NONE), true);
+            ChecklistBundle ownerBundle = bundleOf(owner, List.of(SleepHabit.NONE));
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong()))
-                    .willReturn(Map.of(ownerId, leaderChecklist));
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection()))
+                    .willReturn(Map.of(ownerId, ownerBundle));
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -331,7 +336,7 @@ class RoommatePostUseCaseGetDetailTest {
 
             given(roommatePostGetService.getSharedLifestyleWithPostAndUserByPostId(1L)).willReturn(sharedLifestyle);
             given(roommateGroupMemberGetService.getActiveMembersWithUserByPostId(1L)).willReturn(members);
-            given(checklistGetService.getChecklistResponsesByUserIds(anyCollection(), anyLong())).willReturn(Map.of());
+            given(checklistGetService.getChecklistBundlesByUserIds(anyCollection())).willReturn(Map.of());
             given(roommatePreferenceGetService.getByUser(owner)).willReturn(preferenceFor(owner));
 
             // when
@@ -339,10 +344,8 @@ class RoommatePostUseCaseGetDetailTest {
 
             // then
             ArgumentCaptor<Collection<Long>> userIdsCaptor = ArgumentCaptor.forClass(Collection.class);
-            ArgumentCaptor<Long> viewerCaptor = ArgumentCaptor.forClass(Long.class);
-            verify(checklistGetService).getChecklistResponsesByUserIds(userIdsCaptor.capture(), viewerCaptor.capture());
-            assertThat(userIdsCaptor.getValue()).containsExactly(1L, 2L, 3L);
-            assertThat(viewerCaptor.getValue()).isEqualTo(viewerId);
+            verify(checklistGetService).getChecklistBundlesByUserIds(userIdsCaptor.capture());
+            assertThat(userIdsCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L, viewerId);
         }
 
         @Test

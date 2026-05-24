@@ -1,6 +1,5 @@
 package com.project.bangjjack.domain.checklist.domain.service;
 
-import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
 import com.project.bangjjack.domain.checklist.domain.repository.ChecklistRepository;
@@ -33,16 +32,12 @@ public class ChecklistGetService {
         return sleepHabitRepository.findByChecklistAndDeletedFalse(checklist);
     }
 
-    public Map<Long, LifestyleChecklistResponse> getChecklistResponsesByUserIds(Collection<Long> memberUserIds, Long viewerUserId) {
-        if (memberUserIds == null || memberUserIds.isEmpty()) {
+    public Map<Long, ChecklistBundle> getChecklistBundlesByUserIds(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
 
-        Set<Long> lookupIds = new HashSet<>(memberUserIds);
-        if (viewerUserId != null) {
-            lookupIds.add(viewerUserId);
-        }
-
+        Set<Long> lookupIds = new HashSet<>(userIds);
         List<LifestyleChecklist> checklists = checklistRepository.findAllByUserIdInAndDeletedFalse(lookupIds);
         if (checklists.isEmpty()) {
             return Collections.emptyMap();
@@ -53,25 +48,10 @@ public class ChecklistGetService {
                 .findByChecklistIdInAndDeletedFalse(checklistIds).stream()
                 .collect(Collectors.groupingBy(habit -> habit.getChecklist().getId()));
 
-        LifestyleChecklist viewerChecklist = viewerUserId == null ? null : checklists.stream()
-                .filter(c -> viewerUserId.equals(c.getUser().getId()))
-                .findFirst()
-                .orElse(null);
-        List<LifestyleChecklistSleepHabit> viewerSleepHabits = viewerChecklist == null
-                ? List.of()
-                : sleepHabitsByChecklistId.getOrDefault(viewerChecklist.getId(), List.of());
-
-        Set<Long> memberIdSet = new HashSet<>(memberUserIds);
         return checklists.stream()
-                .filter(c -> memberIdSet.contains(c.getUser().getId()))
                 .collect(Collectors.toMap(
                         c -> c.getUser().getId(),
-                        c -> LifestyleChecklistResponse.from(
-                                c,
-                                sleepHabitsByChecklistId.getOrDefault(c.getId(), List.of()),
-                                viewerChecklist,
-                                viewerSleepHabits
-                        )
+                        c -> new ChecklistBundle(c, sleepHabitsByChecklistId.getOrDefault(c.getId(), List.of()))
                 ));
     }
 }
