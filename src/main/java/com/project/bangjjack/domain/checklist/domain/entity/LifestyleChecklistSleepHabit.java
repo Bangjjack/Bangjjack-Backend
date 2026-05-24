@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Entity
 @Table(name = "lifestyle_checklist_sleep_habits")
 @Getter
@@ -24,5 +26,11 @@ public class LifestyleChecklistSleepHabit extends BaseEntity {
 
     public static LifestyleChecklistSleepHabit create(LifestyleChecklist checklist, SleepHabit sleepHabit) {
         return new LifestyleChecklistSleepHabit(checklist, sleepHabit);
+    }
+
+    public static List<LifestyleChecklistSleepHabit> createAll(LifestyleChecklist checklist, List<SleepHabit> sleepHabits) {
+        return sleepHabits.stream()
+                .map(habit -> create(checklist, habit))
+                .toList();
     }
 }

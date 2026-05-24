@@ -39,9 +39,7 @@ public class ChecklistUseCase {
 
         LifestyleChecklist checklist = checklistCreateService.createCheckList(LifestyleChecklist.create(user, request));
 
-        List<LifestyleChecklistSleepHabit> sleepHabits = request.sleepHabits().stream()
-                .map(habit -> LifestyleChecklistSleepHabit.create(checklist, habit))
-                .toList();
+        List<LifestyleChecklistSleepHabit> sleepHabits = LifestyleChecklistSleepHabit.createAll(checklist, request.sleepHabits());
         checklistCreateService.createSleepHabits(sleepHabits);
 
         user.completeChecklistRegistration();

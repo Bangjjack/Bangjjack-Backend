@@ -20,9 +20,7 @@ public class ChecklistUpdateService {
         existingHabits.forEach(LifestyleChecklistSleepHabit::softDelete);
         sleepHabitRepository.saveAll(existingHabits);
 
-        List<LifestyleChecklistSleepHabit> newHabits = newHabitTypes.stream()
-                .map(habit -> LifestyleChecklistSleepHabit.create(checklist, habit))
-                .toList();
+        List<LifestyleChecklistSleepHabit> newHabits = LifestyleChecklistSleepHabit.createAll(checklist, newHabitTypes);
         sleepHabitRepository.saveAll(newHabits);
     }
 }
