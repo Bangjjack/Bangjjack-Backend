@@ -65,4 +65,24 @@ public class LifestyleChecklist extends BaseEntity {
                 request.smoking()
         );
     }
+
+    public void update(
+            Bedtime bedtime,
+            WakeUpTime wakeUpTime,
+            CleaningCycle cleaningCycle,
+            DormStayTime dormStayTime,
+            CallHabit callHabit,
+            IndoorTemperature indoorTemperature,
+            NoiseSensitivity noiseSensitivity,
+            Smoking smoking
+    ) {
+        this.bedtime = bedtime;
+        this.wakeUpTime = wakeUpTime;
+        this.cleaningCycle = cleaningCycle;
+        this.dormStayTime = dormStayTime;
+        this.callHabit = callHabit;
+        this.indoorTemperature = indoorTemperature;
+        this.noiseSensitivity = noiseSensitivity;
+        this.smoking = smoking;
+    }
 }
