@@ -58,11 +58,11 @@ public class ChatMessageUseCase {
             throw new ChatRoomClosedException();
         }
 
-        Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content(), MessageType.USER);
-        log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
-
         chatRoomGetService.findLeftParticipantsByRoomId(roomId, senderId)
                 .forEach(ChatRoomParticipant::rejoin);
+
+        Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content(), MessageType.USER);
+        log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
 
         ChatMessageBroadcast broadcast = ChatMessageBroadcast.from(savedChat, roomId);
         eventPublisher.publishEvent(new ChatMessageSentEvent(roomId, broadcast));
