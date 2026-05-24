@@ -1,16 +1,17 @@
 package com.project.bangjjack.domain.post.application.dto.response;
 
+import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
 import com.project.bangjjack.domain.post.domain.entity.PostSharedLifestyle;
 import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
-import com.project.bangjjack.domain.roommategroup.application.dto.response.GroupMemberResponse;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
 import com.project.bangjjack.domain.user.domain.entity.Semester;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record RoommatePostDetailResponse(
         Long postId,
@@ -26,7 +27,7 @@ public record RoommatePostDetailResponse(
         LocalDateTime createdAt,
         AuthorResponse author,
         SharedLifestyleResponse sharedLifestyle,
-        List<GroupMemberResponse> members,
+        List<RoommateMemberDetailResponse> members,
         RoommatePreferenceResponse roommatePreference
 ) {
     public static RoommatePostDetailResponse from(
@@ -35,6 +36,7 @@ public record RoommatePostDetailResponse(
             boolean isOwner,
             boolean isBookmarked,
             List<RoommateGroupMember> members,
+            Map<Long, LifestyleChecklistResponse> checklistByUserId,
             RoommatePreferenceResponse roommatePreference
     ) {
         return new RoommatePostDetailResponse(
@@ -51,7 +53,12 @@ public record RoommatePostDetailResponse(
                 post.getCreatedAt(),
                 AuthorResponse.from(post.getUser()),
                 SharedLifestyleResponse.from(sharedLifestyle),
-                members.stream().map(GroupMemberResponse::from).toList(),
+                members.stream()
+                        .map(member -> RoommateMemberDetailResponse.from(
+                                member,
+                                checklistByUserId.get(member.getUser().getId())
+                        ))
+                        .toList(),
                 roommatePreference
         );
     }
