@@ -16,13 +16,16 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "ChatRoom", description = "채팅방 관련 API")
@@ -56,6 +59,16 @@ public class ChatRoomController {
                 ? ChatRoomResponseCode.CHAT_ROOM_CREATED
                 : ChatRoomResponseCode.CHAT_ROOM_FOUND;
         return CommonResponse.success(responseCode, response);
+    }
+
+    @Operation(summary = "채팅방 나가기", description = "채팅방에서 나갑니다. 모든 참여자가 나가면 채팅방이 CLOSED 처리됩니다.")
+    @DeleteMapping("/{roomId}/participants/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public CommonResponse<Void> leaveChatRoom(
+            @CurrentMemberId Long currentMemberId,
+            @PathVariable long roomId) {
+        chatRoomUseCase.leaveChatRoom(roomId, currentMemberId);
+        return CommonResponse.success(ChatRoomResponseCode.CHAT_ROOM_LEFT, null);
     }
 
     @Operation(
