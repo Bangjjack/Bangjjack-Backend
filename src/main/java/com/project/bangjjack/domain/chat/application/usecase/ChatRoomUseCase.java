@@ -116,4 +116,15 @@ public class ChatRoomUseCase {
     public void validateParticipant(Long roomId, Long userId) {
         chatRoomGetService.validateParticipant(roomId, userId);
     }
+
+    @Transactional
+    public void leaveChatRoom(long roomId, Long userId) {
+        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, userId);
+        participant.leave();
+
+        List<ChatRoomParticipant> remaining = chatRoomGetService.findParticipantsByRoomId(roomId);
+        if (remaining.isEmpty()) {
+            participant.getChatRoom().close();
+        }
+    }
 }
