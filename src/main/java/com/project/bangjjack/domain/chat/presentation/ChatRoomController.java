@@ -64,11 +64,10 @@ public class ChatRoomController {
     @Operation(summary = "채팅방 나가기", description = "채팅방에서 나갑니다. 모든 참여자가 나가면 채팅방이 CLOSED 처리됩니다.")
     @DeleteMapping("/{roomId}/participants/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public CommonResponse<Void> leaveChatRoom(
+    public void leaveChatRoom(
             @CurrentMemberId Long currentMemberId,
             @PathVariable Long roomId) {
         chatRoomUseCase.leaveChatRoom(roomId, currentMemberId);
-        return CommonResponse.success(ChatRoomResponseCode.CHAT_ROOM_LEFT, null);
     }
 
     @Operation(
