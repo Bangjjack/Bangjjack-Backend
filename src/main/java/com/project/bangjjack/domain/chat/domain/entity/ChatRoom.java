@@ -53,6 +53,9 @@ public class ChatRoom extends BaseEntity {
     }
 
     public void updateCategory(ChatRoomCategory newCategory) {
+        if (newCategory == null) {
+            throw new IllegalArgumentException("category는 null일 수 없습니다.");
+        }
         this.category = newCategory;
     }
 
