@@ -7,6 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(
     name = "chat_room_participant",
@@ -34,8 +36,11 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(nullable = false, length = 10)
     private ParticipantStatus status;
 
+    @Column(name = "left_at")
+    private LocalDateTime leftAt;
+
     public static ChatRoomParticipant create(ChatRoom chatRoom, Long userId) {
-        return new ChatRoomParticipant(chatRoom, userId, null, 0, ParticipantStatus.ACTIVE);
+        return new ChatRoomParticipant(chatRoom, userId, null, 0, ParticipantStatus.ACTIVE, null);
     }
 
     public void markAsRead(Long messageId) {
@@ -48,6 +53,7 @@ public class ChatRoomParticipant extends BaseEntity {
 
     public void leave() {
         this.status = ParticipantStatus.LEFT;
+        this.leftAt = LocalDateTime.now();
     }
 
     public void rejoin() {

@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +18,11 @@ public class ChatMessageGetService {
 
     private final ChatRepository chatRepository;
 
-    public List<Chat> getMessages(Long roomId, Long cursor, int size) {
+    public List<Chat> getMessages(Long roomId, Long cursor, LocalDateTime leftAt, int size) {
         long cursorId = cursor != null ? cursor : Long.MAX_VALUE;
+        if (leftAt != null) {
+            return chatRepository.findByCursorPageAfterLeftAt(roomId, cursorId, leftAt, PageRequest.of(0, size + 1));
+        }
         return chatRepository.findByCursorPage(roomId, cursorId, PageRequest.of(0, size + 1));
     }
 

@@ -77,7 +77,7 @@ class ChatMessageUseCaseGetMessagesTest {
             List<Chat> chats = List.of(createChat());
 
             given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(createParticipant(currentUserId));
-            given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(chats);
+            given(chatMessageGetService.getMessages(roomId, null, null, size)).willReturn(chats);
 
             // when
             ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentUserId, roomId, null, size);
@@ -99,7 +99,7 @@ class ChatMessageUseCaseGetMessagesTest {
             List<Chat> fetched = List.of(createChat(), createChat(), createChat());
 
             given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
-            given(chatMessageGetService.getMessages(roomId, null, size)).willReturn(fetched);
+            given(chatMessageGetService.getMessages(roomId, null, null, size)).willReturn(fetched);
 
             // when
             ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, null, size);
@@ -120,7 +120,7 @@ class ChatMessageUseCaseGetMessagesTest {
             List<Chat> fetched = List.of(createChat(), createChat());
 
             given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
-            given(chatMessageGetService.getMessages(roomId, cursor, size)).willReturn(fetched);
+            given(chatMessageGetService.getMessages(roomId, cursor, null, size)).willReturn(fetched);
 
             // when
             ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, cursor, size);
@@ -137,7 +137,7 @@ class ChatMessageUseCaseGetMessagesTest {
             // given
             Long roomId = 10L;
             given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
-            given(chatMessageGetService.getMessages(roomId, null, 30)).willReturn(Collections.emptyList());
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(Collections.emptyList());
 
             // when
             ChatMessagePageResponse response = chatMessageUseCase.getMessages(1L, roomId, null, 30);
