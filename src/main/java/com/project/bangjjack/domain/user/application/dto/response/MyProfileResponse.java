@@ -38,9 +38,9 @@ public record MyProfileResponse(
         List<RoommatePreferenceFactor> roommatePreferences
 ) {
     public static MyProfileResponse of(User user,
+                                       Department department,
                                        ChecklistBundle checklistBundle,
                                        RoommatePreference preference) {
-        Department department = user.getDepartment();
         ChecklistSummary checklistSummary = checklistBundle == null
                 ? null
                 : ChecklistSummary.from(checklistBundle);

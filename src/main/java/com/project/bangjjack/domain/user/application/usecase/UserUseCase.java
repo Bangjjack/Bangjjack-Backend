@@ -62,12 +62,13 @@ public class UserUseCase {
 
     public MyProfileResponse getMyProfile(Long userId) {
         User user = userGetService.getById(userId);
+        Department department = user.getDepartment();
         ChecklistBundle checklistBundle = checklistGetService.findByUser(user)
                 .map(this::toChecklistBundle)
                 .orElse(null);
         RoommatePreference preference = roommatePreferenceGetService.findByUser(user)
                 .orElse(null);
-        return MyProfileResponse.of(user, checklistBundle, preference);
+        return MyProfileResponse.of(user, department, checklistBundle, preference);
     }
 
     private ChecklistBundle toChecklistBundle(LifestyleChecklist checklist) {
