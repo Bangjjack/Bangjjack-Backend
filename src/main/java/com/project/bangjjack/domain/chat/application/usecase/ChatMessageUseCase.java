@@ -66,7 +66,7 @@ public class ChatMessageUseCase {
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, currentUserId);
 
-        List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, participant.getLeftAt(), size);
+        List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, participant.getVisibleFromMessageId(), size);
 
         boolean hasNext = fetched.size() > size;
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;

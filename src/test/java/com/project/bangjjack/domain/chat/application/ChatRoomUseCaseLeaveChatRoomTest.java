@@ -21,7 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,29 +44,30 @@ class ChatRoomUseCaseLeaveChatRoomTest {
     class LeaveChatRoom {
 
         @Test
-        @DisplayName("파트너가 남아 있으면 participant.status=LEFT가 되고 채팅방은 OPEN 유지된다")
+        @DisplayName("파트너가 남아 있으면 participant.status=LEFT가 되고 visibleFromMessageId가 설정된다")
         void 파트너가_남아_있으면_방은_OPEN_유지된다() {
             // given
             Long roomId = 1L;
             Long userId = 10L;
-            Long partnerId = 20L;
+            Long latestMessageId = 100L;
 
             ChatRoom chatRoom = ChatRoom.createDirect(userId, "DM_10_20");
             ChatRoomParticipant myParticipant = ChatRoomParticipant.create(chatRoom, userId);
-            ChatRoomParticipant partnerParticipant = ChatRoomParticipant.create(chatRoom, partnerId);
 
             given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
+            given(chatMessageGetService.findLatestMessageId(roomId)).willReturn(Optional.of(latestMessageId));
 
             // when
             chatRoomUseCase.leaveChatRoom(roomId, userId);
 
             // then
             assertThat(myParticipant.getStatus()).isEqualTo(ParticipantStatus.LEFT);
+            assertThat(myParticipant.getVisibleFromMessageId()).isEqualTo(latestMessageId);
             assertThat(chatRoom.getStatus()).isEqualTo(RoomStatus.OPEN);
         }
 
         @Test
-        @DisplayName("마지막 참여자가 나가도 채팅방은 OPEN 유지된다")
+        @DisplayName("채팅방에 메시지가 없으면 visibleFromMessageId가 null로 설정된다")
         void 마지막_참여자가_나가도_채팅방은_OPEN_유지된다() {
             // given
             Long roomId = 1L;
@@ -76,13 +77,14 @@ class ChatRoomUseCaseLeaveChatRoomTest {
             ChatRoomParticipant myParticipant = ChatRoomParticipant.create(chatRoom, userId);
 
             given(chatRoomGetService.getActiveParticipant(roomId, userId)).willReturn(myParticipant);
+            given(chatMessageGetService.findLatestMessageId(roomId)).willReturn(Optional.empty());
 
             // when
             chatRoomUseCase.leaveChatRoom(roomId, userId);
 
             // then
             assertThat(myParticipant.getStatus()).isEqualTo(ParticipantStatus.LEFT);
-            assertThat(chatRoom.getStatus()).isEqualTo(RoomStatus.OPEN);
+            assertThat(myParticipant.getVisibleFromMessageId()).isNull();
         }
 
         @Test
