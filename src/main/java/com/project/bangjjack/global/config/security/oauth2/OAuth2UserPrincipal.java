@@ -1,13 +1,12 @@
 package com.project.bangjjack.global.config.security.oauth2;
 
-import com.project.bangjjack.global.jwt.Role;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,26 +17,32 @@ import static lombok.AccessLevel.PRIVATE;
 @RequiredArgsConstructor(access = PRIVATE)
 public class OAuth2UserPrincipal implements OAuth2User {
 
-    private final Long memberId;
-    private final String memberName;
-    private final Role role;
-    private final Map<String, Object> oAuth2Attributes;
+    private final String providerId;
+    private final String username;
+    private final String email;
+    private final String picture;
 
-    public static OAuth2UserPrincipal of(Long memberId, String memberName, Map<String, Object> attributes) {
-        return new OAuth2UserPrincipal(memberId, memberName, Role.MEMBER, attributes);
+    public static OAuth2UserPrincipal of(String providerId, String username, String email, String picture) {
+        return new OAuth2UserPrincipal(providerId, username, email, picture);
     }
 
+    @Override
     public Map<String, Object> getAttributes() {
-        return oAuth2Attributes;
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("sub", providerId);
+        attributes.put("name", username);
+        attributes.put("email", email);
+        attributes.put("picture", picture);
+        return attributes;
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        return List.of();
     }
 
     @Override
     public String getName() {
-        return memberName;
+        return username;
     }
 }

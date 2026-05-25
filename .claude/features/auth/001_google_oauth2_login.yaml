@@ -1,6 +1,6 @@
 # Feature Specification: Google OAuth2 소셜 로그인
 # Status: Implemented
-# Last Updated: 2026-05-25
+# Last Updated: 2026-05-26
 
 meta:
   id: FEAT-002
@@ -12,12 +12,15 @@ overview:
   summary: >
     Google OAuth2 Authorization Code Flow를 통해 사용자를 인증하고,
     Redis 임시 코드 교환 패턴을 거쳐 JWT Access Token을 발급하는 인증 시스템.
+    OAuth2 단계에서는 회원 가입을 보류하고, JWT 발급 단계에서 가천대학교 이메일
+    도메인을 검증하여 통과한 경우에만 회원을 생성/조회하고 토큰을 발급한다.
   user_story: >
     As a 사용자, I want to Google 계정으로 로그인하고 JWT를 발급받아,
     so that 별도 회원가입 없이 서비스를 안전하게 이용할 수 있다.
   goals:
-    - Google OAuth2를 통한 소셜 로그인 (자동 회원 가입 포함)
-    - 가천대학교 이메일(@gachon.ac.kr) 소유자만 로그인 허용
+    - Google OAuth2를 통한 소셜 로그인 (가천대 이메일 검증 통과 시 자동 회원 가입)
+    - 가천대학교 이메일(@gachon.ac.kr) 소유자만 JWT 토큰 발급 허용
+    - 비가천 이메일은 토큰 교환 단계에서 거부 (DB 오염 방지: User 미생성)
     - 일회성 Authorization Code (Redis TTL 5분) 경유로 JWT 노출 방지
     - Stateless JWT Access Token 기반 인증 체계 구축
 
@@ -34,16 +37,16 @@ auth_flow:
       action: "Google 로그인 → consent → /login/oauth2/code/google 콜백"
     - step: 3
       actor: CustomOAuth2UserService
-      action: "Google 사용자 정보 조회 → DB에서 providerId로 회원 조회 or 자동 가입"
+      action: "Google attributes(providerId, name, email, picture) 추출 → OAuth2UserPrincipal 생성 (DB 조회/저장 없음, 이메일 검증 없음)"
     - step: 4
       actor: CustomOAuth2SuccessHandler
-      action: "Redis에 auth:code:{uuid} = userId 저장 (TTL 5분) → 프론트로 {front-uri}?code={uuid} 리다이렉트"
+      action: "Redis에 auth:code:{uuid} = OAuthAttributes(JSON) 저장 (TTL 5분) → 프론트로 {front-uri}?code={uuid} 리다이렉트"
     - step: 5
       actor: 프론트엔드
       action: "URL에서 code 파라미터 추출 → POST /api/v1/auth/token { code } 호출"
     - step: 6
       actor: AuthUseCase
-      action: "Redis에서 원자적 code 검증+삭제 → userId로 회원 조회 → JWT 발급 → TokenExchangeResponse 반환"
+      action: "Redis에서 원자적 code 검증+삭제 → email 도메인 검증 → providerId로 회원 조회 or 자동 가입 → JWT 발급 → TokenExchangeResponse 반환"
 
 # ============================================================
 # API 명세
@@ -60,7 +63,7 @@ technical_spec:
 
     - method: POST
       path: /api/v1/auth/token
-      summary: Authorization Code → JWT Access Token 교환
+      summary: Authorization Code → JWT Access Token 교환 (가천대 이메일 검증 포함)
       auth: public
       request:
         dto: TokenExchangeRequest
@@ -86,6 +89,15 @@ technical_spec:
           - name: isOnboarded
             type: boolean
             description: "온보딩 완료 여부. false인 경우 프론트엔드가 온보딩 페이지로 유도"
+      errors:
+        - http_status: 401
+          code: 40101
+          name: INVALID_AUTHORIZATION_CODE
+          trigger: "Redis에 code가 없거나 TTL 만료/이미 사용된 경우"
+        - http_status: 401
+          code: 40103
+          name: UNAUTHORIZED_EMAIL_DOMAIN
+          trigger: "code에 매핑된 OAuth2 이메일이 @gachon.ac.kr로 끝나지 않는 경우"
 
   data_flow:
     oauth2_login:
@@ -94,25 +106,22 @@ technical_spec:
         action: "DefaultOAuth2UserService.loadUser() → Google attributes에서 providerId(sub), name, email, picture 추출"
       - step: 2
         layer: Infrastructure (CustomOAuth2UserService)
-        action: "email이 @gachon.ac.kr로 끝나는지 검증 → 아닌 경우 OAuth2AuthenticationException(unauthorized_email_domain) 발생 → CustomOAuth2FailureHandler가 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
+        action: "OAuth2UserPrincipal.of(providerId, name, email, picture) 생성 후 반환 (DB 조회/저장 없음, 이메일 검증 없음 → 검증은 토큰 교환 단계로 이관)"
       - step: 3
-        layer: Domain (UserService)
-        action: "providerId로 User 조회 → 없으면 User.create()로 자동 가입"
-      - step: 4
         layer: Infrastructure (CustomOAuth2SuccessHandler)
-        action: "RedisService.createAuthorizationCode(userId) → auth:code:{uuid}=userId (TTL 5분) → 프론트 리다이렉트"
+        action: "OAuth2UserPrincipal에서 attributes 추출 → RedisService.createAuthorizationCode(OAuthAttributes) → auth:code:{uuid}={JSON} (TTL 5분) → 프론트 리다이렉트"
 
     token_exchange:
       - step: 1
         layer: Presentation (AuthController)
-        action: "@Valid 요청 검증 → AuthUseCase.exchangeToken(code) 호출"
+        action: "@Valid 요청 검증 → AuthUseCase.exchangeToken(request) 호출"
       - step: 2
         layer: UseCase (AuthUseCase)
-        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 예외 → userId로 User 조회 → JwtProvider.createAccessToken() → user.isOnboarded()을 포함하여 TokenExchangeResponse 반환"
-        transaction: true (readOnly)
+        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 InvalidAuthorizationCodeException(40101) → email이 @gachon.ac.kr로 끝나지 않으면 UnauthorizedEmailDomainException(40103) → providerId로 User 조회 → 없으면 User.create() 후 자동 가입 → JwtProvider.createMemberAccessToken() → user.isOnboarded() 포함하여 TokenExchangeResponse 반환"
+        transaction: "@Transactional (write — 자동 가입 분기 존재)"
       - step: 3
         layer: Infrastructure (RedisService)
-        action: "Redisson bucket.getAndDelete()로 원자적 code 검증+삭제 (1회용 보장)"
+        action: "Redisson bucket.getAndDelete()로 원자적 code 검증+삭제 (1회용 보장), JSON 역직렬화 후 OAuthAttributes 반환"
       - step: 4
         layer: Infrastructure (JwtProvider)
         action: "createMemberAccessToken(userId, username) → HMAC 서명 JWT 생성 (sub=userId, name=username, role=MEMBER, exp=설정값(expirationSeconds))"
@@ -121,23 +130,24 @@ technical_spec:
     entities:
       - name: User
         table: users
-        action: "Read / Create (자동 가입 시)"
+        action: "Read / Create (자동 가입 시점: 토큰 교환 단계에서 이메일 검증 통과 후)"
         lookup_key: "providerId (Google의 sub 값)"
         auto_register_fields:
           - column: provider_id (VARCHAR(255), NOT NULL, UNIQUE)
           - column: username (Google name, VARCHAR(50), NOT NULL, UNIQUE)
           - column: email (VARCHAR(255), NOT NULL, UNIQUE)
           - column: gender (NULLABLE → Google 미제공)
-          - column: age (NULLABLE → Google 미제공)
+          - column: birthYear (NULLABLE → Google 미제공)
           - column: profile_image (VARCHAR(512), NULLABLE)
+        note: "비가천 이메일 사용자는 토큰 교환 단계에서 거부되므로 DB에 절대 저장되지 않는다"
 
   redis:
     - key_pattern: "auth:code:{uuid}"
-      value: "userId (String)"
+      value: "OAuthAttributes JSON (providerId, username, email, picture)"
       ttl: 5분
       operations:
-        - createAuthorizationCode(userId): "UUID 생성 → bucket 저장 → uuid 반환"
-        - validateAndConsumeAuthorizationCode(code): "getAndDelete() 원자적 조회+삭제 → userId 반환 or null"
+        - createAuthorizationCode(OAuthAttributes): "UUID 생성 → ObjectMapper로 JSON 직렬화 후 bucket 저장 → uuid 반환"
+        - validateAndConsumeAuthorizationCode(code): "getAndDelete() 원자적 조회+삭제 → JSON 역직렬화 후 OAuthAttributes 반환 or null"
     - key_pattern: "ws:token:{uuid}"
       value: "userId:memberName (String)"
       ttl: 1분
@@ -164,12 +174,17 @@ technical_spec:
         status: 401 UNAUTHORIZED
         message: "유효하지 않거나 만료된 인증 코드입니다."
         trigger: "Redis에서 code가 존재하지 않거나 TTL 만료된 경우"
-    oauth2_errors:
-      - code: unauthorized_email_domain
-        status: "302 리다이렉트 → {front-uri}/login?error=unauthorized_email_domain"
+      - code: 40102
+        name: INVALID_WS_TOKEN
+        status: 401 UNAUTHORIZED
+        message: "유효하지 않거나 만료된 WebSocket 토큰입니다."
+        trigger: "Redis에서 ws-token이 존재하지 않거나 만료된 경우"
+      - code: 40103
+        name: UNAUTHORIZED_EMAIL_DOMAIN
+        status: 401 UNAUTHORIZED
         message: "가천대학교 이메일(@gachon.ac.kr)로만 로그인 가능합니다."
-        trigger: "Google 계정 이메일이 @gachon.ac.kr로 끝나지 않는 경우"
-        handler: CustomOAuth2FailureHandler
+        trigger: "토큰 교환 시 OAuth2 이메일이 @gachon.ac.kr로 끝나지 않는 경우"
+        exception: UnauthorizedEmailDomainException
     jwt_entry_point_errors:
       - code: TOKEN_EXPIRED
         status: 401
@@ -189,9 +204,9 @@ technical_spec:
         exception: "(default)"
 
   validation_rules:
-    - "email 도메인: @gachon.ac.kr로 끝나는 계정만 로그인 허용. 위반 시 OAuth2AuthenticationException 발생"
+    - "email 도메인 검증: 토큰 교환(POST /api/v1/auth/token) 단계에서 수행. @gachon.ac.kr로 끝나지 않으면 40103 UNAUTHORIZED_EMAIL_DOMAIN 반환"
+    - "OAuth2 단계(CustomOAuth2UserService)에서는 이메일 검증을 수행하지 않으며, DB에 User를 생성하지 않는다"
     - "code: @NotBlank, Redis TTL 5분 내 1회만 사용 가능"
-    - "자동 가입 시 Google email이 이미 다른 providerId와 연결된 경우 처리 정의 필요"
     - "providerId(sub) 기준으로 동일 Google 계정은 중복 가입되지 않는다"
 
 # ============================================================
@@ -209,6 +224,7 @@ package_structure:
       - "domain/auth/application/dto/response/TokenExchangeResponse.java"
       - "domain/auth/application/exception/AuthErrorCode.java"
       - "domain/auth/application/exception/InvalidAuthorizationCodeException.java"
+      - "domain/auth/application/exception/UnauthorizedEmailDomainException.java"
   global_security:
     config:
       - "global/config/security/SecurityConfig.java"
@@ -219,6 +235,7 @@ package_structure:
       - "global/config/security/oauth2/CustomOAuth2SuccessHandler.java"
       - "global/config/security/oauth2/CustomOAuth2FailureHandler.java"
       - "global/config/security/oauth2/OAuth2UserPrincipal.java"
+      - "global/config/security/oauth2/OAuthAttributes.java"
     jwt:
       - "global/jwt/JwtProvider.java"
       - "global/jwt/JwtAuthenticator.java"
@@ -234,17 +251,17 @@ package_structure:
 testing_strategy:
   happy_path:
     - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username, isOnboarded가 반환된다"
-    - "가천대학교 이메일(@gachon.ac.kr) 신규 Google 사용자 로그인 시 User가 자동 생성된다"
-    - "가천대학교 이메일(@gachon.ac.kr) 기존 Google 사용자 로그인 시 기존 User가 조회된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 신규 사용자가 토큰 교환 시 User가 자동 생성된다"
+    - "가천대학교 이메일(@gachon.ac.kr) 기존 사용자가 토큰 교환 시 기존 User가 조회된다"
     - "온보딩 미완료 회원이 토큰을 교환하면 isOnboarded=false가 반환된다"
     - "온보딩 완료 회원이 토큰을 교환하면 isOnboarded=true가 반환된다"
   edge_cases:
-    - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE 반환"
-    - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE 반환 (1회용)"
+    - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE(40101) 반환"
+    - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE(40101) 반환 (1회용)"
     - "code 파라미터가 blank인 경우 400 Bad Request 반환"
-    - "타 학교 이메일(.ac.kr이지만 gachon이 아닌)로 로그인 시 unauthorized_email_domain 리다이렉트"
   error_cases:
-    - "가천대학교 이메일이 아닌 계정 로그인 시 {front-uri}/login?error=unauthorized_email_domain 리다이렉트"
+    - "타 학교 이메일(.ac.kr이지만 gachon이 아닌)로 토큰 교환 시 401 UNAUTHORIZED_EMAIL_DOMAIN(40103) 반환, User 미생성"
+    - "일반 Gmail 등 비가천 이메일로 토큰 교환 시 401 UNAUTHORIZED_EMAIL_DOMAIN(40103) 반환, User 미생성"
     - "만료된 JWT로 인증 필요 API 접근 시 401 TOKEN_EXPIRED 반환"
     - "위조된 서명의 JWT 접근 시 401 INVALID_SIGNATURE 반환"
     - "OAuth2 인증 실패 시 {front-uri}/login?error=oauth2_failed 리다이렉트"
@@ -253,6 +270,14 @@ testing_strategy:
 # 주의사항 및 선결 과제
 # ============================================================
 notes:
+  design_decisions:
+    - decision: "이메일 도메인 검증 위치: OAuth2 단계 → 토큰 교환 단계로 이관 (2026-05-26)"
+      reason: >
+        프론트엔드가 일관된 API 에러 코드(JSON)로 비인가 이메일 케이스를 처리할 수 있도록 변경.
+        기존에는 OAuth2 단계에서 redirect 쿼리스트링(?error=unauthorized_email_domain)으로 통지하여
+        프론트 측 파싱이 분기되어 있었음. 토큰 교환 API의 표준 에러 응답(40103)으로 통합.
+      side_effect: "OAuth2UserPrincipal은 더 이상 memberId를 보유하지 않으며, User 자동 가입 시점이 토큰 교환 단계로 이동"
+
   entity_changes:
     - field: provider_id
       entity: User
@@ -272,6 +297,6 @@ notes:
 
   conventions:
     - "Lombok: @Getter, @RequiredArgsConstructor(access = PRIVATE) 사용"
-    - "정적 팩토리: of() 또는 from() 메서드로 Principal/DTO 생성"
-    - "UseCase Transaction: @Transactional(readOnly = true) on class, @Transactional on write methods"
+    - "정적 팩토리: of() 또는 from() 메서드로 Principal/DTO/OAuthAttributes 생성"
+    - "UseCase Transaction: @Transactional(readOnly = true) on class, @Transactional on write methods (exchangeToken은 write)"
     - "Soft Delete: deletedAt이 null인 User만 조회"

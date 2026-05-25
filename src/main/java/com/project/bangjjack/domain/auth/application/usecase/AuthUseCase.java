@@ -5,8 +5,11 @@ import com.project.bangjjack.domain.auth.application.dto.response.TokenExchangeR
 import com.project.bangjjack.domain.auth.application.dto.response.WsTokenResponse;
 import com.project.bangjjack.domain.auth.application.exception.InvalidAuthorizationCodeException;
 import com.project.bangjjack.domain.auth.application.exception.InvalidWsTokenException;
+import com.project.bangjjack.domain.auth.application.exception.UnauthorizedEmailDomainException;
 import com.project.bangjjack.domain.user.domain.entity.User;
+import com.project.bangjjack.domain.user.domain.service.UserCreateService;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
+import com.project.bangjjack.global.config.security.oauth2.OAuthAttributes;
 import com.project.bangjjack.global.infrastructure.redis.RedisService;
 import com.project.bangjjack.global.jwt.JwtProvider;
 import com.project.bangjjack.global.jwt.Role;
@@ -20,18 +23,28 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AuthUseCase {
 
+    private static final String ALLOWED_EMAIL_DOMAIN = "@gachon.ac.kr";
+
     private final RedisService redisService;
     private final UserGetService userGetService;
+    private final UserCreateService userCreateService;
     private final JwtProvider jwtProvider;
 
+    @Transactional
     public TokenExchangeResponse exchangeToken(TokenExchangeRequest request) {
-        String userIdStr = redisService.validateAndConsumeAuthorizationCode(request.code());
-        if (userIdStr == null) {
+        OAuthAttributes attributes = redisService.validateAndConsumeAuthorizationCode(request.code());
+        if (attributes == null) {
             throw new InvalidAuthorizationCodeException();
         }
 
-        Long userId = Long.parseLong(userIdStr);
-        User user = userGetService.getById(userId);
+        if (attributes.email() == null || !attributes.email().endsWith(ALLOWED_EMAIL_DOMAIN)) {
+            throw new UnauthorizedEmailDomainException();
+        }
+
+        User user = userGetService.findByProviderId(attributes.providerId())
+                .orElseGet(() -> userCreateService.createUser(
+                        User.create(attributes.providerId(), attributes.username(), attributes.email(), attributes.picture())
+                ));
 
         String accessToken = jwtProvider.createMemberAccessToken(user.getId(), user.getUsername());
         return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername(), user.isOnboarded());

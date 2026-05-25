@@ -1,7 +1,6 @@
 package com.project.bangjjack.global.annotation;
 
 import com.project.bangjjack.global.common.exception.UnAuthorizedException;
-import com.project.bangjjack.global.config.security.oauth2.OAuth2UserPrincipal;
 import com.project.bangjjack.global.jwt.principal.MemberPrincipal;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.Authentication;
@@ -44,9 +43,6 @@ public class CurrentMemberIdArgumentResolver implements HandlerMethodArgumentRes
 
         if (principal instanceof MemberPrincipal memberPrincipal) {
             return memberPrincipal.getMemberId();
-        }
-        if (principal instanceof OAuth2UserPrincipal oAuth2UserPrincipal) {
-            return oAuth2UserPrincipal.getMemberId();
         }
 
         if (required) throw new UnAuthorizedException();
