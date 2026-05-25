@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.chat.domain.service;
 
+import com.project.bangjjack.domain.chat.application.exception.AlreadyLeftChatRoomException;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
@@ -69,10 +70,16 @@ public class ChatRoomGetService {
     }
 
     public ChatRoomParticipant getActiveParticipant(Long roomId, Long userId) {
-        return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndStatusAndDeletedFalse(roomId, userId, ParticipantStatus.ACTIVE)
+        ChatRoomParticipant participant = chatRoomParticipantRepository
+                .findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
                 .orElseThrow(() -> chatRoomRepository.existsByIdAndDeletedFalse(roomId)
                         ? new NotChatParticipantException()
                         : new ChatRoomNotFoundException());
+
+        if (participant.isLeft()) {
+            throw new AlreadyLeftChatRoomException();
+        }
+        return participant;
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {

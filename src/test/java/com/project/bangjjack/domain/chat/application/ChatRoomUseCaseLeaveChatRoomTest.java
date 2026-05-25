@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.chat.application;
 
+import com.project.bangjjack.domain.chat.application.exception.AlreadyLeftChatRoomException;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatRoomUseCase;
@@ -100,18 +101,18 @@ class ChatRoomUseCaseLeaveChatRoomTest {
         }
 
         @Test
-        @DisplayName("이미 나간 참여자가 재요청하면 NotChatParticipantException이 발생한다")
+        @DisplayName("이미 나간 참여자가 재요청하면 AlreadyLeftChatRoomException이 발생한다")
         void 이미_나간_참여자가_재요청하면_예외_발생() {
             // given
             Long roomId = 1L;
             Long userId = 10L;
 
             given(chatRoomGetService.getActiveParticipant(roomId, userId))
-                    .willThrow(new NotChatParticipantException());
+                    .willThrow(new AlreadyLeftChatRoomException());
 
             // when & then
             assertThatThrownBy(() -> chatRoomUseCase.leaveChatRoom(roomId, userId))
-                    .isInstanceOf(NotChatParticipantException.class);
+                    .isInstanceOf(AlreadyLeftChatRoomException.class);
         }
     }
 }
