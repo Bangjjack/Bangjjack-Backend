@@ -26,9 +26,15 @@ public class CustomOAuth2SuccessHandler implements AuthenticationSuccessHandler 
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) throws IOException {
         OAuth2AuthenticationToken token = (OAuth2AuthenticationToken) authentication;
-        OAuth2UserPrincipal principal = (OAuth2UserPrincipal) token.getPrincipal();
+        OAuth2UserPrincipal principal = (OAuth2UserPrincipal) Objects.requireNonNull(token.getPrincipal());
 
-        String authCode = redisService.createAuthorizationCode(Objects.requireNonNull(principal).getMemberId());
+        OAuthAttributes attributes = OAuthAttributes.of(
+                principal.getProviderId(),
+                principal.getUsername(),
+                principal.getEmail(),
+                principal.getPicture()
+        );
+        String authCode = redisService.createAuthorizationCode(attributes);
         response.sendRedirect(frontUri + "?code=" + authCode);
     }
 }
