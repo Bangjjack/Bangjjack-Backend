@@ -34,7 +34,7 @@ public class AuthUseCase {
         User user = userGetService.getById(userId);
 
         String accessToken = jwtProvider.createMemberAccessToken(user.getId(), user.getUsername());
-        return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername());
+        return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername(), user.isOnboarded());
     }
 
     public WsTokenResponse issueWsToken(MemberPrincipal principal) {

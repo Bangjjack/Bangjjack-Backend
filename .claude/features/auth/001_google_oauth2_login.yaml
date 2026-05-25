@@ -1,6 +1,6 @@
 # Feature Specification: Google OAuth2 소셜 로그인
 # Status: Implemented
-# Last Updated: 2026-04-13
+# Last Updated: 2026-05-25
 
 meta:
   id: FEAT-002
@@ -83,6 +83,9 @@ technical_spec:
           - name: username
             type: String
             description: "회원 이름"
+          - name: isOnboarded
+            type: boolean
+            description: "온보딩 완료 여부. false인 경우 프론트엔드가 온보딩 페이지로 유도"
 
   data_flow:
     oauth2_login:
@@ -105,7 +108,7 @@ technical_spec:
         action: "@Valid 요청 검증 → AuthUseCase.exchangeToken(code) 호출"
       - step: 2
         layer: UseCase (AuthUseCase)
-        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 예외 → userId로 User 조회 → JwtProvider.createAccessToken() → TokenExchangeResponse 반환"
+        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 예외 → userId로 User 조회 → JwtProvider.createAccessToken() → user.isOnboarded()을 포함하여 TokenExchangeResponse 반환"
         transaction: true (readOnly)
       - step: 3
         layer: Infrastructure (RedisService)
@@ -230,9 +233,11 @@ package_structure:
 # ============================================================
 testing_strategy:
   happy_path:
-    - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username이 반환된다"
+    - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username, isOnboarded가 반환된다"
     - "가천대학교 이메일(@gachon.ac.kr) 신규 Google 사용자 로그인 시 User가 자동 생성된다"
     - "가천대학교 이메일(@gachon.ac.kr) 기존 Google 사용자 로그인 시 기존 User가 조회된다"
+    - "온보딩 미완료 회원이 토큰을 교환하면 isOnboarded=false가 반환된다"
+    - "온보딩 완료 회원이 토큰을 교환하면 isOnboarded=true가 반환된다"
   edge_cases:
     - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE 반환"
     - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE 반환 (1회용)"

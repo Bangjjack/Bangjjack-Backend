@@ -4,6 +4,10 @@ import com.project.bangjjack.domain.auth.application.dto.request.TokenExchangeRe
 import com.project.bangjjack.domain.auth.application.dto.response.TokenExchangeResponse;
 import com.project.bangjjack.domain.auth.application.exception.InvalidAuthorizationCodeException;
 import com.project.bangjjack.domain.auth.application.usecase.AuthUseCase;
+import com.project.bangjjack.domain.user.domain.entity.Campus;
+import com.project.bangjjack.domain.user.domain.entity.Dormitory;
+import com.project.bangjjack.domain.user.domain.entity.Gender;
+import com.project.bangjjack.domain.user.domain.entity.Semester;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import com.project.bangjjack.global.infrastructure.redis.RedisService;
@@ -58,6 +62,45 @@ class AuthUseCaseTest {
             // then
             assertThat(response.accessToken()).isEqualTo(expectedToken);
             assertThat(response.username()).isEqualTo("홍길동");
+        }
+
+        @Test
+        @DisplayName("온보딩 미완료 회원이 토큰을 교환하면 isOnboarded=false가 반환된다")
+        void 온보딩_미완료_회원의_isOnboarded는_false() {
+            // given
+            String code = "valid-auth-code";
+            Long userId = 1L;
+            User user = User.create("google-sub-123", "홍길동", "hong@gmail.com", "https://pic.url");
+
+            given(redisService.validateAndConsumeAuthorizationCode(code)).willReturn(String.valueOf(userId));
+            given(userGetService.getById(userId)).willReturn(user);
+            given(jwtProvider.createMemberAccessToken(user.getId(), user.getUsername())).willReturn("jwt.access.token");
+
+            // when
+            TokenExchangeResponse response = authUseCase.exchangeToken(new TokenExchangeRequest(code));
+
+            // then
+            assertThat(response.isOnboarded()).isFalse();
+        }
+
+        @Test
+        @DisplayName("온보딩 완료 회원이 토큰을 교환하면 isOnboarded=true가 반환된다")
+        void 온보딩_완료_회원의_isOnboarded는_true() {
+            // given
+            String code = "valid-auth-code";
+            Long userId = 1L;
+            User user = User.create("google-sub-123", "홍길동", "hong@gmail.com", "https://pic.url");
+            user.completeOnboarding(2000, 2, Gender.MALE, Campus.GLOBAL_CAMPUS, null, Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
+
+            given(redisService.validateAndConsumeAuthorizationCode(code)).willReturn(String.valueOf(userId));
+            given(userGetService.getById(userId)).willReturn(user);
+            given(jwtProvider.createMemberAccessToken(user.getId(), user.getUsername())).willReturn("jwt.access.token");
+
+            // when
+            TokenExchangeResponse response = authUseCase.exchangeToken(new TokenExchangeRequest(code));
+
+            // then
+            assertThat(response.isOnboarded()).isTrue();
         }
 
         @Test
