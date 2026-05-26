@@ -56,7 +56,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         WebSocketInboundMessage inbound;
         try {
             inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
