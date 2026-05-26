@@ -6,6 +6,7 @@ import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import java.time.LocalDateTime;
 
 public record ChatMessageBroadcast(
+        WebSocketBroadcastType type,
         Long messageId,
         Long roomId,
         Long senderId,
@@ -16,6 +17,7 @@ public record ChatMessageBroadcast(
 ) {
     public static ChatMessageBroadcast from(Chat chat, Long roomId) {
         return new ChatMessageBroadcast(
+                WebSocketBroadcastType.CHAT_MESSAGE,
                 chat.getId(),
                 roomId,
                 chat.getSenderId(),

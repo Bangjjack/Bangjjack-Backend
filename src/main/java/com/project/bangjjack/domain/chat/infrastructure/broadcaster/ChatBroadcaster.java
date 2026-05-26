@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.chat.infrastructure.broadcaster;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
+import com.project.bangjjack.domain.chat.application.dto.response.ReadReceiptBroadcast;
 
 /**
  * 채팅 브로드캐스트 추상화.
@@ -9,4 +10,5 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBro
  */
 public interface ChatBroadcaster {
     void broadcastToRoom(Long roomId, ChatMessageBroadcast broadcast);
+    void broadcastReadReceipt(Long roomId, ReadReceiptBroadcast broadcast);
 }
