@@ -146,7 +146,6 @@ testing_strategy:
   test_files:
     - "ChatRoomParticipantTest — markAsRead() boolean 반환값 케이스"
     - "ChatMessageUseCaseMarkAsReadTest — markAsRead() 이벤트 발행·미발행·예외 케이스"
-    - "ReadReceiptEventListenerTest — ReadReceiptEvent 수신 시 broadcastReadReceipt 호출 및 페이로드 검증"
 
 # ============================================================
 # 주의사항

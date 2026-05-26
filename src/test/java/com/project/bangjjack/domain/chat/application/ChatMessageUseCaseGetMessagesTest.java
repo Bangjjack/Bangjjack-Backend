@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.chat.application;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
+import com.project.bangjjack.domain.chat.application.event.ReadReceiptEvent;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.application.usecase.ChatMessageUseCase;
@@ -27,9 +28,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class ChatMessageUseCaseGetMessagesTest {
@@ -176,6 +179,122 @@ class ChatMessageUseCaseGetMessagesTest {
             // when & then
             assertThatThrownBy(() -> chatMessageUseCase.getMessages(outsiderId, roomId, null, 30))
                     .isInstanceOf(NotChatParticipantException.class);
+        }
+
+        @Test
+        @DisplayName("메시지가 없으면 lastReadMessageId가 변경되지 않는다")
+        void 메시지가_없으면_읽음_처리가_수행되지_않는다() {
+            // given
+            Long roomId = 10L;
+            ChatRoomParticipant participant = createParticipant(1L);
+
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(participant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(Collections.emptyList());
+
+            // when
+            chatMessageUseCase.getMessages(1L, roomId, null, 30);
+
+            // then
+            assertThat(participant.getLastReadMessageId()).isNull();
+        }
+
+        @Test
+        @DisplayName("메시지가 있으면 가장 최신 메시지(첫 번째) ID로 lastReadMessageId가 갱신된다")
+        void 메시지가_있으면_최신_메시지_ID로_읽음_처리된다() {
+            // given
+            Long roomId = 10L;
+            ChatRoomParticipant participant = createParticipant(1L);
+            Chat newest = createChat();
+            Chat older = createChat();
+
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(participant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(List.of(newest, older));
+
+            // when
+            chatMessageUseCase.getMessages(1L, roomId, null, 30);
+
+            // then
+            assertThat(participant.getLastReadMessageId()).isEqualTo(newest.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("읽음 처리 시 ReadReceiptEvent 발행")
+    class ReadReceiptEventPublishing {
+
+        @Test
+        @DisplayName("신규 메시지 조회 시 ReadReceiptEvent가 발행된다")
+        void 신규_메시지_조회_시_ReadReceiptEvent_발행() {
+            // given
+            Long currentUserId = 1L;
+            Long roomId = 10L;
+            ChatRoomParticipant participant = createParticipant(currentUserId);
+            Chat chat = createChat();
+
+            given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(participant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(List.of(chat));
+
+            // when
+            chatMessageUseCase.getMessages(currentUserId, roomId, null, 30);
+
+            // then
+            then(eventPublisher).should().publishEvent(any(ReadReceiptEvent.class));
+        }
+
+        @Test
+        @DisplayName("메시지가 없으면 ReadReceiptEvent가 발행되지 않는다")
+        void 메시지가_없으면_ReadReceiptEvent_미발행() {
+            // given
+            Long roomId = 10L;
+            given(chatRoomGetService.getActiveParticipant(roomId, 1L)).willReturn(createParticipant(1L));
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(Collections.emptyList());
+
+            // when
+            chatMessageUseCase.getMessages(1L, roomId, null, 30);
+
+            // then
+            then(eventPublisher).should(never()).publishEvent(any(ReadReceiptEvent.class));
+        }
+
+        @Test
+        @DisplayName("이미 읽은 메시지 ID로 조회하면 ReadReceiptEvent가 발행되지 않는다")
+        void 이미_읽은_메시지면_ReadReceiptEvent_미발행() {
+            // given
+            Long currentUserId = 1L;
+            Long roomId = 10L;
+            ChatRoomParticipant participant = createParticipant(currentUserId);
+            Chat chat = createChat();
+            participant.markAsRead(chat.getId()); // 미리 읽음 처리
+
+            given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(participant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(List.of(chat));
+
+            // when
+            chatMessageUseCase.getMessages(currentUserId, roomId, null, 30);
+
+            // then
+            then(eventPublisher).should(never()).publishEvent(any(ReadReceiptEvent.class));
+        }
+
+        @Test
+        @DisplayName("ReadReceiptEvent에 올바른 roomId, readerId, lastReadMessageId가 담긴다")
+        void ReadReceiptEvent_페이로드가_정확하다() {
+            // given
+            Long currentUserId = 1L;
+            Long roomId = 10L;
+            ChatRoomParticipant participant = createParticipant(currentUserId);
+            Chat chat = createChat();
+
+            given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(participant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(List.of(chat));
+
+            // when
+            chatMessageUseCase.getMessages(currentUserId, roomId, null, 30);
+
+            // then
+            then(eventPublisher).should().publishEvent(
+                    new ReadReceiptEvent(roomId, currentUserId, chat.getId())
+            );
         }
     }
 }
