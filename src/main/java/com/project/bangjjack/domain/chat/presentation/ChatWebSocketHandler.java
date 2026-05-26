@@ -75,6 +75,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         MemberPrincipal principal = getPrincipal(session);
 
         try {
+            inbound.validate();
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
