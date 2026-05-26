@@ -66,10 +66,7 @@ public class ChatMessageUseCase {
     @Transactional
     public void markAsRead(Long userId, Long roomId, Long messageId) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
-        boolean updated = participant.markAsRead(messageId);
-        if (updated) {
-            eventPublisher.publishEvent(new ReadReceiptEvent(roomId, userId, messageId));
-        }
+        markAsReadAndPublish(participant, roomId, userId, messageId);
     }
 
     @Transactional
@@ -82,10 +79,7 @@ public class ChatMessageUseCase {
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
 
         if (!content.isEmpty()) {
-            boolean updated = participant.markAsRead(content.get(0).getId());
-            if (updated) {
-                eventPublisher.publishEvent(new ReadReceiptEvent(roomId, currentUserId, content.get(0).getId()));
-            }
+            markAsReadAndPublish(participant, roomId, currentUserId, content.get(0).getId());
         }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 
@@ -94,5 +88,11 @@ public class ChatMessageUseCase {
                 .toList();
 
         return ChatMessagePageResponse.of(messages, nextCursor, hasNext);
+    }
+
+    private void markAsReadAndPublish(ChatRoomParticipant participant, Long roomId, Long userId, Long messageId) {
+        if (participant.markAsRead(messageId)) {
+            eventPublisher.publishEvent(new ReadReceiptEvent(roomId, userId, messageId));
+        }
     }
 }
