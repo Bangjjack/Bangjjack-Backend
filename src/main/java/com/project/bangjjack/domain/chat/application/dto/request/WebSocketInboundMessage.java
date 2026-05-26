@@ -12,7 +12,7 @@ public record WebSocketInboundMessage(
         if (roomId == null) {
             throw new InvalidWsMessageFormatException();
         }
-        if (type == WebSocketMessageType.READ && messageId == null) {
+        if (type == WebSocketMessageType.READ && (messageId == null || messageId <= 0)) {
             throw new InvalidWsMessageFormatException();
         }
         if (type == WebSocketMessageType.SEND && content == null) {
