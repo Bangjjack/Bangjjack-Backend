@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 신청 요청 보내기
 # Status: Draft
-# Last Updated: 2026-05-19 (룸메이트 그룹 도입에 따른 신청자 중복 소속 사전 검증 추가; request body 제거; RoommateApplication-ChatRoom FK 제거; 신청 시 신청자 명의 채팅 메시지 자동 전송 + WebSocket broadcast)
+# Last Updated: 2026-05-27
 
 meta:
   id: FEAT-013
@@ -10,21 +10,25 @@ meta:
 
 overview:
   summary: >
-    인증된 사용자가 특정 OPEN 상태 룸메이트 모집글에 신청 요청을 보낸다.
+    인증된 사용자가 채팅방의 상대 사용자에게 룸메이트 신청을 보낸다.
+    UI 플로우는 모집글 → 채팅하기 → 신청 보내기 순서로 진행되므로
+    API 표면은 채팅 상대(userId)를 받고, 서버 내부에서 1유저-1OPEN 모집글 제약을 활용해
+    해당 사용자의 현재 OPEN 모집글로 결정적으로 매핑한다.
     신청은 PENDING 상태로 생성되며, 작성자가 수락/거절할 때까지 유지된다.
     신청 시점에 신청자와 모집글 작성자 간 1:1 채팅방이 존재하지 않으면 함께 생성하여
     별도 절차 없이 즉시 대화를 시작할 수 있도록 한다.
     수락 시에도 모집글 상태는 자동 변경되지 않으며, 작성자가 수동으로 마감한다.
   user_story: >
-    As a 온보딩/체크리스트/선호도 등록 완료 사용자, I want to 특정 모집글에 룸메이트 신청을 보내고,
+    As a 온보딩/체크리스트/선호도 등록 완료 사용자, I want to 채팅 상대(모집글 작성자)에게 룸메이트 신청을 보내고,
     so that 작성자에게 의사를 전달하고 즉시 1:1 채팅으로 대화를 이어갈 수 있다.
     신청 시 별도 메시지/본문은 입력하지 않으며, 후속 대화는 자동 생성되는 1:1 채팅방에서 진행한다.
   goals:
-    - 특정 OPEN 모집글에 PENDING 상태 신청 생성
+    - 대상 사용자(targetUserId)의 현재 OPEN 모집글에 PENDING 상태 신청 생성
+    - 1유저-1OPEN 모집글 제약(post/001)에 기반하여 user → post 결정적 매핑
     - 신청자와 모집글 작성자 간 1:1 채팅방 자동 연결 (없으면 생성)
     - 신청 시 신청자 명의로 "룸메이트 신청을 보냈습니다." 고정 문구 채팅 자동 전송 + WebSocket broadcast
     - 사전 등록 정보(온보딩/체크리스트/선호도) 미완료자 신청 차단
-    - 본인 게시글 신청 차단
+    - 본인에게 신청 시도 차단 (targetUserId == requesterId)
     - 본인의 OPEN 모집글이 존재하는 사용자(작성자 역할)의 신청 차단
     - 동일 모집글에 대한 PENDING 중복 신청 차단 (거절 후 재신청은 허용)
     - 신청자가 이미 다른 RoommateGroup의 MEMBER 역할이면 신청 차단 (조기 실패, application/002 수락 시점에서도 재검증)
@@ -35,15 +39,15 @@ overview:
 technical_spec:
   api:
     - method: POST
-      path: /api/v1/posts/{postId}/applications
-      summary: 룸메이트 신청 요청 보내기 (없으면 1:1 채팅방 동반 생성)
+      path: /api/v1/users/{userId}/applications
+      summary: 룸메이트 신청 요청 보내기 (대상 사용자의 OPEN 모집글 대상, 없으면 1:1 채팅방 동반 생성)
       auth: MEMBER (Bearer Token, 필수)
       request:
         path_variable:
-          - name: postId
+          - name: userId
             type: Long
             required: true
-            note: "신청 대상 모집글 ID"
+            note: "신청 대상 사용자(모집글 작성자)의 User ID. 서버 내부에서 해당 사용자의 OPEN 모집글로 매핑된다."
         dto: "(없음)"
         body: "(없음 — 요청 본문 없이 신청 전송)"
         fields: []
@@ -58,6 +62,7 @@ technical_spec:
             note: "생성된 신청 ID"
           - name: postId
             type: Long
+            note: "서버 내부에서 매핑된 대상 OPEN 모집글 ID (FE 후속 화면 전환 등에 사용)"
           - name: applicantId
             type: Long
           - name: status
@@ -75,35 +80,32 @@ technical_spec:
   data_flow:
     - step: 1
       layer: Presentation (RoommateApplicationController)
-      action: "@CurrentMemberId로 JWT에서 userId 추출, @PathVariable postId 수신 후 RoommateApplicationUseCase.createApplication(userId, postId) 호출 (요청 본문 없음)"
+      action: "@CurrentMemberId로 JWT에서 memberId 추출, @PathVariable Long userId 수신(=targetUserId) 후 RoommateApplicationUseCase.createApplication(memberId, userId) 호출 (요청 본문 없음)"
     - step: 2
       layer: UseCase (RoommateApplicationUseCase)
       transaction: true
-      action: "UserGetService.getById(userId)로 신청자 User 조회 (없으면 USER_NOT_FOUND)"
+      action: "targetUserId == requesterId 사전 차단 → 본인에게 신청 시도이면 CANNOT_APPLY_TO_OWN_POST. 별도 lookup 없이 조기 실패."
     - step: 3
       layer: UseCase (RoommateApplicationUseCase)
-      action: "신청자의 isOnboarded / isChecklistRegistered / isRoommatePreferenceRegistered 모두 true 검증 → 미충족 시 APPLICATION_PRECONDITION_NOT_MET"
+      action: "UserGetService.getById(memberId)로 신청자 User 조회 (없으면 USER_NOT_FOUND)"
     - step: 4
       layer: UseCase (RoommateApplicationUseCase)
-      action: "RoommatePostGetService.getById(postId)로 모집글 조회 (없거나 deleted=true이면 POST_NOT_FOUND)"
+      action: "신청자의 isOnboarded / isChecklistRegistered / isRoommatePreferenceRegistered 모두 true 검증 → 미충족 시 APPLICATION_PRECONDITION_NOT_MET"
     - step: 5
       layer: UseCase (RoommateApplicationUseCase)
-      action: "post.getUser().getId() != userId 검증 → 본인 게시글이면 CANNOT_APPLY_TO_OWN_POST"
+      action: "RoommatePostGetService.findOpenWithUserByUserIdForUpdate(targetUserId) 호출. 결과 비어있으면 NO_OPEN_POST_FOR_USER. PESSIMISTIC_WRITE 락으로 동시 신청 직렬화. 1유저-1OPEN 모집글 제약(post/001)이 결정성을 보장."
     - step: 6
       layer: UseCase (RoommateApplicationUseCase)
-      action: "post.getStatus() == OPEN 검증 → CLOSED이면 POST_NOT_OPEN"
+      action: "RoommatePostGetService.existsOpenPostByUser(applicant) 검증 → 신청자가 OPEN 모집글의 작성자이면 OWN_OPEN_POST_EXISTS_FOR_APPLICANT"
     - step: 7
       layer: UseCase (RoommateApplicationUseCase)
-      action: "RoommatePostGetService.existsOpenPostByUserId(userId) 검증 → 신청자가 OPEN 모집글의 작성자이면 OWN_OPEN_POST_EXISTS_FOR_APPLICANT"
+      action: "RoommateApplicationGetService.existsPendingByPostIdAndApplicantId(postId, memberId) 검증 → 존재 시 ALREADY_APPLIED_PENDING"
     - step: 8
       layer: UseCase (RoommateApplicationUseCase)
-      action: "RoommateApplicationGetService.existsPendingByPostIdAndApplicantId(postId, userId) 검증 → 존재 시 ALREADY_APPLIED_PENDING"
-    - step: 8b
-      layer: UseCase (RoommateApplicationUseCase)
-      action: "RoommateGroupMemberGetService.existsByUserIdAndRole(userId, MEMBER) 검증 → 신청자가 이미 다른 그룹의 MEMBER 역할이면 APPLICANT_ALREADY_IN_GROUP. LEADER 역할 보유는 본인 OPEN 모집글 정책으로 이미 step 7에서 차단됨."
+      action: "RoommateGroupMemberGetService.existsByUserIdAndRole(memberId, MEMBER) 검증 → 신청자가 이미 다른 그룹의 MEMBER 역할이면 APPLICANT_ALREADY_IN_GROUP. LEADER 역할 보유는 step 6에서 이미 차단됨."
     - step: 9
       layer: UseCase (RoommateApplicationUseCase)
-      action: "ChatRoomGetService로 (userId, post.user.id) 기준 directRoomKey 조회 → 존재 시 기존 chatRoom 사용 (isNewChatRoom=false), 없으면 ChatRoomCreateService.createDirectRoom(userId, post.user.id) 호출 (isNewChatRoom=true)"
+      action: "ChatRoomGetService로 (memberId, targetUserId) 기준 directRoomKey 조회 → 존재 시 기존 chatRoom 사용 (isNewChatRoom=false), 없으면 ChatRoomCreateService.createDirectRoom(memberId, targetUserId) 호출 (isNewChatRoom=true)"
     - step: 10
       layer: Domain (RoommateApplication Entity)
       action: "RoommateApplication.create(post, applicant) 정적 팩토리 메서드 호출 → status=PENDING 으로 초기화. ChatRoom은 엔티티에 보관하지 않음 (필요 시 (applicantId, authorId)로 derive)"
@@ -112,20 +114,20 @@ technical_spec:
       action: "save(application)로 신청 영속화"
     - step: 12
       layer: Domain Service (ChatSaveService)
-      action: "ChatSaveService.save(applicantId, chatRoom, \"룸메이트 신청을 보냈습니다.\") 호출 → Chat 엔티티 영속화. senderId는 신청자(applicant) ID."
+      action: "ChatSaveService.save(applicantId, chatRoom, \"룸메이트 신청을 보냈습니다.\", APPLICATION_SENT) 호출 → Chat 엔티티 영속화. senderId는 신청자(applicant) ID."
     - step: 13
       layer: UseCase (RoommateApplicationUseCase)
-      action: "ApplicationEventPublisher로 ChatMessageSentEvent(roomId, ChatMessageBroadcast.from(chat, roomId)) 발행 → chat 도메인의 WebSocketBroadcaster가 자동으로 실시간 송신."
+      action: "chatRoom.updateCategory(APPLICATION) 적용 + ApplicationEventPublisher로 ChatMessageSentEvent 발행 → WebSocketBroadcaster 자동 송신."
     - step: 14
       layer: Response
-      action: "CreateRoommateApplicationResponse.from(application, chatRoom.getId(), isNewChatRoom) 생성 후 201 CREATED, CommonResponse<…> 반환. chatRoomId는 step 9에서 확보한 ChatRoom 인스턴스에서 직접 전달."
+      action: "CreateRoommateApplicationResponse.from(application, chatRoom.getId(), isNewChatRoom) 생성 후 201 CREATED, CommonResponse<…> 반환."
 
   response_dto_structure:
     CreateRoommateApplicationResponse:
       note: "static factory method from(RoommateApplication, Long chatRoomId, boolean isNewChatRoom) 사용"
       source_fields:
         - "applicationId ← application.getId()"
-        - "postId ← application.getPost().getId()"
+        - "postId ← application.getPost().getId() (userId 기반 매핑으로 도출된 OPEN post)"
         - "applicantId ← application.getApplicant().getId()"
         - "status ← application.getStatus()"
         - "chatRoomId ← UseCase가 확보한 ChatRoom 인스턴스의 id를 파라미터로 전달 (application에는 chatRoom 참조 없음)"
@@ -139,9 +141,10 @@ technical_spec:
         fields: "post_id, applicant_id (user_id FK), status=PENDING"
         note: |
           신규 도메인 엔티티. 별도 references/data-model/application/roommate-application.yaml 작성 권장.
+          post_id는 userId 기반 API에서도 그대로 보존됨 — 신청 도메인의 정체성은 모집글에 묶이며,
+          userId는 API 진입점의 식별자일 뿐 도메인 루트가 아니다.
           ChatRoom과의 FK는 의도적으로 보유하지 않음 — 채팅방은 (applicantId, authorId) 유저 쌍의 함수이며
-          ChatRoom.directRoomKey로 idempotent하게 derive 가능. Application은 어떤 모집글에 대한 의사 표현일 뿐
-          채팅방 소유권을 갖지 않는다.
+          ChatRoom.directRoomKey로 idempotent하게 derive 가능.
       - name: ChatRoom
         action: "Read or Create"
         fields: "direct_room_key 기준 조회. 없으면 createDirect()"
@@ -152,40 +155,19 @@ technical_spec:
         note: "chat 도메인 위임"
       - name: Chat
         action: Create
-        fields: "user_id=applicantId, room_id=chatRoom.id, content=\"룸메이트 신청을 보냈습니다.\""
+        fields: "user_id=applicantId, room_id=chatRoom.id, content=\"룸메이트 신청을 보냈습니다.\", message_type=APPLICATION_SENT"
         note: "신청자 명의로 고정 문구 채팅 1건 자동 생성. ChatSaveService.save() 호출 후 ChatMessageSentEvent 발행."
 
-  entity_proposal:
-    name: RoommateApplication
-    description: "특정 룸메이트 모집글에 대한 신청(요청) 정보. PENDING / ACCEPTED / REJECTED 상태 머신."
-    table: roommate_applications
-    domain: Application
-    extends: BaseEntity
-    columns:
-      - post_id: { type: BIGINT, nullable: false, fk: "roommate_posts.id", description: "신청 대상 모집글 FK" }
-      - applicant_id: { type: BIGINT, nullable: false, fk: "users.id", description: "신청자 User FK" }
-      - status: { type: VARCHAR(15), nullable: false, default: PENDING, enum: ApplicationStatus, description: "신청 상태 (PENDING / ACCEPTED / REJECTED)" }
-    indexes:
-      - { name: IDX_application_post_id, columns: [post_id], type: INDEX }
-      - { name: IDX_application_applicant_id, columns: [applicant_id], type: INDEX }
-      - { name: IDX_application_post_applicant_status, columns: [post_id, applicant_id, status], type: INDEX, note: "PENDING 중복 신청 검증용" }
-    relationships:
-      - { type: ManyToOne, target: RoommatePost, fk: post_id, fetch: LAZY }
-      - { type: ManyToOne, target: User, fk: applicant_id, fetch: LAZY }
-    relationship_notes:
-      - "ChatRoom과의 직접 연관관계는 두지 않는다. 이유: 채팅방은 (applicant, author) 유저 쌍의 함수로 derivable하며, Application은 모집글에 대한 의사 표현이지 채팅방 소유 주체가 아니다. 동일 유저 쌍이 다른 모집글에 재신청해도 같은 채팅방을 가리키므로 FK는 새 정보를 주지 않고 강결합만 유발한다."
-    business_logic:
-      - "create(post, applicant): 정적 팩토리 메서드. status=PENDING 초기화."
-      - "accept(): status = ACCEPTED (다음 스펙: 신청 수락에서 사용)"
-      - "reject(): status = REJECTED (다음 스펙: 신청 거절에서 사용)"
-      - "softDelete(): → BaseEntity 위임"
-    enums:
-      ApplicationStatus:
-        values: [PENDING, ACCEPTED, REJECTED]
+  domain_model_rationale:
+    title: "왜 userId를 받지만 도메인은 post 중심을 유지하는가"
+    points:
+      - "RoommateGroup은 모집글 작성 시점에 1:1로 함께 생성되고 작성자가 LEADER로 자동 입주된다 (post/001 참조). 즉 신청 수락은 '새 그룹 생성'이 아니라 '기존 그룹에 MEMBER 추가'이며, 그룹의 정체성은 post에 묶여있다."
+      - "RoommatePostUseCase.createPost에서 1유저-1OPEN 모집글 제약을 보장한다. 따라서 (userId, status=OPEN) 조회는 결정적으로 0건 또는 1건이며, userId는 사실상 '현재 모집 중인 글'의 별명(alias)으로 기능한다."
+      - "이 제약 위에서 API 표면은 사용자가 인지하는 식별자(사람)로 노출하되, 도메인 내부의 모든 invariant(정원, 그룹 멤버십, 채팅방 derive)는 post 중심을 유지한다. 결과적으로 API 표면의 변경은 UseCase 진입부 한 줄(user → OPEN post 매핑)에 국한된다."
 
   error_codes:
-    domain_range: "408xx (Application 도메인, 신규 추가)"
-    note: "신규 도메인 범위 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
+    domain_range: "408xx (Application 도메인)"
+    note: "신규 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
     codes:
       - code: 40801
         name: APPLICATION_PRECONDITION_NOT_MET
@@ -196,12 +178,7 @@ technical_spec:
         name: CANNOT_APPLY_TO_OWN_POST
         status: 400 BAD_REQUEST
         message: "본인이 작성한 모집글에는 신청할 수 없습니다."
-        trigger: "post.user.id == 요청자 userId"
-      - code: 40803
-        name: POST_NOT_OPEN
-        status: 409 CONFLICT
-        message: "모집이 마감된 게시글에는 신청할 수 없습니다."
-        trigger: "post.status != OPEN"
+        trigger: "targetUserId == requesterId. 1유저-1OPEN 제약 하에서 자기 자신을 대상으로 한 신청은 곧 자기 모집글 신청이므로 동일 코드 사용."
       - code: 40804
         name: ALREADY_APPLIED_PENDING
         status: 409 CONFLICT
@@ -218,25 +195,30 @@ technical_spec:
         message: "신청자가 이미 다른 룸메이트 그룹에 소속되어 있습니다."
         trigger: "신청자가 다른 RoommateGroup의 MEMBER 역할로 이미 등록된 경우. application/002와 동일 코드 재사용."
         note: "application/002에서 정의된 코드. 본 스펙은 사전 차단(조기 실패)용으로 동일 코드 재사용."
-      - code: 40704
-        name: POST_NOT_FOUND
+      - code: 40812
+        name: NO_OPEN_POST_FOR_USER
         status: 404 NOT_FOUND
-        message: "모집글을 찾을 수 없습니다."
-        trigger: "postId에 해당하는 모집글이 없거나 deleted=true"
-        note: "Post 도메인(407xx) 공용 코드 재사용"
+        message: "해당 사용자는 현재 모집 중인 룸메이트 모집글이 없습니다."
+        trigger: "targetUserId 사용자가 status=OPEN, deleted=false 인 모집글을 보유하지 않은 경우. 모집글이 마감/삭제된 직후 채팅방에서 신청을 시도하는 시나리오에서 발생."
+        note: "이전 POST_NOT_OPEN(40803)을 대체. API 진입점이 user 기반이므로 메시지가 'user 관점'으로 자연스럽게 바뀜."
       - code: 40203
         name: USER_NOT_FOUND
         status: 404 NOT_FOUND
         message: "사용자를 찾을 수 없습니다."
-        trigger: "JWT userId로 User 조회 실패 시"
-        note: "User 도메인(402xx) 공용 코드 재사용"
+        trigger: "JWT memberId로 신청자 User 조회 실패 시"
+        note: "User 도메인(402xx) 공용 코드 재사용. targetUserId 자체의 존재 검증은 별도로 하지 않으며, OPEN 모집글 조회 결과(NO_OPEN_POST_FOR_USER)로 묶어 처리한다."
+
+  removed_codes:
+    - code: 40803
+      name: POST_NOT_OPEN
+      reason: "userId 기반 진입점 도입으로 도달 불가능해짐. CLOSED/DELETED 모집글은 OPEN 조회 단계에서 NO_OPEN_POST_FOR_USER로 흡수된다."
+      removed_at: "2026-05-27"
 
   validation_rules:
     - "인증된 MEMBER만 신청 가능"
+    - "targetUserId != requesterId 이어야 함 (자기 자신 대상 신청 차단)"
     - "신청자는 isOnboarded, isChecklistRegistered, isRoommatePreferenceRegistered 모두 true여야 함"
-    - "모집글은 존재해야 하며 deleted=false 이어야 함 (없으면 POST_NOT_FOUND)"
-    - "본인이 작성한 모집글에는 신청 불가 (post.user.id != applicant.id)"
-    - "모집글 status == OPEN 이어야 신청 가능 (CLOSED이면 POST_NOT_OPEN)"
+    - "대상 사용자에게 status=OPEN, deleted=false 인 모집글이 1건 존재해야 함 (없으면 NO_OPEN_POST_FOR_USER). 1유저-1OPEN 제약(post/001)에 의해 결과는 0 또는 1건."
     - "신청자가 본인 명의의 OPEN 모집글 작성자이면 신청 불가 (LEADER 역할 + 본인 OPEN 모집글 보유 시 차단)"
     - "신청자가 이미 다른 RoommateGroup의 MEMBER 역할이면 신청 불가 (1인 MEMBER 1개 정책). LEADER 역할 보유와는 별개로 카운트."
     - "동일 (postId, applicantId)에 PENDING 신청이 이미 존재하면 신청 불가. REJECTED 처리된 이전 신청은 재신청 허용."
@@ -247,18 +229,19 @@ technical_spec:
 
   dependencies:
     domain_services:
-      - UserGetService.getById(userId)
-      - RoommatePostGetService.getById(postId)
+      - UserGetService.getById(memberId)
+      - RoommatePostGetService.findOpenWithUserByUserIdForUpdate(targetUserId) — 신규 메서드 (PESSIMISTIC_WRITE)
       - RoommatePostGetService.existsOpenPostByUser(applicant)
       - ChatRoomGetService.findByDirectRoomKey(directRoomKey)
       - ChatRoomCreateService.createDirectKey(userIdA, userIdB)
-      - ChatRoomCreateService.createDirectRoom(applicantId, authorId, directRoomKey) — chat-room 001 스펙 재사용
-      - ChatSaveService.save(senderId, chatRoom, content) — 신청 채팅 전송
+      - ChatRoomCreateService.createDirectRoom(applicantId, authorId, directRoomKey)
+      - ChatSaveService.save(senderId, chatRoom, content, messageType)
       - RoommateApplicationGetService.existsPendingByPostIdAndApplicantId(postId, applicantId)
-      - RoommateGroupMemberGetService.existsByUserIdAndRole(userId, MEMBER) — 신청자 중복 소속 사전 검증 (신규 도메인 roommategroup)
+      - RoommateGroupMemberGetService.existsByUserIdAndRole(userId, MEMBER)
       - RoommateApplicationCreateService.createApplication(application)
     spring_infrastructure:
       - ApplicationEventPublisher.publishEvent(ChatMessageSentEvent) — WebSocketBroadcaster가 listen
+      - ApplicationEventPublisher.publishEvent(ChatRoomCreatedEvent) — 채팅방 신규 생성 시
     constraint_check:
       - "UseCase는 Repository 직접 호출 금지. 반드시 Domain Service 경유 (essential-rules.yaml)."
       - "Domain Service ↔ Domain Service 직접 호출 금지. 필요 시 UseCase에서 조합."
@@ -269,7 +252,7 @@ technical_spec:
 # ============================================================
 testing_strategy:
   happy_path:
-    - "유효한 신청자가 OPEN 모집글에 신청 → 201, RoommateApplication(status=PENDING) 저장, applicationId 반환"
+    - "유효한 신청자가 대상 사용자(OPEN 모집글 보유자)에게 신청 → 201, RoommateApplication(status=PENDING) 저장, applicationId 반환, postId 응답에 포함"
     - "신청자-작성자 간 채팅방이 없는 상태에서 신청 → ChatRoom 신규 생성, ChatRoomParticipant 2명 저장, isNewChatRoom=true 반환"
     - "신청자-작성자 간 채팅방이 이미 존재할 때 신청 → 기존 chatRoomId 반환, isNewChatRoom=false, 신규 채팅방/참여자 INSERT 없음 확인"
     - "이전 신청이 REJECTED 처리되어 있는 동일 모집글에 재신청 → 201, 새로운 RoommateApplication(PENDING) 생성"
@@ -277,22 +260,22 @@ testing_strategy:
     - "신청 성공 시 ChatMessageSentEvent가 1회 발행되며 broadcast.senderId=applicantId, content=고정 문구로 검증"
 
   edge_cases:
+    - "targetUserId == requesterId (자기 자신 대상) → 400 CANNOT_APPLY_TO_OWN_POST. User 조회 이전 단계에서 조기 차단."
     - "신청자 isOnboarded=false → 400 APPLICATION_PRECONDITION_NOT_MET"
     - "신청자 isChecklistRegistered=false → 400 APPLICATION_PRECONDITION_NOT_MET"
     - "신청자 isRoommatePreferenceRegistered=false → 400 APPLICATION_PRECONDITION_NOT_MET"
-    - "존재하지 않는 postId → 404 POST_NOT_FOUND"
-    - "이미 deleted=true인 모집글 → 404 POST_NOT_FOUND"
-    - "본인이 작성한 모집글에 신청 → 400 CANNOT_APPLY_TO_OWN_POST"
-    - "CLOSED 상태 모집글에 신청 → 409 POST_NOT_OPEN"
-    - "신청자 본인의 OPEN 모집글이 존재할 때 다른 모집글에 신청 → 409 OWN_OPEN_POST_EXISTS_FOR_APPLICANT"
+    - "대상 사용자에게 OPEN 모집글 없음 (CLOSED/삭제/미작성) → 404 NO_OPEN_POST_FOR_USER"
+    - "신청자 본인의 OPEN 모집글이 존재할 때 다른 사용자에게 신청 → 409 OWN_OPEN_POST_EXISTS_FOR_APPLICANT"
     - "신청자가 이미 다른 RoommateGroup의 MEMBER 역할일 때 신청 → 409 APPLICANT_ALREADY_IN_GROUP"
     - "동일 (postId, applicantId)에 PENDING 신청이 이미 존재 → 409 ALREADY_APPLIED_PENDING"
     - "존재하지 않는 userId (JWT 변조) → 404 USER_NOT_FOUND"
-    - "동시 요청으로 동일 (postId, applicantId) 신청 2건이 거의 동시에 들어와도 1건만 PENDING 으로 남아야 함 (트랜잭션/유니크 인덱스 정책 검토)"
+    - "동시 요청으로 동일 (targetUserId, applicantId) 신청 2건이 거의 동시에 들어와도 1건만 PENDING으로 남아야 함 (대상 OPEN post 행에 대한 PESSIMISTIC_WRITE 락으로 직렬화)"
 
   unit_test_targets:
     - "RoommateApplication.create: status=PENDING으로 초기화되는지 검증"
     - "RoommateApplicationUseCase.createApplication: 각 검증 단계별 분기 (Mock Service)"
+    - "targetUserId == requesterId 조기 차단 분기 검증 (User 조회 호출되지 않음)"
+    - "대상 사용자에게 OPEN 모집글 없음 분기 검증 (findOpenWithUserByUserIdForUpdate가 Optional.empty 반환)"
     - "기존 채팅방 존재 시 신규 생성하지 않고 재사용하는 분기 검증"
     - "신청자 본인 OPEN 모집글 존재 시 차단 분기 검증"
     - "PENDING 중복 신청 차단 분기 검증"
@@ -304,15 +287,17 @@ testing_strategy:
 # ============================================================
 notes:
   - "본 스펙은 '신청 보내기(POST)'만 다룬다. 수락/거절/취소/조회는 별도 스펙(002~)으로 분리하여 작성한다."
+  - "API 진입점이 user 기반으로 바뀌었지만 도메인 루트는 여전히 RoommatePost이다. 그룹 생성/멤버십/정원/채팅방 derive 로직은 모두 post 중심으로 유지되며, UseCase 진입 한 줄에서 user → OPEN post 매핑만 일어난다 (domain_model_rationale 참조)."
+  - "1유저-1OPEN 모집글 제약(post/001의 createPost 사전 검증)이 본 매핑의 결정성(0 또는 1건)을 보증한다. 이 제약이 깨지면 NO_OPEN_POST_FOR_USER가 아닌 ambiguity가 발생하므로, post/001을 변경할 때는 본 스펙도 함께 검토 필요."
   - "Application 도메인(408xx) 에러 코드는 신규 도메인 범위이다. essential-rules.yaml의 'NO Duplicate Error Codes' 규칙에 따라 추가 시 check_error_codes.py 실행 필수."
-  - "core/system-design.yaml 의 api.error_codes.domains에 'application: 408xx' 추가 필요 (스펙 합의 후 별도 PR)."
-  - "RoommateApplication 엔티티는 새 도메인이므로 references/data-model/application/roommate-application.yaml 문서 추가 권장."
+  - "RoommateApplication 엔티티는 신규 도메인이므로 references/data-model/application/roommate-application.yaml 문서 추가 권장."
   - "ChatRoom 자동 생성은 chat 도메인의 ChatRoomCreateService.createDirectRoom() 재사용. 신규 로직 중복 구현 금지(Layered DDD: Domain Service 간 직접 호출 금지 규칙에 따라 UseCase에서 조합)."
-  - "RoommateApplication ↔ ChatRoom FK는 의도적으로 두지 않는다. 채팅방은 신청의 side effect이며 (applicant, author) 유저 쌍에서 derivable. 추후 '이 신청의 채팅방으로 이동'이 필요하면 ChatRoom.generateDirectKey(applicantId, authorId)로 lookup."
-  - "신청 채팅 전송은 ChatMessageUseCase.sendMessage()를 직접 호출하지 않고 ChatSaveService.save() + ApplicationEventPublisher.publishEvent(ChatMessageSentEvent) 조합으로 처리. 이유: UseCase ↔ UseCase 직접 호출 금지(essential-rules.yaml). 채팅방 참가자 검증/CLOSED 검증은 신청 직후 시점에서는 trivially 통과하므로 ChatMessageUseCase의 검증 로직을 우회해도 안전."
-  - "[2026-05-19 반영] 신청자 중복 소속 사전 검증 추가. application/002 수락 시점에서도 동일 검증을 수행하지만, 신청 시점 차단이 사용자 UX 측면에서 명확하므로 조기 실패시킴 (사용자가 무의미하게 PENDING 쌓고 작성자도 처리 후에야 거절됨을 알게 되는 상황 회피)."
+  - "RoommateApplication ↔ ChatRoom FK는 의도적으로 두지 않는다. 채팅방은 신청의 side effect이며 (applicant, author) 유저 쌍에서 derivable."
+  - "신청 채팅 전송은 ChatMessageUseCase.sendMessage()를 직접 호출하지 않고 ChatSaveService.save() + ApplicationEventPublisher.publishEvent(ChatMessageSentEvent) 조합으로 처리."
+  - "[2026-05-27 반영] postId 기반 → userId 기반 단일 엔드포인트로 교체. UI 플로우(모집글 → 채팅하기 → 신청)에서 채팅방이 postId를 들고 있지 않은 점을 반영. POST_NOT_OPEN(40803) 제거, NO_OPEN_POST_FOR_USER(40812) 추가."
+  - "[2026-05-19 반영] 신청자 중복 소속 사전 검증 추가. application/002 수락 시점에서도 동일 검증을 수행하지만, 신청 시점 차단이 사용자 UX 측면에서 명확하므로 조기 실패시킴."
   - "고정 문구 \"룸메이트 신청을 보냈습니다.\"는 RoommateApplicationUseCase.APPLICATION_CHAT_MESSAGE 상수로 관리. 추후 i18n/메시지 카탈로그가 도입되면 이관."
   - "수락 시 모집글 자동 마감 정책은 적용하지 않는다 (작성자 수동 마감)."
   - "REJECTED 이후 재신청은 허용한다. PENDING 동시 존재만 차단 대상."
-  - "동시성: 동일 (postId, applicantId) PENDING 중복 차단의 강건성 확보를 위해 (post_id, applicant_id, status='PENDING') 조건부 유니크 또는 @Transactional + 사전 조회 + 실패 시 재시도 정책 중 택1. 본 스펙에서는 사전 조회 + 트랜잭션 처리로 시작."
+  - "동시성: 동일 (targetUserId, applicantId) PENDING 중복 차단의 강건성은 대상 OPEN post 행에 대한 PESSIMISTIC_WRITE 락으로 직렬화하여 확보한다."
   - "신청 후 알림(푸시/이메일)은 본 스펙 범위 밖. 별도 알림 스펙에서 다룬다."
