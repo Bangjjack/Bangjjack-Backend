@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("ChatRoomParticipant.markAsRead")
+@DisplayName("ChatRoomParticipant")
 class ChatRoomParticipantTest {
 
     private ChatRoomParticipant participant() {
@@ -70,6 +70,33 @@ class ChatRoomParticipantTest {
             p.markAsRead(100L);
 
             assertThat(p.getUnreadCount()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("rejoin")
+    class Rejoin {
+
+        @Test
+        @DisplayName("나간 참여자가 재참여하면 status가 ACTIVE가 된다")
+        void 재참여_후_ACTIVE() {
+            ChatRoomParticipant p = participant();
+            p.leave(100L);
+
+            p.rejoin();
+
+            assertThat(p.getStatus()).isEqualTo(ParticipantStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("재참여 후에도 visibleFromMessageId는 유지된다")
+        void 재참여_후_visibleFromMessageId_유지() {
+            ChatRoomParticipant p = participant();
+            p.leave(100L);
+
+            p.rejoin();
+
+            assertThat(p.getVisibleFromMessageId()).isEqualTo(100L);
         }
     }
 }

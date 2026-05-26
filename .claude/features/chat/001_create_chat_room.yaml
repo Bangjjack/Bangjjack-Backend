@@ -1,16 +1,17 @@
 # Feature Specification: 1:1 채팅방 생성
 # Status: Draft
-# Last Updated: 2026-04-18
+# Last Updated: 2026-05-24
 
 meta:
   id: FEAT-CHAT-001
   title: 1:1 채팅방 생성
   type: Feature
-  author: Claude
+  author: xEzIxX
 
 overview:
   summary: >
     특정 유저와 즉시 1:1 채팅방을 생성하며, 동일 두 유저 간 중복 생성을 방지하고 기존 방을 재사용한다.
+    기존 방이 CLOSED이거나 호출자의 participant.status=LEFT인 경우 방을 재활성화한다.
   user_story: >
     As a 로그인 유저, I want to 특정 유저와 바로 1:1 채팅방을 생성하고 싶다,
     so that 별도 요청/수락 절차 없이 즉시 대화를 시작할 수 있다.
@@ -19,6 +20,7 @@ overview:
     - 동일 두 유저 간 중복 채팅방 방지 (idempotent)
     - 단체 채팅 확장을 고려한 참여자 기반 구조 설계
     - 동시 생성 시 DB Unique 제약조건으로 방지 (충돌 시 409 응답)
+    - CLOSED 방 또는 호출자 LEFT 상태 → 재활성화 (둘 다 나간 후 재대화 진입점)
 
 # ──────────────────────────────────────────────
 # API 설계
@@ -27,14 +29,11 @@ technical_spec:
   api:
     method: POST
     path: /api/v1/chat-rooms
-    summary: 1:1 채팅방 생성 (이미 존재하면 기존 방 반환)
+    summary: 1:1 채팅방 생성 (이미 존재하면 기존 방 반환 또는 재활성화)
     auth: AUTHENTICATED (JWT)
     http_status:
       created: 201 (신규 생성)
-      existing: 200 (기존 방 반환)
-      note: >
-        두 케이스를 단일 엔드포인트에서 처리.
-        응답 코드로 신규/기존 구분 가능 (ChatRoomResponseCode 활용)
+      existing: 200 (기존 방 반환 또는 재활성화)
     request:
       dto: CreateChatRoomRequest
       fields:
@@ -53,7 +52,7 @@ technical_spec:
           note: "DIRECT | GROUP"
         - name: isNewRoom
           type: boolean
-          note: 신규 생성 여부 (클라이언트가 알림/분기 처리 시 활용)
+          note: 신규 생성 여부
         - name: participants
           type: List<ParticipantResponse>
           note: "참여자 목록 (userId, profileImage)"
@@ -67,11 +66,21 @@ technical_spec:
 
     - step: 2
       layer: UseCase (ChatRoomUseCase)
-      action: targetUser 존재 확인, directRoomKey 생성 → 기존 방 존재 시 참여자 조회 후 반환 (isNewRoom=false)
+      action: >
+        targetUser 존재 확인, directRoomKey 생성 → 기존 방 존재 여부 조회.
+
+        [신규] 기존 방 없음 → step 3으로 진행 (isNewRoom=true).
+
+        [기존 - 호출자 ACTIVE] 변경 없이 참여자 조회 후 반환 (isNewRoom=false).
+
+        [기존 - 호출자 LEFT] 호출자 participant.status=ACTIVE 복원.
+          ChatRoom.status=CLOSED이면 chatRoom.reopen().
+          상대방 participant는 변경 없음 (LEFT면 호출자 첫 메시지 수신 시 auto-rejoin).
+          isNewRoom=false 반환.
 
     - step: 3
       layer: UseCase (ChatRoomUseCase)
-      action: 기존 방 없으면 ChatRoomCreateService.createDirectRoom() 호출 → 참여자 조회 후 ChatRoomResponse 반환 (isNewRoom=true)
+      action: ChatRoomCreateService.createDirectRoom() 호출 → 참여자 조회 후 ChatRoomResponse 반환
 
     - step: 4
       layer: Domain Service (ChatRoomCreateService)
@@ -106,17 +115,19 @@ technical_spec:
 testing_strategy:
   happy_path:
     - "신규 1:1 채팅방 생성 성공 → 201, 채팅방 + 참여자 2명 저장 확인"
-    - "동일 두 유저 재요청 → 200, 기존 방 반환 (DB 행 추가 없음)"
+    - "동일 두 유저 재요청 (둘 다 ACTIVE) → 200, 기존 방 반환 (DB 행 추가 없음)"
     - "A→B 생성 후 B→A 재요청 → 동일 roomId 반환 (key 대칭성 검증)"
+    - "호출자 LEFT 상태에서 재요청 → 200, 호출자 status=ACTIVE 복원 확인"
+    - "CLOSED 방에서 재요청 → 200, ChatRoom.status=OPEN, 호출자 status=ACTIVE 확인"
 
   edge_cases:
     - "targetUserId = currentUserId → 40601 CANNOT_CHAT_WITH_SELF"
-    - "targetUserId 미존재 → 40301 USER_NOT_FOUND (user 도메인 에러)"
+    - "targetUserId 미존재 → 40203 USER_NOT_FOUND"
     - "동시 요청으로 unique 충돌 → 409 DUPLICATE_RESOURCE 응답"
 
   unit_test_targets:
     - "ChatRoom.generateDirectKey: id 순서 무관하게 동일 key 생성 검증"
-    - "ChatRoomUseCase: 신규/기존 분기 로직 (Mock ChatRoomService)"
+    - "ChatRoomUseCase: 신규 / 기존(ACTIVE) / 기존(호출자 LEFT) / 기존(CLOSED) 분기 검증"
     - "ChatRoomService.createDirectRoom: saveAll 1회 호출, 참여자 2명 생성 검증"
 
 # ──────────────────────────────────────────────

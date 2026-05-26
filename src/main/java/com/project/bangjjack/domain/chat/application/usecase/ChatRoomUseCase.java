@@ -49,10 +49,15 @@ public class ChatRoomUseCase {
         Optional<ChatRoom> existing = chatRoomGetService.findByDirectRoomKey(directRoomKey);
         if (existing.isPresent()) {
             ChatRoom chatRoom = existing.get();
-            List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
+            chatRoomGetService.findParticipantIncludingLeft(chatRoom.getId(), currentUserId)
+                    .filter(ChatRoomParticipant::isLeft)
+                    .ifPresent(ChatRoomParticipant::rejoin);
+            // 상대가 LEFT 상태여도 조회자 입장에서는 채팅방에 존재하는 것으로 표시해야 하므로 LEFT 포함 전체 조회
+            List<ChatRoomParticipant> participants = chatRoomGetService.findAllParticipantsByRoomId(chatRoom.getId());
             return ChatRoomResponse.from(chatRoom, participants, false);
         }
 
+        // TODO: 최초 방 생성 시 동시 요청이 들어오면 directRoomKey unique 충돌로 500 가능. 필요 시 Redis 분산락 적용
         ChatRoom chatRoom = chatRoomCreateService.createDirectRoom(currentUserId, request.targetUserId(), directRoomKey);
         List<ChatRoomParticipant> participants = chatRoomGetService.findParticipantsByRoomId(chatRoom.getId());
         eventPublisher.publishEvent(new ChatRoomCreatedEvent(chatRoom.getId(), List.of(currentUserId, request.targetUserId())));
@@ -115,5 +120,12 @@ public class ChatRoomUseCase {
 
     public void validateParticipant(Long roomId, Long userId) {
         chatRoomGetService.validateParticipant(roomId, userId);
+    }
+
+    @Transactional
+    public void leaveChatRoom(Long roomId, Long userId) {
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
+        Long latestMessageId = chatMessageGetService.findLatestMessageId(roomId).orElse(null);
+        participant.leave(latestMessageId);
     }
 }

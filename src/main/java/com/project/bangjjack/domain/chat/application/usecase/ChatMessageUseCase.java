@@ -5,13 +5,11 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBro
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
-import com.project.bangjjack.domain.chat.application.exception.ChatRoomClosedException;
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
-import com.project.bangjjack.domain.chat.domain.entity.RoomStatus;
 import com.project.bangjjack.domain.chat.domain.service.ChatMessageGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
@@ -53,10 +51,8 @@ public class ChatMessageUseCase {
 
         ChatRoom chatRoom = chatRoomGetService.getByIdAndValidateParticipant(roomId, senderId);
 
-        if (chatRoom.getStatus() == RoomStatus.CLOSED) {
-            log.warn("[채팅 송신] 종료된 채팅방 전송 시도 - senderId={}, roomId={}", senderId, roomId);
-            throw new ChatRoomClosedException();
-        }
+        chatRoomGetService.findLeftParticipantsByRoomId(roomId, senderId)
+                .forEach(ChatRoomParticipant::rejoin);
 
         Chat savedChat = chatSaveService.save(senderId, chatRoom, request.content(), MessageType.USER);
         log.debug("[채팅 송신] DB 저장 완료 - messageId={}", savedChat.getId());
@@ -68,9 +64,9 @@ public class ChatMessageUseCase {
 
     @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
-        ChatRoomParticipant participant = chatRoomGetService.getParticipant(roomId, currentUserId);
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, currentUserId);
 
-        List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, size);
+        List<Chat> fetched = chatMessageGetService.getMessages(roomId, cursor, participant.getVisibleFromMessageId(), size);
 
         boolean hasNext = fetched.size() > size;
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;

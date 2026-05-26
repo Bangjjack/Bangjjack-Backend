@@ -1,10 +1,12 @@
 package com.project.bangjjack.domain.chat.domain.service;
 
+import com.project.bangjjack.domain.chat.application.exception.AlreadyLeftChatRoomException;
 import com.project.bangjjack.domain.chat.application.exception.ChatRoomNotFoundException;
 import com.project.bangjjack.domain.chat.application.exception.NotChatParticipantException;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
+import com.project.bangjjack.domain.chat.domain.entity.ParticipantStatus;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomParticipantRepository;
 import com.project.bangjjack.domain.chat.domain.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,33 +33,53 @@ public class ChatRoomGetService {
                 .orElseThrow(ChatRoomNotFoundException::new);
     }
 
-    public List<ChatRoomParticipant> findParticipantsByRoomId(Long roomId) {
+    public List<ChatRoomParticipant> findAllParticipantsByRoomId(Long roomId) {
         return chatRoomParticipantRepository.findByChatRoomIdAndDeletedFalse(roomId);
+    }
+
+    public List<ChatRoomParticipant> findParticipantsByRoomId(Long roomId) {
+        return chatRoomParticipantRepository.findByChatRoomIdAndStatusAndDeletedFalse(roomId, ParticipantStatus.ACTIVE);
+    }
+
+    public List<ChatRoomParticipant> findLeftParticipantsByRoomId(Long roomId, Long excludeUserId) {
+        return chatRoomParticipantRepository.findByChatRoomIdAndStatusAndDeletedFalse(roomId, ParticipantStatus.LEFT)
+                .stream()
+                .filter(p -> !p.getUserId().equals(excludeUserId))
+                .toList();
+    }
+
+    public Optional<ChatRoomParticipant> findParticipantIncludingLeft(Long roomId, Long userId) {
+        return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId);
     }
 
     public void validateParticipant(Long roomId, Long userId) {
         if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
             throw new ChatRoomNotFoundException();
         }
-        if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)) {
+        if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndStatusAndDeletedFalse(roomId, userId, ParticipantStatus.ACTIVE)) {
             throw new NotChatParticipantException();
         }
     }
 
     public ChatRoom getByIdAndValidateParticipant(Long roomId, Long userId) {
         ChatRoom chatRoom = getById(roomId);
-        if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)) {
+        if (!chatRoomParticipantRepository.existsByChatRoomIdAndUserIdAndStatusAndDeletedFalse(roomId, userId, ParticipantStatus.ACTIVE)) {
             throw new NotChatParticipantException();
         }
         return chatRoom;
     }
 
-    public ChatRoomParticipant getParticipant(Long roomId, Long userId) {
-        if (!chatRoomRepository.existsByIdAndDeletedFalse(roomId)) {
-            throw new ChatRoomNotFoundException();
+    public ChatRoomParticipant getActiveParticipant(Long roomId, Long userId) {
+        ChatRoomParticipant participant = chatRoomParticipantRepository
+                .findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
+                .orElseThrow(() -> chatRoomRepository.existsByIdAndDeletedFalse(roomId)
+                        ? new NotChatParticipantException()
+                        : new ChatRoomNotFoundException());
+
+        if (participant.isLeft()) {
+            throw new AlreadyLeftChatRoomException();
         }
-        return chatRoomParticipantRepository.findByChatRoomIdAndUserIdAndDeletedFalse(roomId, userId)
-                .orElseThrow(NotChatParticipantException::new);
+        return participant;
     }
 
     public List<Long> findRoomIdsByUserId(Long userId) {

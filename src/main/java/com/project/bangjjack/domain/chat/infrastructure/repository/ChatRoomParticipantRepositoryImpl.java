@@ -2,6 +2,7 @@ package com.project.bangjjack.domain.chat.infrastructure.repository;
 
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoomParticipant;
+import com.project.bangjjack.domain.chat.domain.entity.ParticipantStatus;
 import com.project.bangjjack.domain.chat.domain.entity.QChatRoom;
 import com.project.bangjjack.domain.chat.domain.entity.QChatRoomParticipant;
 import com.project.bangjjack.domain.chat.domain.entity.RoomType;
@@ -33,6 +34,7 @@ public class ChatRoomParticipantRepositoryImpl implements ChatRoomParticipantQue
                 .join(participant.chatRoom, room).fetchJoin()
                 .where(
                         participant.userId.eq(userId),
+                        participant.status.eq(ParticipantStatus.ACTIVE),
                         participant.deleted.isFalse(),
                         participant.chatRoom.deleted.isFalse(),
                         participant.chatRoom.roomType.eq(RoomType.DIRECT),

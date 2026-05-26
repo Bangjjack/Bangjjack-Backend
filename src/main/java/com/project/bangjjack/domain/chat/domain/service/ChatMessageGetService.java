@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -17,9 +18,16 @@ public class ChatMessageGetService {
 
     private final ChatRepository chatRepository;
 
-    public List<Chat> getMessages(Long roomId, Long cursor, int size) {
+    public List<Chat> getMessages(Long roomId, Long cursor, Long visibleFromMessageId, int size) {
         long cursorId = cursor != null ? cursor : Long.MAX_VALUE;
+        if (visibleFromMessageId != null) {
+            return chatRepository.findByCursorPageAfterMessageId(roomId, cursorId, visibleFromMessageId, PageRequest.of(0, size + 1));
+        }
         return chatRepository.findByCursorPage(roomId, cursorId, PageRequest.of(0, size + 1));
+    }
+
+    public Optional<Long> findLatestMessageId(Long roomId) {
+        return chatRepository.findLatestMessageIdByRoomId(roomId);
     }
 
     public Map<Long, Chat> findLastMessagesByRoomIds(Collection<Long> roomIds) {

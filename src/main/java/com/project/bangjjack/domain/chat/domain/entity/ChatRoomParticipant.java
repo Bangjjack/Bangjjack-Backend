@@ -30,15 +30,35 @@ public class ChatRoomParticipant extends BaseEntity {
     @Column(name = "unread_count", nullable = false)
     private long unreadCount = 0;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private ParticipantStatus status;
+
+    @Column(name = "visible_from_message_id")
+    private Long visibleFromMessageId;
+
     public static ChatRoomParticipant create(ChatRoom chatRoom, Long userId) {
-        return new ChatRoomParticipant(chatRoom, userId, null, 0);
+        return new ChatRoomParticipant(chatRoom, userId, null, 0, ParticipantStatus.ACTIVE, null);
     }
 
-    public void markAsRead(long messageId) {
+    public void markAsRead(Long messageId) {
         if (this.lastReadMessageId != null && messageId <= this.lastReadMessageId) {
             return;
         }
         this.lastReadMessageId = messageId;
         this.unreadCount = 0;
+    }
+
+    public void leave(Long latestMessageId) {
+        this.status = ParticipantStatus.LEFT;
+        this.visibleFromMessageId = latestMessageId;
+    }
+
+    public void rejoin() {
+        this.status = ParticipantStatus.ACTIVE;
+    }
+
+    public boolean isLeft() {
+        return this.status == ParticipantStatus.LEFT;
     }
 }
