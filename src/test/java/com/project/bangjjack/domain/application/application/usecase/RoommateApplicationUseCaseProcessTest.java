@@ -14,6 +14,7 @@ import com.project.bangjjack.domain.application.domain.service.RoommateApplicati
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
+import com.project.bangjjack.domain.chat.domain.entity.ChatRoomCategory;
 import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
@@ -300,6 +301,55 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(application.getStatus()).isEqualTo(ApplicationStatus.PENDING);
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
             then(chatSaveService).should(never()).save(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("ACCEPTED 처리 시 채팅방 카테고리가 APPLICATION에서 GENERAL로 변경된다")
+        void ACCEPTED_처리_시_채팅방_카테고리_GENERAL_복원() {
+            // given
+            RoommateApplication application = application(ApplicationStatus.PENDING);
+            RoommatePost post = application.getPost();
+            RoommateGroup group = group(post);
+            ChatRoom chatRoom = chatRoom();
+            chatRoom.updateCategory(ChatRoomCategory.APPLICATION);
+
+            given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
+            given(roommateGroupGetService.getByPostIdForUpdate(POST_ID)).willReturn(group);
+            given(roommateGroupMemberGetService.countByGroupIdAndRole(GROUP_ID, GroupMemberRole.MEMBER)).willReturn(0L);
+            given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(false);
+            given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
+                    .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
+            given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(chatRoom));
+            stubChatSaved(chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED);
+
+            // when
+            roommateApplicationUseCase.processApplication(
+                    AUTHOR_ID, APPLICATION_ID, new ProcessRoommateApplicationRequest(ApplicationStatus.ACCEPTED));
+
+            // then
+            assertThat(chatRoom.getCategory()).isEqualTo(ChatRoomCategory.GENERAL);
+        }
+
+        @Test
+        @DisplayName("REJECTED 처리 시 채팅방 카테고리가 APPLICATION에서 GENERAL로 변경된다")
+        void REJECTED_처리_시_채팅방_카테고리_GENERAL_복원() {
+            // given
+            RoommateApplication application = application(ApplicationStatus.PENDING);
+            ChatRoom chatRoom = chatRoom();
+            chatRoom.updateCategory(ChatRoomCategory.APPLICATION);
+
+            given(roommateApplicationGetService.getWithPostAndUserById(APPLICATION_ID)).willReturn(application);
+            given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
+                    .willReturn(ChatRoom.generateDirectKey(APPLICANT_ID, AUTHOR_ID));
+            given(chatRoomGetService.findByDirectRoomKey(anyString())).willReturn(Optional.of(chatRoom));
+            stubChatSaved(chatRoom, REJECTED_MESSAGE, MessageType.APPLICATION_REJECTED);
+
+            // when
+            roommateApplicationUseCase.processApplication(
+                    AUTHOR_ID, APPLICATION_ID, new ProcessRoommateApplicationRequest(ApplicationStatus.REJECTED));
+
+            // then
+            assertThat(chatRoom.getCategory()).isEqualTo(ChatRoomCategory.GENERAL);
         }
 
         @Test
