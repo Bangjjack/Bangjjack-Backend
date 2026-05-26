@@ -15,5 +15,8 @@ public record WebSocketInboundMessage(
         if (type == WebSocketMessageType.READ && messageId == null) {
             throw new InvalidWsMessageFormatException();
         }
+        if (type == WebSocketMessageType.SEND && content == null) {
+            throw new InvalidWsMessageFormatException();
+        }
     }
 }
