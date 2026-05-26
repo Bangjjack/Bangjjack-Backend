@@ -26,7 +26,7 @@ public class ReadReceiptPublisher {
             String json = jsonSerializer.serialize(broadcast);
             RTopic topic = redissonClient.getTopic(CHANNEL_PREFIX + roomId, StringCodec.INSTANCE);
             topic.publish(json);
-            log.debug("[Redis Pub/Sub] 읽음 알림 발행 완료 - channel=chat:read-receipt:{}, readerId={}", roomId, broadcast.readerId());
+            log.debug("[Redis Pub/Sub] 읽음 알림 발행 완료 - channel={}, readerId={}", CHANNEL_PREFIX + roomId, broadcast.readerId());
         } catch (Exception e) {
             log.warn("[Redis Pub/Sub] 읽음 알림 발행 실패 - Fallback 전환. roomId={}, 원인={}", roomId, e.getMessage());
             chatBroadcaster.broadcastReadReceipt(roomId, broadcast);
