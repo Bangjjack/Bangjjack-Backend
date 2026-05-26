@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBro
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.application.event.ReadReceiptEvent;
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
@@ -63,6 +64,15 @@ public class ChatMessageUseCase {
     }
 
     @Transactional
+    public void markAsRead(Long userId, Long roomId, Long messageId) {
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
+        boolean updated = participant.markAsRead(messageId);
+        if (updated) {
+            eventPublisher.publishEvent(new ReadReceiptEvent(roomId, userId, messageId));
+        }
+    }
+
+    @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, currentUserId);
 
@@ -72,7 +82,10 @@ public class ChatMessageUseCase {
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
 
         if (!content.isEmpty()) {
-            participant.markAsRead(content.get(0).getId());
+            boolean updated = participant.markAsRead(content.get(0).getId());
+            if (updated) {
+                eventPublisher.publishEvent(new ReadReceiptEvent(roomId, currentUserId, content.get(0).getId()));
+            }
         }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 

@@ -93,6 +93,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     }
                     chatMessageUseCase.sendMessage(principal.getMemberId(), inbound.roomId(), new SendChatMessageRequest(inbound.content()));
                 }
+                case READ -> {
+                    log.debug("[WS] 읽음 처리 시도 - userId={}, roomId={}, messageId={}", principal.getMemberId(), inbound.roomId(), inbound.messageId());
+                    if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
+                        throw new NotSubscribedException();
+                    }
+                    chatMessageUseCase.markAsRead(principal.getMemberId(), inbound.roomId(), inbound.messageId());
+                }
                 default -> log.warn("[WS] 알 수 없는 메시지 타입 - type={}", inbound.type());
             }
         } catch (ApplicationException e) {
