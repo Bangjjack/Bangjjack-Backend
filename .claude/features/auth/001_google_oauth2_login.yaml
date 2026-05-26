@@ -1,6 +1,6 @@
 # Feature Specification: Google OAuth2 소셜 로그인
 # Status: Implemented
-# Last Updated: 2026-05-26
+# Last Updated: 2026-05-27 (TokenExchangeResponse에 isChecklistRegistered, isRoommatePreferenceRegistered 추가 — 프론트 진입 분기에 활용)
 
 meta:
   id: FEAT-002
@@ -89,6 +89,12 @@ technical_spec:
           - name: isOnboarded
             type: boolean
             description: "온보딩 완료 여부. false인 경우 프론트엔드가 온보딩 페이지로 유도"
+          - name: isChecklistRegistered
+            type: boolean
+            description: "라이프스타일 체크리스트 등록 여부. false인 경우 프론트엔드가 체크리스트 등록 페이지로 유도. 룸메이트 신청 사전 조건(application/001) 중 하나."
+          - name: isRoommatePreferenceRegistered
+            type: boolean
+            description: "룸메이트 선호도 등록 여부. false인 경우 프론트엔드가 선호도 등록 페이지로 유도. 룸메이트 신청 사전 조건(application/001) 중 하나."
       errors:
         - http_status: 401
           code: 40101
@@ -117,7 +123,7 @@ technical_spec:
         action: "@Valid 요청 검증 → AuthUseCase.exchangeToken(request) 호출"
       - step: 2
         layer: UseCase (AuthUseCase)
-        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 InvalidAuthorizationCodeException(40101) → email이 @gachon.ac.kr로 끝나지 않으면 UnauthorizedEmailDomainException(40103) → providerId로 User 조회 → 없으면 User.create() 후 자동 가입 → JwtProvider.createMemberAccessToken() → user.isOnboarded() 포함하여 TokenExchangeResponse 반환"
+        action: "RedisService.validateAndConsumeAuthorizationCode(code) → null이면 InvalidAuthorizationCodeException(40101) → email이 @gachon.ac.kr로 끝나지 않으면 UnauthorizedEmailDomainException(40103) → providerId로 User 조회 → 없으면 User.create() 후 자동 가입 → JwtProvider.createMemberAccessToken() → user.isOnboarded(), user.isChecklistRegistered(), user.isRoommatePreferenceRegistered() 포함하여 TokenExchangeResponse 반환"
         transaction: "@Transactional (write — 자동 가입 분기 존재)"
       - step: 3
         layer: Infrastructure (RedisService)
@@ -250,11 +256,14 @@ package_structure:
 # ============================================================
 testing_strategy:
   happy_path:
-    - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username, isOnboarded가 반환된다"
+    - "유효한 code로 POST /api/v1/auth/token 호출 시 accessToken, userId, username, isOnboarded, isChecklistRegistered, isRoommatePreferenceRegistered가 반환된다"
     - "가천대학교 이메일(@gachon.ac.kr) 신규 사용자가 토큰 교환 시 User가 자동 생성된다"
     - "가천대학교 이메일(@gachon.ac.kr) 기존 사용자가 토큰 교환 시 기존 User가 조회된다"
     - "온보딩 미완료 회원이 토큰을 교환하면 isOnboarded=false가 반환된다"
     - "온보딩 완료 회원이 토큰을 교환하면 isOnboarded=true가 반환된다"
+    - "체크리스트/선호도 미등록 회원이 토큰을 교환하면 isChecklistRegistered=false, isRoommatePreferenceRegistered=false가 반환된다"
+    - "체크리스트만 등록한 회원이 토큰을 교환하면 isChecklistRegistered=true, isRoommatePreferenceRegistered=false가 반환된다"
+    - "체크리스트+선호도 모두 등록한 회원이 토큰을 교환하면 두 플래그 모두 true가 반환된다"
   edge_cases:
     - "만료된 code(5분 초과)로 토큰 교환 시 401 INVALID_AUTHORIZATION_CODE(40101) 반환"
     - "이미 사용된 code로 재요청 시 401 INVALID_AUTHORIZATION_CODE(40101) 반환 (1회용)"

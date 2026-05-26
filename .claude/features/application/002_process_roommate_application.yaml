@@ -1,6 +1,6 @@
 # Feature Specification: 룸메이트 신청 수락/거절
 # Status: Draft
-# Last Updated: 2026-05-19
+# Last Updated: 2026-05-27 (40812 항목을 실제 코드(RoommateGroupErrorCode.ROOMMATE_GROUP_NOT_FOUND=40901)에 맞춰 정정. 40812는 application/001의 NO_OPEN_POST_FOR_USER가 점유)
 
 meta:
   id: FEAT-014
@@ -88,7 +88,7 @@ technical_spec:
       action: "application.getStatus() == PENDING 검증 → 이미 처리된 상태이면 INVALID_APPLICATION_STATUS"
     - step: 5
       layer: UseCase (RoommateApplicationUseCase)
-      action: "[ACCEPTED 분기] RoommateGroupGetService.getByPostId(postId)로 그룹 조회 (없으면 시스템 무결성 오류 ROOMMATE_GROUP_NOT_FOUND)"
+      action: "[ACCEPTED 분기] RoommateGroupGetService.getByPostIdForUpdate(postId)로 그룹 조회 (없으면 시스템 무결성 오류 ROOMMATE_GROUP_NOT_FOUND — RoommateGroupErrorCode 40901, RoommateGroup 도메인)"
     - step: 6
       layer: UseCase (RoommateApplicationUseCase)
       action: "[ACCEPTED 분기] RoommateGroupMemberGetService.countByGroupIdAndRole(group.id, MEMBER) < post.recruitMemberCount 검증 → 미충족 시 RECRUIT_LIMIT_REACHED"
@@ -136,7 +136,7 @@ technical_spec:
       - "APPLICATION_REJECTED_MESSAGE = \"룸메이트 신청을 거절했습니다.\""
 
   error_codes:
-    domain_range: "408xx (Application 도메인, 002에서 추가)"
+    domain_range: "408xx (Application 도메인, 002에서 추가). 시스템 무결성 오류는 RoommateGroup 도메인(409xx) 코드를 재사용한다."
     note: "신규 코드 추가 시 check_error_codes.py 실행 필수 (essential-rules.yaml)."
     codes:
       - code: 40806
@@ -169,11 +169,12 @@ technical_spec:
         status: 409 CONFLICT
         message: "신청자가 이미 다른 룸메이트 그룹에 소속되어 있습니다."
         trigger: "신청자가 다른 RoommateGroup의 MEMBER 역할로 이미 등록된 경우. application/001에서 사전 차단되지만 수락 시점에서도 재검증."
-      - code: 40812
+      - code: 40901
         name: ROOMMATE_GROUP_NOT_FOUND
         status: 404 NOT_FOUND
         message: "모집글에 연결된 룸메이트 그룹을 찾을 수 없습니다."
         trigger: "모집글 작성 시 그룹 자동 생성이 누락된 시스템 무결성 오류. 일반적으로 도달 불가."
+        note: "RoommateGroup 도메인(409xx) 공용 코드 재사용. 본 스펙에서 정의하지 않으며 RoommateGroupErrorCode에 존재."
 
   validation_rules:
     - "인증된 MEMBER만 호출 가능"
@@ -227,4 +228,4 @@ notes:
   - "신청 생성 시점에 채팅방을 보장했으므로 본 단계에선 채팅방이 존재한다고 전제. 미존재 시 시스템 무결성 오류로 처리 — ChatRoomNotFoundException 재사용(chat 도메인 406xx)."
   - "동시성: 동일 신청에 대한 ACCEPTED/REJECTED 동시 요청 대비. @Transactional 격리 수준(default REPEATABLE_READ on MySQL InnoDB)으로 dirty checking 갱신은 안전하나, 비즈니스적으로 한 번만 성공시키려면 application 엔티티에 @Version 추가(낙관적 락)도 검토 가능. 본 스펙은 우선 사전 조회 + 트랜잭션 처리로 시작."
   - "신청 후 알림(푸시/이메일)은 본 스펙 범위 밖. 별도 알림 스펙에서 다룬다."
-  - "ApplicationErrorCode 408xx 신규 코드(40806~40812) 추가 시 check_error_codes.py 실행 필수."
+  - "ApplicationErrorCode 408xx 신규 코드(40806~40811) 추가 시 check_error_codes.py 실행 필수. 40812는 application/001의 NO_OPEN_POST_FOR_USER가 점유한다."

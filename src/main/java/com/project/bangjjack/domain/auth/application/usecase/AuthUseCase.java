@@ -47,7 +47,14 @@ public class AuthUseCase {
                 ));
 
         String accessToken = jwtProvider.createMemberAccessToken(user.getId(), user.getUsername());
-        return TokenExchangeResponse.of(accessToken, user.getId(), user.getUsername(), user.isOnboarded());
+        return TokenExchangeResponse.of(
+                accessToken,
+                user.getId(),
+                user.getUsername(),
+                user.isOnboarded(),
+                user.isChecklistRegistered(),
+                user.isRoommatePreferenceRegistered()
+        );
     }
 
     public WsTokenResponse issueWsToken(MemberPrincipal principal) {

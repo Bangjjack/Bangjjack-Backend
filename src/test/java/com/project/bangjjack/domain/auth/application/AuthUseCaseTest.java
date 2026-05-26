@@ -137,6 +137,69 @@ class AuthUseCaseTest {
         }
 
         @Test
+        @DisplayName("체크리스트/선호도 미등록 회원이 토큰을 교환하면 두 플래그 모두 false가 반환된다")
+        void 체크리스트_선호도_미등록_회원의_플래그는_false() {
+            // given
+            String code = "valid-auth-code";
+            OAuthAttributes attributes = OAuthAttributes.of("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+            User user = User.create("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+
+            given(redisService.validateAndConsumeAuthorizationCode(code)).willReturn(attributes);
+            given(userGetService.findByProviderId("google-sub-123")).willReturn(Optional.of(user));
+            given(jwtProvider.createMemberAccessToken(user.getId(), user.getUsername())).willReturn("jwt.access.token");
+
+            // when
+            TokenExchangeResponse response = authUseCase.exchangeToken(new TokenExchangeRequest(code));
+
+            // then
+            assertThat(response.isChecklistRegistered()).isFalse();
+            assertThat(response.isRoommatePreferenceRegistered()).isFalse();
+        }
+
+        @Test
+        @DisplayName("체크리스트만 등록한 회원이 토큰을 교환하면 isChecklistRegistered=true, isRoommatePreferenceRegistered=false가 반환된다")
+        void 체크리스트만_등록한_회원의_플래그() {
+            // given
+            String code = "valid-auth-code";
+            OAuthAttributes attributes = OAuthAttributes.of("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+            User user = User.create("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+            user.completeChecklistRegistration();
+
+            given(redisService.validateAndConsumeAuthorizationCode(code)).willReturn(attributes);
+            given(userGetService.findByProviderId("google-sub-123")).willReturn(Optional.of(user));
+            given(jwtProvider.createMemberAccessToken(user.getId(), user.getUsername())).willReturn("jwt.access.token");
+
+            // when
+            TokenExchangeResponse response = authUseCase.exchangeToken(new TokenExchangeRequest(code));
+
+            // then
+            assertThat(response.isChecklistRegistered()).isTrue();
+            assertThat(response.isRoommatePreferenceRegistered()).isFalse();
+        }
+
+        @Test
+        @DisplayName("체크리스트+선호도 모두 등록한 회원이 토큰을 교환하면 두 플래그 모두 true가 반환된다")
+        void 체크리스트_선호도_모두_등록한_회원의_플래그는_true() {
+            // given
+            String code = "valid-auth-code";
+            OAuthAttributes attributes = OAuthAttributes.of("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+            User user = User.create("google-sub-123", "홍길동", "hong@gachon.ac.kr", "https://pic.url");
+            user.completeChecklistRegistration();
+            user.completeRoommatePreferenceRegistration();
+
+            given(redisService.validateAndConsumeAuthorizationCode(code)).willReturn(attributes);
+            given(userGetService.findByProviderId("google-sub-123")).willReturn(Optional.of(user));
+            given(jwtProvider.createMemberAccessToken(user.getId(), user.getUsername())).willReturn("jwt.access.token");
+
+            // when
+            TokenExchangeResponse response = authUseCase.exchangeToken(new TokenExchangeRequest(code));
+
+            // then
+            assertThat(response.isChecklistRegistered()).isTrue();
+            assertThat(response.isRoommatePreferenceRegistered()).isTrue();
+        }
+
+        @Test
         @DisplayName("만료되거나 존재하지 않는 코드로 요청하면 예외가 발생한다")
         void 만료된_코드로_요청하면_예외_발생() {
             // given

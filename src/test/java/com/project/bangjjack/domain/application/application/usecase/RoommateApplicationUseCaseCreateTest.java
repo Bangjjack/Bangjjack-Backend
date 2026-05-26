@@ -5,8 +5,8 @@ import com.project.bangjjack.domain.application.application.exception.AlreadyApp
 import com.project.bangjjack.domain.application.application.exception.ApplicantAlreadyInGroupException;
 import com.project.bangjjack.domain.application.application.exception.ApplicationPreconditionNotMetException;
 import com.project.bangjjack.domain.application.application.exception.CannotApplyToOwnPostException;
+import com.project.bangjjack.domain.application.application.exception.NoOpenPostForUserException;
 import com.project.bangjjack.domain.application.application.exception.OwnOpenPostExistsForApplicantException;
-import com.project.bangjjack.domain.application.application.exception.PostNotOpenException;
 import com.project.bangjjack.domain.application.domain.entity.ApplicationStatus;
 import com.project.bangjjack.domain.application.domain.entity.RoommateApplication;
 import com.project.bangjjack.domain.application.domain.service.RoommateApplicationCreateService;
@@ -18,7 +18,6 @@ import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
-import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
@@ -159,7 +158,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom newRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -172,7 +171,7 @@ class RoommateApplicationUseCaseCreateTest {
 
             // when
             CreateRoommateApplicationResponse response =
-                    roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID);
+                    roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID);
 
             // then
             assertThat(response.applicationId()).isEqualTo(APPLICATION_ID);
@@ -196,7 +195,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom existingRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -207,7 +206,7 @@ class RoommateApplicationUseCaseCreateTest {
 
             // when
             CreateRoommateApplicationResponse response =
-                    roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID);
+                    roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID);
 
             // then
             assertThat(response.isNewChatRoom()).isFalse();
@@ -227,7 +226,7 @@ class RoommateApplicationUseCaseCreateTest {
             ChatRoom newRoom = chatRoom();
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(chatRoomCreateService.createDirectKey(APPLICANT_ID, AUTHOR_ID))
@@ -239,7 +238,7 @@ class RoommateApplicationUseCaseCreateTest {
             stubChatSaved(newRoom);
 
             // when
-            roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID);
+            roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID);
 
             // then
             then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
@@ -254,12 +253,21 @@ class RoommateApplicationUseCaseCreateTest {
         }
 
         @Test
+        @DisplayName("대상 사용자가 본인이면 CannotApplyToOwnPostException이 발생한다")
+        void 자기_자신_대상_신청_예외() {
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, APPLICANT_ID))
+                    .isInstanceOf(CannotApplyToOwnPostException.class);
+
+            then(roommateApplicationCreateService).should(never()).createApplication(any());
+        }
+
+        @Test
         @DisplayName("온보딩 미완료 사용자가 신청하면 ApplicationPreconditionNotMetException이 발생한다")
         void 온보딩_미완료_사용자_예외() {
             User applicant = User.create("provider", "신청자", "a@gachon.ac.kr", null);
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(ApplicationPreconditionNotMetException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());
@@ -272,7 +280,7 @@ class RoommateApplicationUseCaseCreateTest {
             applicant.completeOnboarding(2000, 2, Gender.MALE, Campus.GLOBAL_CAMPUS, null, Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(ApplicationPreconditionNotMetException.class);
         }
 
@@ -284,43 +292,23 @@ class RoommateApplicationUseCaseCreateTest {
             applicant.completeChecklistRegistration();
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(ApplicationPreconditionNotMetException.class);
         }
 
         @Test
-        @DisplayName("본인이 작성한 모집글에 신청하면 CannotApplyToOwnPostException이 발생한다")
-        void 본인_게시글_신청_예외() {
+        @DisplayName("대상 사용자에게 OPEN 모집글이 없으면 NoOpenPostForUserException이 발생한다")
+        void 대상_사용자_OPEN_모집글_없음_예외() {
             User applicant = fullyRegisteredUser();
             ReflectionTestUtils.setField(applicant, "id", APPLICANT_ID);
-            RoommatePost ownPost = RoommatePost.create(
-                    applicant, "제목", "내용", RoomSize.TWO_PERSON, 1,
-                    Semester.SIXTEEN_WEEKS, Dormitory.DORM_1);
-            ReflectionTestUtils.setField(ownPost, "id", POST_ID);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(ownPost);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.empty());
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
-                    .isInstanceOf(CannotApplyToOwnPostException.class);
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
+                    .isInstanceOf(NoOpenPostForUserException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());
-        }
-
-        @Test
-        @DisplayName("CLOSED 상태 모집글에 신청하면 PostNotOpenException이 발생한다")
-        void CLOSED_상태_신청_예외() {
-            User applicant = fullyRegisteredUser();
-            ReflectionTestUtils.setField(applicant, "id", APPLICANT_ID);
-            User author = author();
-            RoommatePost post = openPost(author);
-            ReflectionTestUtils.setField(post, "status", PostStatus.CLOSED);
-
-            given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
-
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
-                    .isInstanceOf(PostNotOpenException.class);
         }
 
         @Test
@@ -332,10 +320,10 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(true);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(OwnOpenPostExistsForApplicantException.class);
         }
 
@@ -348,11 +336,11 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(true);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(AlreadyAppliedPendingException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());
@@ -367,12 +355,12 @@ class RoommateApplicationUseCaseCreateTest {
             RoommatePost post = openPost(author);
 
             given(userGetService.getById(APPLICANT_ID)).willReturn(applicant);
-            given(roommatePostGetService.getByIdForUpdate(POST_ID)).willReturn(post);
+            given(roommatePostGetService.findOpenWithUserByUserIdForUpdate(AUTHOR_ID)).willReturn(Optional.of(post));
             given(roommatePostGetService.existsOpenPostByUser(applicant)).willReturn(false);
             given(roommateApplicationGetService.existsPendingByPostIdAndApplicantId(POST_ID, APPLICANT_ID)).willReturn(false);
             given(roommateGroupMemberGetService.existsByUserIdAndRole(APPLICANT_ID, GroupMemberRole.MEMBER)).willReturn(true);
 
-            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, POST_ID))
+            assertThatThrownBy(() -> roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID))
                     .isInstanceOf(ApplicantAlreadyInGroupException.class);
 
             then(roommateApplicationCreateService).should(never()).createApplication(any());

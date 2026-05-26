@@ -15,6 +15,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class RoommatePostGetService {
@@ -39,6 +41,10 @@ public class RoommatePostGetService {
     public RoommatePost getByIdForUpdate(Long postId) {
         return roommatePostRepository.findByIdAndDeletedFalseForUpdate(postId)
                 .orElseThrow(PostNotFoundException::new);
+    }
+
+    public Optional<RoommatePost> findOpenWithUserByUserIdForUpdate(Long userId) {
+        return roommatePostRepository.findWithUserByUserIdAndStatusAndDeletedFalseForUpdate(userId, PostStatus.OPEN);
     }
 
     public PostSharedLifestyle getSharedLifestyleByPost(RoommatePost post) {
