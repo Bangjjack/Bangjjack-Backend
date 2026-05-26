@@ -122,7 +122,7 @@ testing_strategy:
 
   edge_cases:
     - "targetUserId = currentUserId → 40601 CANNOT_CHAT_WITH_SELF"
-    - "targetUserId 미존재 → 40301 USER_NOT_FOUND"
+    - "targetUserId 미존재 → 40203 USER_NOT_FOUND"
     - "동시 요청으로 unique 충돌 → 409 DUPLICATE_RESOURCE 응답"
 
   unit_test_targets:
