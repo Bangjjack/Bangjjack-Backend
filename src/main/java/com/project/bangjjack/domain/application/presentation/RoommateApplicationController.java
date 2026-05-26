@@ -17,19 +17,19 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "Application", description = "룸메이트 신청 관련 API")
 @RestController
-@RequestMapping("/api/v1/posts/{postId}/applications")
+@RequestMapping("/api/v1/users/{userId}/applications")
 @RequiredArgsConstructor
 public class RoommateApplicationController {
 
     private final RoommateApplicationUseCase roommateApplicationUseCase;
 
-    @Operation(summary = "룸메이트 신청 요청 보내기", description = "OPEN 상태 모집글에 신청을 보냅니다. 신청자-작성자 1:1 채팅방이 없으면 함께 생성됩니다.")
+    @Operation(summary = "룸메이트 신청 요청 보내기", description = "대상 사용자의 현재 OPEN 모집글에 신청을 보냅니다. 신청자-작성자 1:1 채팅방이 없으면 함께 생성됩니다.")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CommonResponse<CreateRoommateApplicationResponse> createApplication(
             @CurrentMemberId Long memberId,
-            @PathVariable Long postId) {
-        CreateRoommateApplicationResponse response = roommateApplicationUseCase.createApplication(memberId, postId);
+            @PathVariable Long userId) {
+        CreateRoommateApplicationResponse response = roommateApplicationUseCase.createApplication(memberId, userId);
         return CommonResponse.success(ApplicationResponseCode.APPLICATION_CREATED, response);
     }
 }

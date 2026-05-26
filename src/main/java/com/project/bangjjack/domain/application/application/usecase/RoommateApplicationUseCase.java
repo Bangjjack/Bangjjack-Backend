@@ -10,8 +10,8 @@ import com.project.bangjjack.domain.application.application.exception.Applicatio
 import com.project.bangjjack.domain.application.application.exception.CannotApplyToOwnPostException;
 import com.project.bangjjack.domain.application.application.exception.InvalidApplicationStatusException;
 import com.project.bangjjack.domain.application.application.exception.InvalidTargetStatusException;
+import com.project.bangjjack.domain.application.application.exception.NoOpenPostForUserException;
 import com.project.bangjjack.domain.application.application.exception.OwnOpenPostExistsForApplicantException;
-import com.project.bangjjack.domain.application.application.exception.PostNotOpenException;
 import com.project.bangjjack.domain.application.application.exception.RecruitLimitReachedException;
 import com.project.bangjjack.domain.application.domain.entity.ApplicationStatus;
 import com.project.bangjjack.domain.application.domain.entity.RoommateApplication;
@@ -28,7 +28,6 @@ import com.project.bangjjack.domain.chat.domain.entity.MessageType;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomCreateService;
 import com.project.bangjjack.domain.chat.domain.service.ChatRoomGetService;
 import com.project.bangjjack.domain.chat.domain.service.ChatSaveService;
-import com.project.bangjjack.domain.post.domain.entity.PostStatus;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
@@ -68,24 +67,23 @@ public class RoommateApplicationUseCase {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public CreateRoommateApplicationResponse createApplication(Long userId, Long postId) {
+    public CreateRoommateApplicationResponse createApplication(Long userId, Long targetUserId) {
+        if (targetUserId.equals(userId)) {
+            throw new CannotApplyToOwnPostException();
+        }
+
         User applicant = userGetService.getById(userId);
 
         if (!applicant.isOnboarded() || !applicant.isChecklistRegistered() || !applicant.isRoommatePreferenceRegistered()) {
             throw new ApplicationPreconditionNotMetException();
         }
 
-        // 동시 중복 신청 방지: post 행을 잠가 존재 검사~생성 구간을 직렬화
-        RoommatePost post = roommatePostGetService.getByIdForUpdate(postId);
+        // 동시 중복 신청 방지: 대상 사용자의 OPEN 모집글 행을 잠가 존재 검사~생성 구간을 직렬화
+        RoommatePost post = roommatePostGetService.findOpenWithUserByUserIdForUpdate(targetUserId)
+                .orElseThrow(NoOpenPostForUserException::new);
 
         Long authorId = post.getUser().getId();
-        if (authorId.equals(userId)) {
-            throw new CannotApplyToOwnPostException();
-        }
-
-        if (post.getStatus() != PostStatus.OPEN) {
-            throw new PostNotOpenException();
-        }
+        Long postId = post.getId();
 
         if (roommatePostGetService.existsOpenPostByUser(applicant)) {
             throw new OwnOpenPostExistsForApplicantException();
