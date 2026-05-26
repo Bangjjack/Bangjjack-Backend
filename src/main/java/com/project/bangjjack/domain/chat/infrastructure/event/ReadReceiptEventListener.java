@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.event;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ReadReceiptBroadcast;
 import com.project.bangjjack.domain.chat.application.event.ReadReceiptEvent;

@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.pubsub;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBroadcast;
 import com.project.bangjjack.domain.chat.infrastructure.broadcaster.ChatBroadcaster;
