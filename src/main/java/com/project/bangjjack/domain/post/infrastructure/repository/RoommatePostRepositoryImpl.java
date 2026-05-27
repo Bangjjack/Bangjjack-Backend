@@ -7,6 +7,7 @@ import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
 import com.project.bangjjack.domain.post.domain.repository.RoommatePostQueryRepository;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
+import com.project.bangjjack.domain.user.domain.entity.User;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.ComparableExpressionBase;
@@ -79,5 +80,23 @@ public class RoommatePostRepositoryImpl implements RoommatePostQueryRepository {
 
     private BooleanExpression roomSizeFilter(RoomSize roomSize) {
         return roomSize != null ? post.roomSize.eq(roomSize) : null;
+    }
+
+    @Override
+    public List<RoommatePost> findRecommendationCandidates(User requester, RoomSize roomSize) {
+        return queryFactory
+                .selectFrom(post)
+                .join(post.user).fetchJoin()
+                .where(
+                        post.status.eq(PostStatus.OPEN),
+                        post.deleted.eq(false),
+                        post.user.id.ne(requester.getId()),
+                        post.user.gender.eq(requester.getGender()),
+                        post.user.campus.eq(requester.getCampus()),
+                        post.dormitory.eq(requester.getDormitory()),
+                        roomSizeFilter(roomSize)
+                )
+                .orderBy(post.createdAt.desc())
+                .fetch();
     }
 }
