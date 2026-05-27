@@ -175,7 +175,7 @@ public class RoommateApplicationUseCase {
         boolean accepted = targetStatus == ApplicationStatus.ACCEPTED;
         String content = accepted ? APPLICATION_ACCEPTED_MESSAGE : APPLICATION_REJECTED_MESSAGE;
         MessageType messageType = accepted ? MessageType.APPLICATION_ACCEPTED : MessageType.APPLICATION_REJECTED;
-        Chat chat = chatSaveService.save(authorId, chatRoom, content, messageType);
+        Chat chat = chatSaveService.save(authorId, chatRoom, content, messageType, applicationId);
         chatRoom.updateCategory(ChatRoomCategory.GENERAL);
         eventPublisher.publishEvent(new ChatMessageSentEvent(
                 chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));

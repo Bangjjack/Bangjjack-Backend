@@ -132,9 +132,9 @@ class RoommateApplicationUseCaseProcessTest {
     }
 
     private void stubChatSaved(ChatRoom room, String content, MessageType messageType) {
-        given(chatSaveService.save(eq(AUTHOR_ID), eq(room), eq(content), eq(messageType)))
+        given(chatSaveService.save(eq(AUTHOR_ID), eq(room), eq(content), eq(messageType), eq(APPLICATION_ID)))
                 .willAnswer(invocation -> {
-                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), messageType);
+                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), messageType, APPLICATION_ID);
                     ReflectionTestUtils.setField(chat, "id", CHAT_ID);
                     return chat;
                 });
@@ -173,7 +173,7 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(response.currentGroupMemberCount()).isEqualTo(1);
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             then(roommateGroupMemberCreateService).should().addMember(group, application.getApplicant(), GroupMemberRole.MEMBER);
-            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED);
+            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, ACCEPTED_MESSAGE, MessageType.APPLICATION_ACCEPTED, APPLICATION_ID);
         }
 
         @Test
@@ -200,7 +200,7 @@ class RoommateApplicationUseCaseProcessTest {
             assertThat(response.currentGroupMemberCount()).isNull();
             then(roommateGroupGetService).should(never()).getByPostIdForUpdate(any());
             then(roommateGroupMemberCreateService).should(never()).addMember(any(), any(), any());
-            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, REJECTED_MESSAGE, MessageType.APPLICATION_REJECTED);
+            then(chatSaveService).should().save(AUTHOR_ID, chatRoom, REJECTED_MESSAGE, MessageType.APPLICATION_REJECTED, APPLICATION_ID);
         }
 
         @Test
