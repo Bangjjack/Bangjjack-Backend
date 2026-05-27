@@ -91,7 +91,9 @@ public class ChatMessageUseCase {
                 .map(ChatMessageResponse::from)
                 .toList();
 
-        return ChatMessagePageResponse.of(messages, nextCursor, hasNext);
+        Long partnerLastReadMessageId = chatRoomGetService.findPartnerLastReadMessageId(roomId, currentUserId);
+
+        return ChatMessagePageResponse.of(messages, nextCursor, hasNext, partnerLastReadMessageId);
     }
 
     private void markAsReadAndPublish(ChatRoomParticipant participant, Long roomId, Long userId, Long messageId) {

@@ -93,4 +93,9 @@ public class ChatRoomGetService {
     public Map<Long, Long> findPartnerIdsByDirectRoomIds(List<Long> roomIds, Long myUserId) {
         return chatRoomParticipantRepository.findPartnerIdsByDirectRoomIds(roomIds, myUserId);
     }
+
+    public Long findPartnerLastReadMessageId(Long roomId, Long currentUserId) {
+        return chatRoomParticipantRepository.findPartnerLastReadMessageId(roomId, currentUserId)
+                .orElse(null);
+    }
 }

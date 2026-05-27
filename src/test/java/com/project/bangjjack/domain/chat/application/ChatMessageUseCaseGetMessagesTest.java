@@ -182,6 +182,26 @@ class ChatMessageUseCaseGetMessagesTest {
         }
 
         @Test
+        @DisplayName("파트너의 lastReadMessageId가 응답에 포함된다")
+        void 파트너의_lastReadMessageId가_응답에_포함된다() {
+            // given
+            Long currentUserId = 1L;
+            Long roomId = 10L;
+            ChatRoomParticipant myParticipant = createParticipant(currentUserId);
+            Chat chat = createChat();
+
+            given(chatRoomGetService.getActiveParticipant(roomId, currentUserId)).willReturn(myParticipant);
+            given(chatMessageGetService.getMessages(roomId, null, null, 30)).willReturn(List.of(chat));
+            given(chatRoomGetService.findPartnerLastReadMessageId(roomId, currentUserId)).willReturn(chat.getId());
+
+            // when
+            ChatMessagePageResponse response = chatMessageUseCase.getMessages(currentUserId, roomId, null, 30);
+
+            // then
+            assertThat(response.partnerLastReadMessageId()).isEqualTo(chat.getId());
+        }
+
+        @Test
         @DisplayName("메시지가 없으면 lastReadMessageId가 변경되지 않는다")
         void 메시지가_없으면_읽음_처리가_수행되지_않는다() {
             // given
