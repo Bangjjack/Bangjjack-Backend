@@ -47,6 +47,8 @@ ai:
     read-timeout-batch: 10000
     recommended-top-k: 10
     recommended-cache-ttl: 21600
+    recommended-roommates-top-k: 3
+    recommended-roommates-cache-ttl: 21600
 
 logging:
   level:
