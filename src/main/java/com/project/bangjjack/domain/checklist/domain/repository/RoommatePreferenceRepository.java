@@ -4,9 +4,13 @@ import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface RoommatePreferenceRepository extends JpaRepository<RoommatePreference, Long> {
 
     Optional<RoommatePreference> findByUserAndDeletedFalse(User user);
+
+    List<RoommatePreference> findAllByUserIdInAndDeletedFalse(Collection<Long> userIds);
 }

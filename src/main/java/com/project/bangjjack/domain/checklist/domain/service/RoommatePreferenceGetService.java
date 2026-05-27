@@ -7,7 +7,11 @@ import com.project.bangjjack.domain.user.domain.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,5 +26,16 @@ public class RoommatePreferenceGetService {
 
     public Optional<RoommatePreference> findByUser(User user) {
         return roommatePreferenceRepository.findByUserAndDeletedFalse(user);
+    }
+
+    public Map<Long, RoommatePreference> getByUserIdIn(Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return roommatePreferenceRepository.findAllByUserIdInAndDeletedFalse(userIds).stream()
+                .collect(Collectors.toMap(
+                        preference -> preference.getUser().getId(),
+                        preference -> preference
+                ));
     }
 }

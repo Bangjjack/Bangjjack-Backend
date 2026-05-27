@@ -8,13 +8,27 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class RoommateGroupMemberGetService {
 
     private final RoommateGroupMemberRepository roommateGroupMemberRepository;
+
+    public Map<Long, Long> countActiveByPostIdIn(Collection<Long> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return roommateGroupMemberRepository.countActiveByPostIdIn(postIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
+    }
 
     public boolean existsByUserIdAndRole(Long userId, GroupMemberRole role) {
         return roommateGroupMemberRepository.existsByUserIdAndRoleAndDeletedFalse(userId, role);

@@ -15,6 +15,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -59,5 +60,9 @@ public class RoommatePostGetService {
 
     public Slice<RoommatePost> getPostList(Campus campus, RoomSize roomSize, Pageable pageable) {
         return roommatePostRepository.findPostList(campus, roomSize, pageable);
+    }
+
+    public List<RoommatePost> getRecommendationCandidates(User requester, RoomSize roomSize) {
+        return roommatePostRepository.findRecommendationCandidates(requester, roomSize);
     }
 }
