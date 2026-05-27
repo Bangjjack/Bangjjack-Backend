@@ -7,7 +7,11 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AiMatchResponse(
         int matchRate,
-        List<String> matchedFeatures,
-        List<String> topInfluentialFeatures
+        AiMatchCounts counts,
+        List<AiMatchedFeature> matchedFeatures,
+        List<AiMismatchedFeature> mismatchedFeatures,
+        List<AiConversationStarter> conversationStarters,
+        List<String> topInfluentialFeatures,
+        AiSummaryComment summaryComment
 ) {
 }
