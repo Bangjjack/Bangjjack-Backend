@@ -45,6 +45,9 @@ ai:
     base-url: ${AI_MATCH_API_BASE_URL}
     connect-timeout: 3000
     read-timeout: 5000
+    read-timeout-batch: 10000
+    recommended-top-k: 10
+    recommended-cache-ttl: 21600
 
 management:
   endpoints:
