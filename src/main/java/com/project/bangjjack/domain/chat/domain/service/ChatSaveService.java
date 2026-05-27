@@ -18,7 +18,12 @@ public class ChatSaveService {
 
     @Transactional
     public Chat save(Long senderId, ChatRoom chatRoom, String content, MessageType messageType) {
-        Chat saved = chatRepository.save(Chat.create(senderId, chatRoom, content, messageType));
+        return save(senderId, chatRoom, content, messageType, null);
+    }
+
+    @Transactional
+    public Chat save(Long senderId, ChatRoom chatRoom, String content, MessageType messageType, Long applicationId) {
+        Chat saved = chatRepository.save(Chat.create(senderId, chatRoom, content, messageType, applicationId));
         chatRoom.updateLastMessageAt(saved.getCreatedAt());
         chatRoomParticipantRepository.incrementUnreadCountExcludingSender(chatRoom.getId(), senderId);
         return saved;

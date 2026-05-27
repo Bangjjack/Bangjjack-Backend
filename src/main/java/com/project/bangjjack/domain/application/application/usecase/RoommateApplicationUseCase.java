@@ -111,7 +111,7 @@ public class RoommateApplicationUseCase {
                 RoommateApplication.create(post, applicant)
         );
 
-        Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
+        Chat chat = chatSaveService.save(userId, chatRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT, saved.getId());
         chatRoom.updateCategory(ChatRoomCategory.APPLICATION);
         eventPublisher.publishEvent(new ChatMessageSentEvent(
                 chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
