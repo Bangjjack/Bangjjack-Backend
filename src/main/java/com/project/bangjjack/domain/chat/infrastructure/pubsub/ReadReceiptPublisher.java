@@ -1,7 +1,6 @@
 package com.project.bangjjack.domain.chat.infrastructure.pubsub;
 
 import com.project.bangjjack.domain.chat.application.dto.response.ReadReceiptBroadcast;
-import com.project.bangjjack.domain.chat.infrastructure.broadcaster.ChatBroadcaster;
 import com.project.bangjjack.global.infrastructure.JsonSerializer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,7 +18,6 @@ public class ReadReceiptPublisher {
 
     private final RedissonClient redissonClient;
     private final JsonSerializer jsonSerializer;
-    private final ChatBroadcaster chatBroadcaster;
 
     public void publish(Long roomId, ReadReceiptBroadcast broadcast) {
         try {
@@ -28,8 +26,7 @@ public class ReadReceiptPublisher {
             topic.publish(json);
             log.debug("[Redis Pub/Sub] 읽음 알림 발행 완료 - channel={}, readerId={}", CHANNEL_PREFIX + roomId, broadcast.readerId());
         } catch (Exception e) {
-            log.warn("[Redis Pub/Sub] 읽음 알림 발행 실패 - Fallback 전환. roomId={}, 원인={}", roomId, e.getMessage());
-            chatBroadcaster.broadcastReadReceipt(roomId, broadcast);
+            log.error("[Redis Pub/Sub] 읽음 알림 발행 실패 - roomId={}, 원인={}", roomId, e.getMessage(), e);
         }
     }
 }
