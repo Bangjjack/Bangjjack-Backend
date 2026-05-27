@@ -135,9 +135,9 @@ class RoommateApplicationUseCaseCreateTest {
     }
 
     private void stubChatSaved(ChatRoom room) {
-        given(chatSaveService.save(eq(APPLICANT_ID), eq(room), eq(APPLICATION_CHAT_MESSAGE), eq(MessageType.APPLICATION_SENT)))
+        given(chatSaveService.save(eq(APPLICANT_ID), eq(room), eq(APPLICATION_CHAT_MESSAGE), eq(MessageType.APPLICATION_SENT), eq(APPLICATION_ID)))
                 .willAnswer(invocation -> {
-                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), MessageType.APPLICATION_SENT);
+                    Chat chat = Chat.create(invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2), MessageType.APPLICATION_SENT, APPLICATION_ID);
                     ReflectionTestUtils.setField(chat, "id", CHAT_ID);
                     return chat;
                 });
@@ -181,7 +181,7 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             assertThat(response.isNewChatRoom()).isTrue();
             then(chatRoomCreateService).should().createDirectRoom(eq(APPLICANT_ID), eq(AUTHOR_ID), anyString());
-            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT, APPLICATION_ID);
         }
 
         @Test
@@ -212,7 +212,7 @@ class RoommateApplicationUseCaseCreateTest {
             assertThat(response.isNewChatRoom()).isFalse();
             assertThat(response.chatRoomId()).isEqualTo(CHAT_ROOM_ID);
             then(chatRoomCreateService).should(never()).createDirectRoom(anyLong(), anyLong(), anyString());
-            then(chatSaveService).should().save(APPLICANT_ID, existingRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
+            then(chatSaveService).should().save(APPLICANT_ID, existingRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT, APPLICATION_ID);
         }
 
         @Test
@@ -241,7 +241,7 @@ class RoommateApplicationUseCaseCreateTest {
             roommateApplicationUseCase.createApplication(APPLICANT_ID, AUTHOR_ID);
 
             // then
-            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT);
+            then(chatSaveService).should().save(APPLICANT_ID, newRoom, APPLICATION_CHAT_MESSAGE, MessageType.APPLICATION_SENT, APPLICATION_ID);
 
             ArgumentCaptor<ChatMessageSentEvent> captor = ArgumentCaptor.forClass(ChatMessageSentEvent.class);
             then(eventPublisher).should().publishEvent(captor.capture());
