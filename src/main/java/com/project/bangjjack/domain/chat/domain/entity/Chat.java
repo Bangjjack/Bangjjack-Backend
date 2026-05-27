@@ -31,7 +31,14 @@ public class Chat extends BaseEntity {
     @Column(name = "message_type", nullable = false)
     private MessageType messageType;
 
+    @Column(name = "application_id")
+    private Long applicationId;
+
     public static Chat create(Long senderId, ChatRoom chatRoom, String content, MessageType messageType) {
-        return new Chat(senderId, chatRoom, content, messageType);
+        return new Chat(senderId, chatRoom, content, messageType, null);
+    }
+
+    public static Chat create(Long senderId, ChatRoom chatRoom, String content, MessageType messageType, Long applicationId) {
+        return new Chat(senderId, chatRoom, content, messageType, applicationId);
     }
 }

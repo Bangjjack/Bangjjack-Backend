@@ -10,6 +10,7 @@ public record ChatMessageResponse(
         Long senderId,
         String content,
         MessageType messageType,
+        Long applicationId,
         LocalDateTime createdAt
 ) {
     public static ChatMessageResponse from(Chat chat) {
@@ -18,6 +19,7 @@ public record ChatMessageResponse(
                 chat.getSenderId(),
                 chat.getContent(),
                 chat.getMessageType(),
+                chat.getApplicationId(),
                 chat.getCreatedAt()
         );
     }

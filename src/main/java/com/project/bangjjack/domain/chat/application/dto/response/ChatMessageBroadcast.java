@@ -11,6 +11,7 @@ public record ChatMessageBroadcast(
         Long senderId,
         String content,
         MessageType messageType,
+        Long applicationId,
         LocalDateTime createdAt
 ) {
     public static ChatMessageBroadcast from(Chat chat, Long roomId) {
@@ -20,6 +21,7 @@ public record ChatMessageBroadcast(
                 chat.getSenderId(),
                 chat.getContent(),
                 chat.getMessageType(),
+                chat.getApplicationId(),
                 chat.getCreatedAt()
         );
     }
