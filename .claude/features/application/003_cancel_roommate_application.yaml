@@ -53,7 +53,7 @@ technical_spec:
 
   data_flow:
     - step: 1
-      layer: Presentation (RoommateApplicationCancelController)
+      layer: Presentation (RoommateApplicationController)
       action: "@CurrentMemberId 로 JWT 에서 userId 추출, @PathVariable applicationId 수신 후 RoommateApplicationUseCase.cancelApplication(userId, applicationId) 호출 (요청 본문 없음)"
     - step: 2
       layer: UseCase (RoommateApplicationUseCase)
