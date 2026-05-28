@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageBro
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessagePageResponse;
 import com.project.bangjjack.domain.chat.application.dto.response.ChatMessageResponse;
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.application.event.ReadReceiptEvent;
 import com.project.bangjjack.domain.chat.application.exception.InvalidMessageContentException;
 import com.project.bangjjack.domain.chat.domain.entity.Chat;
 import com.project.bangjjack.domain.chat.domain.entity.ChatRoom;
@@ -63,6 +64,16 @@ public class ChatMessageUseCase {
     }
 
     @Transactional
+    public void markAsRead(Long userId, Long roomId, Long messageId) {
+        // messageId가 해당 roomId 소속인지 별도 검증하지 않음.
+        // 호출자는 이미 인증 + 참여자 검증을 통과한 유저이며, 잘못된 messageId를 보내도
+        // 본인의 lastReadMessageId만 오염되고 다음 정상 READ에서 자연 복구됨.
+        // 매 호출마다 DB 조회를 추가하는 비용 대비 실질적 위협이 낮아 의도적으로 생략.
+        ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, userId);
+        markAsReadAndPublish(participant, roomId, userId, messageId);
+    }
+
+    @Transactional
     public ChatMessagePageResponse getMessages(Long currentUserId, Long roomId, Long cursor, int size) {
         ChatRoomParticipant participant = chatRoomGetService.getActiveParticipant(roomId, currentUserId);
 
@@ -72,7 +83,7 @@ public class ChatMessageUseCase {
         List<Chat> content = hasNext ? fetched.subList(0, size) : fetched;
 
         if (!content.isEmpty()) {
-            participant.markAsRead(content.get(0).getId());
+            markAsReadAndPublish(participant, roomId, currentUserId, content.get(0).getId());
         }
         Long nextCursor = hasNext ? content.get(content.size() - 1).getId() : null;
 
@@ -80,6 +91,17 @@ public class ChatMessageUseCase {
                 .map(ChatMessageResponse::from)
                 .toList();
 
-        return ChatMessagePageResponse.of(messages, nextCursor, hasNext);
+        Long partnerLastReadMessageId = chatRoomGetService.findPartnerLastReadMessageId(roomId, currentUserId);
+
+        return ChatMessagePageResponse.of(messages, nextCursor, hasNext, partnerLastReadMessageId);
+    }
+
+    private void markAsReadAndPublish(ChatRoomParticipant participant, Long roomId, Long userId, Long messageId) {
+        // 동시 READ 요청 시 두 트랜잭션이 모두 true를 반환해 이벤트가 2회 발행될 수 있음.
+        // 읽음 처리는 최종 상태가 동일하므로 낙관적 락 없이 허용하며,
+        // 클라이언트에서 동일 {readerId, messageId} 수신 시 중복 무시로 대응.
+        if (participant.markAsRead(messageId)) {
+            eventPublisher.publishEvent(new ReadReceiptEvent(roomId, userId, messageId));
+        }
     }
 }

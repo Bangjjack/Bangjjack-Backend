@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.event;
 
 import com.project.bangjjack.domain.roommategroup.application.event.RoommateGroupDisbandedEvent;
 import lombok.RequiredArgsConstructor;

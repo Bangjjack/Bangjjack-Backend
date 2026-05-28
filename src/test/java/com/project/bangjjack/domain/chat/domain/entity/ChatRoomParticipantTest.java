@@ -28,6 +28,16 @@ class ChatRoomParticipantTest {
             assertThat(p.getLastReadMessageId()).isEqualTo(100L);
             assertThat(p.getUnreadCount()).isZero();
         }
+
+        @Test
+        @DisplayName("lastReadMessageId가 null이면 true를 반환한다")
+        void null_상태에서_true_반환() {
+            ChatRoomParticipant p = participant();
+
+            boolean updated = p.markAsRead(100L);
+
+            assertThat(updated).isTrue();
+        }
     }
 
     @Nested
@@ -43,6 +53,17 @@ class ChatRoomParticipantTest {
             p.markAsRead(200L);
 
             assertThat(p.getLastReadMessageId()).isEqualTo(200L);
+        }
+
+        @Test
+        @DisplayName("새 ID가 더 크면 true를 반환한다")
+        void 더_큰_ID면_true_반환() {
+            ChatRoomParticipant p = participant();
+            p.markAsRead(100L);
+
+            boolean updated = p.markAsRead(200L);
+
+            assertThat(updated).isTrue();
         }
     }
 
@@ -70,6 +91,28 @@ class ChatRoomParticipantTest {
             p.markAsRead(100L);
 
             assertThat(p.getUnreadCount()).isZero();
+        }
+
+        @Test
+        @DisplayName("새 ID가 더 작으면 false를 반환한다")
+        void 더_작은_ID면_false_반환() {
+            ChatRoomParticipant p = participant();
+            p.markAsRead(200L);
+
+            boolean updated = p.markAsRead(100L);
+
+            assertThat(updated).isFalse();
+        }
+
+        @Test
+        @DisplayName("같은 ID이면 false를 반환한다")
+        void 같은_ID면_false_반환() {
+            ChatRoomParticipant p = participant();
+            p.markAsRead(200L);
+
+            boolean updated = p.markAsRead(200L);
+
+            assertThat(updated).isFalse();
         }
     }
 

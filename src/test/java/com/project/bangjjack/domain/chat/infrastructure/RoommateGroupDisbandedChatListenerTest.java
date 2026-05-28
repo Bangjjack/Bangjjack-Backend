@@ -1,5 +1,7 @@
 package com.project.bangjjack.domain.chat.infrastructure;
 
+import com.project.bangjjack.domain.chat.infrastructure.event.RoommateGroupDisbandedChatListener;
+import com.project.bangjjack.domain.chat.infrastructure.event.RoommateGroupDisbandedNotifier;
 import com.project.bangjjack.domain.roommategroup.application.event.RoommateGroupDisbandedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

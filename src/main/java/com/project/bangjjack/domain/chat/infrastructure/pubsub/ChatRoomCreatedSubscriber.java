@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.pubsub;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.bangjjack.domain.chat.application.event.ChatRoomCreatedEvent;

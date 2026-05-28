@@ -56,7 +56,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         WebSocketInboundMessage inbound;
         try {
             inbound = objectMapper.readValue(message.getPayload(), WebSocketInboundMessage.class);
@@ -75,6 +75,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         MemberPrincipal principal = getPrincipal(session);
 
         try {
+            inbound.validate();
             switch (inbound.type()) {
                 case SUBSCRIBE -> {
                     log.debug("[WS] 구독 시도 - userId={}, roomId={}", principal.getMemberId(), inbound.roomId());
@@ -92,6 +93,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                         throw new NotSubscribedException();
                     }
                     chatMessageUseCase.sendMessage(principal.getMemberId(), inbound.roomId(), new SendChatMessageRequest(inbound.content()));
+                }
+                case READ -> {
+                    log.debug("[WS] 읽음 처리 시도 - userId={}, roomId={}, messageId={}", principal.getMemberId(), inbound.roomId(), inbound.messageId());
+                    if (!sessionStore.isSubscribed(inbound.roomId(), session)) {
+                        throw new NotSubscribedException();
+                    }
+                    chatMessageUseCase.markAsRead(principal.getMemberId(), inbound.roomId(), inbound.messageId());
                 }
                 default -> log.warn("[WS] 알 수 없는 메시지 타입 - type={}", inbound.type());
             }

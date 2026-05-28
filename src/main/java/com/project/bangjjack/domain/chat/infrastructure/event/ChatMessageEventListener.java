@@ -1,6 +1,7 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.event;
 
 import com.project.bangjjack.domain.chat.application.event.ChatMessageSentEvent;
+import com.project.bangjjack.domain.chat.infrastructure.pubsub.ChatMessagePublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;

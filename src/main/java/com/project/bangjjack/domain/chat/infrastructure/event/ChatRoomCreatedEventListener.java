@@ -1,4 +1,4 @@
-package com.project.bangjjack.domain.chat.infrastructure;
+package com.project.bangjjack.domain.chat.infrastructure.event;
 
 import com.project.bangjjack.domain.chat.application.event.ChatRoomCreatedEvent;
 import com.project.bangjjack.global.infrastructure.JsonSerializer;
