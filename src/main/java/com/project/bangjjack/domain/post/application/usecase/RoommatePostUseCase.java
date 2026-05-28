@@ -28,11 +28,15 @@ import com.project.bangjjack.domain.post.domain.service.RoommatePostCreateServic
 import com.project.bangjjack.domain.post.domain.service.RoommatePostDeleteService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostGetService;
 import com.project.bangjjack.domain.post.domain.service.RoommatePostUpdateService;
+import com.project.bangjjack.domain.roommategroup.application.event.RoommateGroupDisbandedEvent;
 import com.project.bangjjack.domain.roommategroup.domain.entity.GroupMemberRole;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroup;
 import com.project.bangjjack.domain.roommategroup.domain.entity.RoommateGroupMember;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupDeleteService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupGetService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberCreateService;
+import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 
 import java.util.HashSet;
@@ -44,6 +48,7 @@ import java.util.stream.Collectors;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,10 +64,14 @@ public class RoommatePostUseCase {
     private final RoommatePostUpdateService roommatePostUpdateService;
     private final RoommateGroupCreateService roommateGroupCreateService;
     private final RoommateGroupMemberCreateService roommateGroupMemberCreateService;
+    private final RoommateGroupGetService roommateGroupGetService;
+    private final RoommateGroupDeleteService roommateGroupDeleteService;
+    private final RoommateGroupMemberDeleteService roommateGroupMemberDeleteService;
     private final BookmarkGetService bookmarkGetService;
     private final RoommateGroupMemberGetService roommateGroupMemberGetService;
     private final RoommatePreferenceGetService roommatePreferenceGetService;
     private final ChecklistGetService checklistGetService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Long createPost(Long userId, CreateRoommatePostRequest request) {
@@ -178,7 +187,23 @@ public class RoommatePostUseCase {
             throw new PostDeleteForbiddenException();
         }
 
+        RoommateGroup group = roommateGroupGetService.getByPostId(postId);
+        List<RoommateGroupMember> members = roommateGroupMemberGetService.getActiveMembersWithUserByPostId(postId);
+        List<Long> memberIdsToNotify = members.stream()
+                .map(member -> member.getUser().getId())
+                .filter(id -> !id.equals(userId))
+                .toList();
+        String postTitle = post.getTitle();
+
+        roommateGroupMemberDeleteService.deleteAll(members);
+
         PostSharedLifestyle sharedLifestyle = roommatePostGetService.getSharedLifestyleByPost(post);
         roommatePostDeleteService.deletePost(post, sharedLifestyle);
+
+        roommateGroupDeleteService.delete(group);
+
+        if (!memberIdsToNotify.isEmpty()) {
+            eventPublisher.publishEvent(new RoommateGroupDisbandedEvent(userId, memberIdsToNotify, postTitle));
+        }
     }
 }
