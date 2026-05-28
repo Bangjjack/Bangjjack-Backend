@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.user.application.usecase;
 
+import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
@@ -11,6 +12,7 @@ import com.project.bangjjack.domain.department.domain.service.DepartmentGetServi
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
 import com.project.bangjjack.domain.user.application.dto.response.MyProfileResponse;
 import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
+import com.project.bangjjack.domain.user.application.dto.response.UserProfileResponse;
 import com.project.bangjjack.domain.user.application.exception.AlreadyOnboardedException;
 import com.project.bangjjack.domain.user.application.exception.InvalidBirthYearException;
 import com.project.bangjjack.domain.user.domain.entity.User;
@@ -21,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -69,6 +72,24 @@ public class UserUseCase {
         RoommatePreference preference = roommatePreferenceGetService.findByUser(user)
                 .orElse(null);
         return MyProfileResponse.of(user, department, checklistBundle, preference);
+    }
+
+    public UserProfileResponse getUserProfile(Long viewerId, Long userId) {
+        User targetUser = userGetService.getById(userId);
+        Department department = targetUser.getDepartment();
+
+        Map<Long, ChecklistBundle> bundles =
+                checklistGetService.getChecklistBundlesByUserIds(List.of(viewerId, userId));
+        ChecklistBundle viewerBundle = bundles.get(viewerId);
+        ChecklistBundle targetBundle = bundles.get(userId);
+        LifestyleChecklistResponse lifestyleChecklist = targetBundle == null
+                ? null
+                : LifestyleChecklistResponse.from(targetBundle, viewerBundle);
+
+        RoommatePreference preference = roommatePreferenceGetService.findByUser(targetUser)
+                .orElse(null);
+
+        return UserProfileResponse.of(targetUser, department, preference, lifestyleChecklist);
     }
 
     private ChecklistBundle toChecklistBundle(LifestyleChecklist checklist) {
