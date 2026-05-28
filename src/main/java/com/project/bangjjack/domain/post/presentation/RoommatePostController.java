@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommateP
 import com.project.bangjjack.domain.post.application.dto.response.AiRecommendedPostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.CreateRoommatePostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.MatchRateResponse;
+import com.project.bangjjack.domain.post.application.dto.response.MyRoommatePostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
 import com.project.bangjjack.domain.post.application.usecase.AiRecommendedPostUseCase;
 import com.project.bangjjack.domain.post.application.usecase.MatchAnalysisUseCase;
@@ -55,6 +56,13 @@ public class RoommatePostController {
             @RequestParam(required = false) RoomSize roomSize,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return CommonResponse.success(PostResponseCode.POST_LIST_FOUND, roommatePostUseCase.getPostList(campus, roomSize, pageable));
+    }
+
+    @Operation(summary = "내가 쓴 룸메이트 모집글 목록 조회", description = "요청자 본인이 작성한 모집글 전체를 최신순으로 조회합니다. 삭제된 글은 제외하며 OPEN/CLOSED 모두 포함합니다. 페이지네이션 없음.")
+    @GetMapping("/me")
+    public CommonResponse<List<MyRoommatePostResponse>> getMyPosts(
+            @CurrentMemberId Long memberId) {
+        return CommonResponse.success(PostResponseCode.MY_POST_LIST_FOUND, roommatePostUseCase.getMyPosts(memberId));
     }
 
     @Operation(summary = "룸메이트 모집글 단건 조회", description = "postId로 모집글 상세 정보를 조회합니다.")
