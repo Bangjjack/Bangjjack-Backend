@@ -44,27 +44,12 @@ technical_spec:
         body: "(없음 — 요청 본문 없이 취소 전송)"
         fields: []
       response:
-        dto: CancelRoommateApplicationResponse
+        dto: "(없음 — void)"
         http_status: 200 OK
-        wrapper: CommonResponse<CancelRoommateApplicationResponse>
+        wrapper: CommonResponse<Void>
         response_code: ApplicationResponseCode.APPLICATION_CANCELED
-        fields:
-          - name: applicationId
-            type: Long
-          - name: postId
-            type: Long
-            note: "취소된 신청이 향했던 모집글 ID"
-          - name: applicantId
-            type: Long
-          - name: status
-            type: String (Enum)
-            note: "CANCELED (취소 후 고정)"
-          - name: chatRoomId
-            type: Long
-            note: "안내 채팅이 전송된 1:1 채팅방 ID"
-          - name: canceledAt
-            type: LocalDateTime
-            note: "취소 시각 (application.updatedAt)"
+        fields: []
+        note: "응답 본문 data 는 null. 상태/채팅 흐름은 채팅방 안내 메시지 + WebSocket broadcast 로 클라이언트에 전달된다."
 
   data_flow:
     - step: 1
@@ -94,18 +79,10 @@ technical_spec:
       action: "chatRoom.updateCategory(ChatRoomCategory.GENERAL) 적용 (002 와 동일 패턴) + ApplicationEventPublisher 로 ChatMessageSentEvent(roomId, ChatMessageBroadcast.from(chat, roomId)) 발행 → WebSocketBroadcaster 자동 송신."
     - step: 9
       layer: Response
-      action: "CancelRoommateApplicationResponse.from(application, chatRoom.getId()) 생성 후 200 OK, CommonResponse<…> 반환."
+      action: "UseCase 는 void 반환. Controller 는 CommonResponse.success(ApplicationResponseCode.APPLICATION_CANCELED) 만 반환 (data=null)."
 
   response_dto_structure:
-    CancelRoommateApplicationResponse:
-      note: "static factory method from(RoommateApplication, Long chatRoomId) 사용 (essential-rules.yaml 의 Response DTO 정적 팩토리 규약 준수)."
-      source_fields:
-        - "applicationId ← application.getId()"
-        - "postId ← application.getPost().getId()"
-        - "applicantId ← application.getApplicant().getId()"
-        - "status ← application.getStatus() (CANCELED 고정)"
-        - "chatRoomId ← UseCase 가 확보한 ChatRoom 인스턴스의 id 를 파라미터로 전달"
-        - "canceledAt ← application.getUpdatedAt() (BaseEntity 의 updatedAt, JPA Auditing)"
+    note: "응답 DTO 없음. cancelApplication UseCase 는 void 를 반환하며, Controller 는 CommonResponse<Void> 로 응답한다. 별도 상태/채팅 정보는 채팅방 안내 메시지(APPLICATION_CANCELED) + WebSocket broadcast 로 전달된다."
 
   database:
     entities:
@@ -196,7 +173,7 @@ technical_spec:
 testing_strategy:
   happy_path:
     - "신청자가 본인의 PENDING 신청을 취소 → 200, application.status=CANCELED 갱신 확인"
-    - "취소 응답의 applicationId / postId / applicantId / status=CANCELED / chatRoomId / canceledAt 모두 정상 반환 확인"
+    - "응답은 CommonResponse<Void> (data=null), response_code=APPLICATION_CANCELED 로 반환"
     - "취소 처리 시 \"룸메이트 신청을 취소했습니다.\" 채팅이 신청자(applicantId) senderId 로 저장 확인 (messageType=APPLICATION_CANCELED, targetId=applicationId)"
     - "취소 처리 시 ChatMessageSentEvent 1회 발행, broadcast.senderId=applicantId, content=고정 문구로 검증"
     - "취소 후 모집글 status / RoommateGroupMember / 채팅방 자체는 변경되지 않음 확인"
