@@ -2,9 +2,11 @@ package com.project.bangjjack.domain.post.presentation;
 
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
 import com.project.bangjjack.domain.post.application.dto.request.UpdateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.AiRecommendedPostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.CreateRoommatePostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.MatchRateResponse;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostDetailResponse;
+import com.project.bangjjack.domain.post.application.usecase.AiRecommendedPostUseCase;
 import com.project.bangjjack.domain.post.application.usecase.MatchAnalysisUseCase;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
 import com.project.bangjjack.domain.post.application.usecase.RoommatePostUseCase;
@@ -24,6 +26,8 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "Post", description = "룸메이트 모집글 관련 API")
 @RestController
 @RequestMapping("/api/v1/posts")
@@ -32,6 +36,7 @@ public class RoommatePostController {
 
     private final RoommatePostUseCase roommatePostUseCase;
     private final MatchAnalysisUseCase matchAnalysisUseCase;
+    private final AiRecommendedPostUseCase aiRecommendedPostUseCase;
 
     @Operation(summary = "룸메이트 모집글 작성", description = "온보딩, 체크리스트, 선호도 등록을 완료한 사용자가 모집글을 작성합니다.")
     @PostMapping
@@ -85,5 +90,16 @@ public class RoommatePostController {
             @CurrentMemberId Long memberId,
             @PathVariable Long postId) {
         return CommonResponse.success(PostResponseCode.MATCH_RATE_ANALYZED, matchAnalysisUseCase.analyzeMatchRate(memberId, postId));
+    }
+
+    @Operation(summary = "AI 추천 룸메이트 모집글 조회", description = "요청자의 체크리스트·선호도를 기준으로 AI 매칭률이 높은 OPEN 모집글 최대 10건을 매칭률 내림차순으로 반환합니다. 동일 성별·캠퍼스·기숙사 후보로 한정(요청자 User 엔티티에서 자동 도출).")
+    @GetMapping("/recommended")
+    public CommonResponse<List<AiRecommendedPostResponse>> getRecommendedPosts(
+            @CurrentMemberId Long memberId,
+            @RequestParam(required = false) RoomSize roomSize) {
+        return CommonResponse.success(
+                PostResponseCode.AI_RECOMMENDED_POST_LIST_FOUND,
+                aiRecommendedPostUseCase.getRecommended(memberId, roomSize)
+        );
     }
 }

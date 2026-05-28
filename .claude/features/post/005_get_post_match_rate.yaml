@@ -1,6 +1,6 @@
 # Feature Specification: AI 기반 룸메이트 매칭률 분석
 # Status: Draft
-# Last Updated: 2026-05-18 (revised: OPEN 상태 모집글만 매칭 분석 대상 — 조회 단계에서 status 필터링)
+# Last Updated: 2026-05-28 (revised: AI 응답 스키마 확장 — counts/mismatchedFeatures/conversationStarters/summaryComment 반영, matchedFeatures 객체 배열로 변경)
 
 meta:
   id: FEAT-011
@@ -50,14 +50,19 @@ external_dependencies:
         third_priority: "RoommatePreference.priority3 (현재 모델 미사용, 확장용 — 그대로 전달)"
       user_b: "동일 구조 (모집글 작성자 데이터)"
     response_shape:
-      matchRate: "Integer/Float — 최종 매칭 점수"
-      matchedFeatures: "List<String> — 공통으로 잘 맞는 피처 키 (비어있을 수 있음)"
-      topInfluentialFeatures: "List<String> — 매칭에 가장 영향 큰 요소 Top3 피처 키"
+      matchRate: "Integer 0~100 — logit 보정된 매칭 점수 (보통 10~90 범위)"
+      counts: "{ matched, mismatched, total } — total은 항상 8 (체크리스트 항목 수)"
+      matchedFeatures: "List<{ key, label, description }> — 공통으로 잘 맞는 피처. 비어있을 수 있음 (극단 비호환 케이스)"
+      mismatchedFeatures: "List<{ key, label, description, advice }> — 차이 나는 피처와 조율 가이드"
+      conversationStarters: "List<{ key, starter, subtitle }> — 대화 추천 주제 (보통 1~3개)"
+      topInfluentialFeatures: "List<String> — SHAP 영향력 Top3 피처 키 (디버깅/내부 참조용)"
+      summaryComment: "{ brief, positive, caution } — caution은 mismatched 없을 때 빈 문자열"
     label_mapping:
       source: "api/labels.py FEATURE_LABELS"
       strategy: >
-        FEATURE_LABELS 매핑을 Java enum 또는 상수 Map으로 포팅하여
-        matchedFeatures / topInfluentialFeatures 키를 한국어 라벨로 변환.
+        matchedFeatures / mismatchedFeatures / conversationStarters 는 AI 응답에 label/description/advice가
+        포함되므로 별도 변환 없이 그대로 노출.
+        topInfluentialFeatures 키만 FeatureLabelConverter로 한국어 라벨 매핑하여 응답에 함께 노출.
         매핑에 없는 키는 키 그대로 반환 (서버 무중단).
     timeout:
       connect: 3s
@@ -89,13 +94,25 @@ technical_spec:
         fields:
           - name: matchRate
             type: Integer
-            note: "AI 분석 결과 최종 매칭 점수 (외부 API 응답 그대로)"
-          - name: matchedAttributes
-            type: List<String>
-            note: "공통으로 잘 맞는 항목 (한국어 라벨). 빈 리스트 가능. matchedFeatures → to_labels 변환 결과."
-          - name: recommendedTopics
-            type: List<String>
-            note: "매칭에 가장 영향 큰 요소 Top3 (한국어 라벨). topInfluentialFeatures → to_labels 변환 결과."
+            note: "AI 분석 결과 최종 매칭 점수 (외부 API 응답 그대로, logit 보정값)"
+          - name: counts
+            type: "{ matched: int, mismatched: int, total: int }"
+            note: "체크리스트 항목 일치/불일치 카운트. total은 항상 8."
+          - name: matchedFeatures
+            type: "List<{ key: String, label: String, description: String }>"
+            note: "공통으로 잘 맞는 항목. AI 응답에 한국어 라벨/설명 포함되어 그대로 노출. 빈 리스트 가능."
+          - name: mismatchedFeatures
+            type: "List<{ key, label, description, advice }>"
+            note: "차이 나는 항목과 조율 가이드. 공동생활 가이드 화면의 '조율할 점'에 사용."
+          - name: conversationStarters
+            type: "List<{ key, starter, subtitle }>"
+            note: "AI 추천 대화 주제. 공동생활 가이드 화면의 '대화 추천 주제'에 사용."
+          - name: topInfluentialFeatures
+            type: "List<{ key: String, label: String }>"
+            note: "SHAP 영향력 Top3 (디버깅/내부 참조용). key는 raw, label은 FeatureLabelConverter 매핑 결과(매핑 없으면 key 그대로)."
+          - name: summaryComment
+            type: "{ brief: String, positive: String, caution: String }"
+            note: "AI 종합 코멘트. brief는 헤더, positive/caution은 매칭 리포트 코멘트. caution은 mismatched 없으면 빈 문자열."
 
   data_flow:
     - step: 1
@@ -128,10 +145,13 @@ technical_spec:
         connect 3s / read 5s 타임아웃. 응답 코드 2xx 아니거나 타임아웃 시 AI_SERVICE_UNAVAILABLE.
     - step: 5
       layer: UseCase (MatchAnalysisUseCase)
-      action: "MatchAnalysisResult의 matchedFeatures / topInfluentialFeatures를 FeatureLabelConverter.toLabels()로 한국어 라벨 변환"
+      action: >
+        matchedFeatures / mismatchedFeatures / conversationStarters / summaryComment 는 AI 응답에 포함된
+        한국어 라벨/설명을 그대로 응답 DTO로 매핑. topInfluentialFeatures 키만 FeatureLabelConverter.toLabels()로
+        한국어 라벨 매핑 후 { key, label } 페어로 응답에 포함.
     - step: 6
       layer: UseCase (MatchAnalysisUseCase)
-      action: "MatchRateResponse.of(matchRate, matchedLabels, topInfluentialLabels) 생성 후 반환"
+      action: "MatchRateResponse.of(matchRate, counts, matched, mismatched, starters, topInfluential, summary) 생성 후 반환"
     - step: 7
       layer: Response
       action: "200 OK, CommonResponse<MatchRateResponse> 반환"
@@ -269,9 +289,15 @@ components:
     type: "Domain Value Object (record)"
     fields:
       - matchRate: int
-      - matchedFeatures: List<String>      # 피처 키 (라벨 미변환 상태)
-      - topInfluentialFeatures: List<String>
-    note: "포트 출력. 라벨 변환은 UseCase에서 FeatureLabelConverter로 수행."
+      - counts: MatchCounts                    # { matched, mismatched, total }
+      - matchedFeatures: List<MatchedFeature>  # { key, label, description } — AI가 라벨/설명 제공
+      - mismatchedFeatures: List<MismatchedFeature>  # { key, label, description, advice }
+      - conversationStarters: List<ConversationStarter>  # { key, starter, subtitle }
+      - topInfluentialFeatures: List<String>   # SHAP 키 (라벨 매핑은 UseCase에서)
+      - summaryComment: SummaryComment         # { brief, positive, caution }
+    note: >
+      포트 출력. matched/mismatched/conversation/summary 는 AI 응답에 한국어 텍스트 포함되어
+      라벨 변환 불필요. topInfluentialFeatures 키만 UseCase에서 FeatureLabelConverter로 변환.
 
   AiMatchClient:
     package: "domain.post.external.aimatch"
@@ -368,11 +394,12 @@ database:
 # ============================================================
 testing_strategy:
   happy_path:
-    - "양측 체크리스트·선호도 등록 완료 + 본인 글 아님 → 200 OK, matchRate/matchedAttributes/recommendedTopics 반환"
-    - "matchedFeatures 비어있는 AI 응답 → matchedAttributes = [] 로 정상 반환"
-    - "topInfluentialFeatures 3건 → 한국어 라벨로 변환되어 응답 (e.g. \"취침 시간\", \"청소 빈도\", \"흡연 습관\")"
-    - "FEATURE_LABELS에 없는 키 → 키 그대로 응답에 포함 (예외 발생 X)"
+    - "양측 체크리스트·선호도 등록 완료 + 본인 글 아님 → 200 OK, 신규 스키마(matchRate/counts/matchedFeatures/mismatchedFeatures/conversationStarters/topInfluentialFeatures/summaryComment) 반환"
+    - "matchedFeatures 비어있는 AI 응답 → matchedFeatures = [] 로 정상 반환"
+    - "topInfluentialFeatures 3건 → { key, label } 페어로 응답 (label은 FeatureLabelConverter 매핑 결과)"
+    - "FEATURE_LABELS에 없는 키 → label에 key 그대로 (예외 발생 X)"
     - "sleep_habits 복수 항목이 AI 요청 본문에 배열로 전달됨"
+    - "회귀 방지: AiMatchResponse는 matchedFeatures를 객체 배열로 역직렬화 (과거 List<String>으로 선언돼 MismatchedInputException 발생한 적 있음)"
   edge_cases:
     - "존재하지 않는 postId → 404 POST_NOT_FOUND"
     - "삭제된 postId → 404 POST_NOT_FOUND"
@@ -408,7 +435,10 @@ notes:
     (메서드·URI·바이트 길이만 기록). 에러 응답 body도 절대 로깅하지 않음 (status 코드만).
     환경 토글로 가변화하지 않음 — GDPR/CCPA/개인정보보호법상 데이터 최소화 원칙에 따라
     PII 로깅 코드 경로 자체를 코드베이스에서 제거. 로컬 디버깅은 단위 테스트나 DB 상태 확인으로 대체.
-  - "AI API 응답 필드 그대로 노출하지 않음. matchedFeatures/topInfluentialFeatures → matchedAttributes/recommendedTopics 로 네이밍 변경 + 한국어 라벨 변환."
+  - >
+    [응답 스키마] AI API의 신규 응답(matched/mismatched/conversation/summary/counts)을 그대로 외부에 노출하되,
+    필드명은 AI API 스펙과 동일하게 유지하여 프론트가 화면별로 직접 매핑할 수 있도록 함.
+    topInfluentialFeatures 만 raw 키이므로 { key, label } 페어로 라벨을 함께 제공.
   - "third_priority는 현재 AI 모델 미사용이지만 RoommatePreference.priority3 값을 그대로 전달 (확장 대비)."
   - "FEATURE_LABELS 매핑은 30개 키 전부 Java 상수로 포팅. api/labels.py와 동기화 필요 시 PR 리뷰 시점에 확인."
   - "라벨 톤(\"취침 시간\" vs \"취침 시간이 비슷해요\")은 백엔드는 명사구만 전달. 문맥 조합은 프론트가 수행."

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -30,5 +31,14 @@ public class UserGetService {
         return userRepository.findAllByIdInAndDeletedFalse(ids)
                 .stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
+    }
+
+    public List<User> findCandidatesForRecommendation(User requester) {
+        return userRepository.findRecommendationCandidates(
+                requester.getId(),
+                requester.getGender(),
+                requester.getCampus(),
+                requester.getDormitory()
+        );
     }
 }

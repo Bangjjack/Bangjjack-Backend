@@ -41,4 +41,9 @@ public interface RoommateGroupMemberRepository extends JpaRepository<RoommateGro
             + "JOIN FETCH m.user "
             + "WHERE m.group.post.id = :postId AND m.deleted = false")
     List<RoommateGroupMember> findActiveMembersWithUserByPostId(@Param("postId") Long postId);
+
+    @Query("SELECT m.group.post.id, COUNT(m) FROM RoommateGroupMember m "
+            + "WHERE m.group.post.id IN :postIds AND m.deleted = false "
+            + "GROUP BY m.group.post.id")
+    List<Object[]> countActiveByPostIdIn(@Param("postIds") Collection<Long> postIds);
 }

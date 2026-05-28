@@ -4,10 +4,30 @@ import java.util.List;
 
 public record MatchAnalysisResult(
         int matchRate,
-        List<String> matchedFeatures,
-        List<String> topInfluentialFeatures
+        MatchCounts counts,
+        List<MatchedFeature> matchedFeatures,
+        List<MismatchedFeature> mismatchedFeatures,
+        List<ConversationStarter> conversationStarters,
+        List<String> topInfluentialFeatures,
+        SummaryComment summaryComment
 ) {
-    public static MatchAnalysisResult of(int matchRate, List<String> matchedFeatures, List<String> topInfluentialFeatures) {
-        return new MatchAnalysisResult(matchRate, matchedFeatures, topInfluentialFeatures);
+    public static MatchAnalysisResult of(
+            int matchRate,
+            MatchCounts counts,
+            List<MatchedFeature> matchedFeatures,
+            List<MismatchedFeature> mismatchedFeatures,
+            List<ConversationStarter> conversationStarters,
+            List<String> topInfluentialFeatures,
+            SummaryComment summaryComment
+    ) {
+        return new MatchAnalysisResult(
+                matchRate,
+                counts,
+                matchedFeatures,
+                mismatchedFeatures,
+                conversationStarters,
+                topInfluentialFeatures,
+                summaryComment
+        );
     }
 }

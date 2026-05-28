@@ -6,6 +6,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AiMatchApiProperties(
         String baseUrl,
         int connectTimeout,
-        int readTimeout
+        int readTimeout,
+        int readTimeoutBatch,
+        int recommendedTopK,
+        int recommendedRoommatesTopK,
+        long recommendedRoommatesCacheTtl
 ) {
 }

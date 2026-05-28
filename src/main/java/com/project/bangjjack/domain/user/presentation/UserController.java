@@ -1,8 +1,10 @@
 package com.project.bangjjack.domain.user.presentation;
 
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
+import com.project.bangjjack.domain.user.application.dto.response.AiRecommendedRoommateResponse;
 import com.project.bangjjack.domain.user.application.dto.response.MyProfileResponse;
 import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
+import com.project.bangjjack.domain.user.application.usecase.AiRecommendedRoommatesUseCase;
 import com.project.bangjjack.domain.user.application.usecase.UserUseCase;
 import com.project.bangjjack.domain.user.presentation.response.UserResponseCode;
 import com.project.bangjjack.global.annotation.CurrentMemberId;
@@ -13,6 +15,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "User", description = "사용자 관련 API")
 @RestController
 @RequestMapping("/api/v1/users")
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserUseCase userUseCase;
+    private final AiRecommendedRoommatesUseCase aiRecommendedRoommatesUseCase;
 
     @Operation(summary = "온보딩 정보 저장", description = "신규 가입 사용자의 개인 정보(출생년도/성별/학년/캠퍼스/학과/학기/기숙사)를 저장합니다. 최초 1회만 가능합니다.")
     @PatchMapping("/onboarding")
@@ -40,5 +45,14 @@ public class UserController {
     @GetMapping("/me/profile")
     public CommonResponse<MyProfileResponse> getMyProfile(@CurrentMemberId Long memberId) {
         return CommonResponse.success(UserResponseCode.MY_PROFILE_FOUND, userUseCase.getMyProfile(memberId));
+    }
+
+    @Operation(summary = "AI 추천 룸메이트 조회", description = "본인 체크리스트/선호도 기준으로 매칭률이 높은 룸메이트 후보 최대 3명을 조회합니다.")
+    @GetMapping("/recommended-roommates")
+    public CommonResponse<List<AiRecommendedRoommateResponse>> getRecommendedRoommates(@CurrentMemberId Long memberId) {
+        return CommonResponse.success(
+                UserResponseCode.AI_RECOMMENDED_ROOMMATES_FOUND,
+                aiRecommendedRoommatesUseCase.getRecommended(memberId)
+        );
     }
 }

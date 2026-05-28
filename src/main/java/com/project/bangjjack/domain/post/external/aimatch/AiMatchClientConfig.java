@@ -18,12 +18,21 @@ public class AiMatchClientConfig {
 
     @Bean
     public RestClient aiMatchRestClient(AiMatchApiProperties properties) {
+        return buildClient(properties.baseUrl(), properties.connectTimeout(), properties.readTimeout());
+    }
+
+    @Bean
+    public RestClient aiMatchBatchRestClient(AiMatchApiProperties properties) {
+        return buildClient(properties.baseUrl(), properties.connectTimeout(), properties.readTimeoutBatch());
+    }
+
+    private RestClient buildClient(String baseUrl, int connectTimeoutMs, int readTimeoutMs) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofMillis(properties.connectTimeout()));
-        requestFactory.setReadTimeout(Duration.ofMillis(properties.readTimeout()));
+        requestFactory.setConnectTimeout(Duration.ofMillis(connectTimeoutMs));
+        requestFactory.setReadTimeout(Duration.ofMillis(readTimeoutMs));
 
         return RestClient.builder()
-                .baseUrl(properties.baseUrl())
+                .baseUrl(baseUrl)
                 .requestFactory(new BufferingClientHttpRequestFactory(requestFactory))
                 .requestInterceptor(loggingInterceptor())
                 .build();

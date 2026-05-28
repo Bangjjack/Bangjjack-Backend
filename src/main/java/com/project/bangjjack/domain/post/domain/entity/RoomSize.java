@@ -10,4 +10,12 @@ public enum RoomSize {
             case FOUR_PERSON -> count >= 1 && count <= 3;
         };
     }
+
+    public int getTotalMemberCount() {
+        return switch (this) {
+            case TWO_PERSON -> 2;
+            case THREE_PERSON -> 3;
+            case FOUR_PERSON -> 4;
+        };
+    }
 }
