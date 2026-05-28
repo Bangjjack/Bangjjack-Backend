@@ -34,20 +34,21 @@ public class AiMatchBatchClient implements MatchBatchAnalysisPort {
 
     @Override
     public MatchBatchResult analyze(MatchBatchCommand command) {
+        int candidateCount = command.candidates().size();
         AiMatchBatchRequest request = AiMatchBatchRequest.of(
                 toPayload(command.requester()),
                 command.candidates().stream().map(this::toPayload).toList(),
                 command.topK()
         );
-        AiMatchBatchResponse response = callMatchDetailBatch(request, command.candidates().size());
-        return toResult(response);
+        AiMatchBatchResponse response = callMatchDetailBatch(request, candidateCount);
+        return toResult(response, candidateCount);
     }
 
     private AiMatchUserPayload toPayload(MatchAnalysisProfile profile) {
         return AiMatchUserPayload.of(profile.user(), profile.checklist(), profile.sleepHabits(), profile.preference());
     }
 
-    private MatchBatchResult toResult(AiMatchBatchResponse response) {
+    private MatchBatchResult toResult(AiMatchBatchResponse response, int candidateCount) {
         List<AiRankedItem> ranked = response.ranked();
         if (ranked == null) {
             log.warn("AI match batch API returned null ranked list");
@@ -55,9 +56,19 @@ public class AiMatchBatchClient implements MatchBatchAnalysisPort {
         }
         return MatchBatchResult.of(
                 ranked.stream()
-                        .map(item -> RankedMatch.of(item.rank(), item.candidateIndex(), item.matchRate()))
+                        .map(item -> toRankedMatch(item, candidateCount))
                         .toList()
         );
+    }
+
+    private RankedMatch toRankedMatch(AiRankedItem item, int candidateCount) {
+        int candidateIndex = item.candidateIndex();
+        if (candidateIndex < 0 || candidateIndex >= candidateCount) {
+            log.warn("AI match batch returned out-of-range candidateIndex: {} (candidateCount={})",
+                    candidateIndex, candidateCount);
+            throw new AiServiceUnavailableException();
+        }
+        return RankedMatch.of(item.rank(), candidateIndex, item.matchRate());
     }
 
     private AiMatchBatchResponse callMatchDetailBatch(AiMatchBatchRequest request, int candidateCount) {
