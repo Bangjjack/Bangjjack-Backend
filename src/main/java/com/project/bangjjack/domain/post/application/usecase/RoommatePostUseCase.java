@@ -7,6 +7,7 @@ import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
 import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.post.application.dto.request.CreateRoommatePostRequest;
+import com.project.bangjjack.domain.post.application.dto.response.MyRoommatePostResponse;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePreferenceResponse;
 import com.project.bangjjack.domain.post.application.dto.request.SharedLifestyleRequest;
 import com.project.bangjjack.domain.post.application.dto.response.RoommatePostSummaryResponse;
@@ -39,6 +40,7 @@ import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMe
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberDeleteService;
 import com.project.bangjjack.domain.roommategroup.domain.service.RoommateGroupMemberGetService;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +125,20 @@ public class RoommatePostUseCase {
                 roommatePostGetService.getPostList(campus, roomSize, pageable)
                         .map(RoommatePostSummaryResponse::from)
         );
+    }
+
+    public List<MyRoommatePostResponse> getMyPosts(Long userId) {
+        List<RoommatePost> posts = roommatePostGetService.getPostsByUserId(userId);
+        if (posts.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> postIds = posts.stream().map(RoommatePost::getId).toList();
+        Map<Long, Long> memberCountByPostId = roommateGroupMemberGetService.countActiveByPostIdIn(postIds);
+
+        return posts.stream()
+                .map(post -> MyRoommatePostResponse.from(post, memberCountByPostId.getOrDefault(post.getId(), 0L)))
+                .toList();
     }
 
     public RoommatePostDetailResponse getPostDetail(Long userId, Long postId) {
