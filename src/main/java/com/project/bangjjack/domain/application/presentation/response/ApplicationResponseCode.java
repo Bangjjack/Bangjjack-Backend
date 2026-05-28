@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 public enum ApplicationResponseCode implements ResponseCodeInterface {
 
     APPLICATION_CREATED(201, HttpStatus.CREATED, "룸메이트 신청이 생성되었습니다."),
-    APPLICATION_PROCESSED(200, HttpStatus.OK, "룸메이트 신청이 처리되었습니다.");
+    APPLICATION_PROCESSED(200, HttpStatus.OK, "룸메이트 신청이 처리되었습니다."),
+    APPLICATION_CANCELED(200, HttpStatus.OK, "룸메이트 신청이 취소되었습니다.");
 
     private final int code;
     private final HttpStatus status;

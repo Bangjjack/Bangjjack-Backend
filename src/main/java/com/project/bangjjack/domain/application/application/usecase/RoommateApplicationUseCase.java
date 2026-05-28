@@ -5,6 +5,7 @@ import com.project.bangjjack.domain.application.application.dto.response.CreateR
 import com.project.bangjjack.domain.application.application.dto.response.ProcessRoommateApplicationResponse;
 import com.project.bangjjack.domain.application.application.exception.AlreadyAppliedPendingException;
 import com.project.bangjjack.domain.application.application.exception.ApplicantAlreadyInGroupException;
+import com.project.bangjjack.domain.application.application.exception.ApplicationCancelForbiddenException;
 import com.project.bangjjack.domain.application.application.exception.ApplicationPreconditionNotMetException;
 import com.project.bangjjack.domain.application.application.exception.ApplicationProcessForbiddenException;
 import com.project.bangjjack.domain.application.application.exception.CannotApplyToOwnPostException;
@@ -53,6 +54,7 @@ public class RoommateApplicationUseCase {
     private static final String APPLICATION_CHAT_MESSAGE = "룸메이트 신청을 보냈습니다.";
     private static final String APPLICATION_ACCEPTED_MESSAGE = "룸메이트 신청을 수락했습니다.";
     private static final String APPLICATION_REJECTED_MESSAGE = "룸메이트 신청을 거절했습니다.";
+    private static final String APPLICATION_CANCELED_MESSAGE = "룸메이트 신청을 취소했습니다.";
 
     private final UserGetService userGetService;
     private final RoommatePostGetService roommatePostGetService;
@@ -182,5 +184,32 @@ public class RoommateApplicationUseCase {
 
         Long groupId = group != null ? group.getId() : null;
         return ProcessRoommateApplicationResponse.from(application, chatRoom.getId(), groupId, currentMemberCount);
+    }
+
+    @Transactional
+    public void cancelApplication(Long userId, Long applicationId) {
+        RoommateApplication application = roommateApplicationGetService.getWithPostAndUserById(applicationId);
+
+        Long applicantId = application.getApplicant().getId();
+        if (!applicantId.equals(userId)) {
+            throw new ApplicationCancelForbiddenException();
+        }
+
+        if (application.getStatus() != ApplicationStatus.PENDING) {
+            throw new InvalidApplicationStatusException();
+        }
+
+        application.cancel();
+
+        Long authorId = application.getPost().getUser().getId();
+        String directRoomKey = chatRoomCreateService.createDirectKey(applicantId, authorId);
+        ChatRoom chatRoom = chatRoomGetService.findByDirectRoomKey(directRoomKey)
+                .orElseThrow(ChatRoomNotFoundException::new);
+
+        Chat chat = chatSaveService.save(
+                applicantId, chatRoom, APPLICATION_CANCELED_MESSAGE, MessageType.APPLICATION_CANCELED, applicationId);
+        chatRoom.updateCategory(ChatRoomCategory.GENERAL);
+        eventPublisher.publishEvent(new ChatMessageSentEvent(
+                chatRoom.getId(), ChatMessageBroadcast.from(chat, chatRoom.getId())));
     }
 }
