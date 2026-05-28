@@ -39,4 +39,14 @@ public class RoommatePreference extends BaseEntity {
     ) {
         return new RoommatePreference(user, firstPriority, secondPriority, thirdPriority);
     }
+
+    public void update(
+            RoommatePreferenceFactor firstPriority,
+            RoommatePreferenceFactor secondPriority,
+            RoommatePreferenceFactor thirdPriority
+    ) {
+        this.firstPriority = firstPriority;
+        this.secondPriority = secondPriority;
+        this.thirdPriority = thirdPriority;
+    }
 }

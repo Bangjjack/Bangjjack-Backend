@@ -1,20 +1,25 @@
 package com.project.bangjjack.domain.user.application.usecase;
 
 import com.project.bangjjack.domain.checklist.application.dto.response.LifestyleChecklistResponse;
+import com.project.bangjjack.domain.checklist.application.exception.DuplicatePreferenceFactorException;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklist;
 import com.project.bangjjack.domain.checklist.domain.entity.LifestyleChecklistSleepHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreference;
+import com.project.bangjjack.domain.checklist.domain.entity.RoommatePreferenceFactor;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
+import com.project.bangjjack.domain.checklist.domain.service.PreferenceCreateService;
 import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.department.domain.entity.Department;
 import com.project.bangjjack.domain.department.domain.service.DepartmentGetService;
+import com.project.bangjjack.domain.user.application.dto.request.UpdateMyProfileRequest;
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
 import com.project.bangjjack.domain.user.application.dto.response.MyProfileResponse;
 import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
 import com.project.bangjjack.domain.user.application.dto.response.UserProfileResponse;
 import com.project.bangjjack.domain.user.application.exception.AlreadyOnboardedException;
 import com.project.bangjjack.domain.user.application.exception.InvalidBirthYearException;
+import com.project.bangjjack.domain.user.application.exception.NotOnboardedException;
 import com.project.bangjjack.domain.user.domain.entity.User;
 import com.project.bangjjack.domain.user.domain.service.UserGetService;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +41,7 @@ public class UserUseCase {
     private final DepartmentGetService departmentGetService;
     private final ChecklistGetService checklistGetService;
     private final RoommatePreferenceGetService roommatePreferenceGetService;
+    private final PreferenceCreateService preferenceCreateService;
 
     @Transactional
     public void completeOnboarding(Long userId, UserOnboardingRequest request) {
@@ -55,6 +63,47 @@ public class UserUseCase {
                 request.semester(),
                 request.dormitory()
         );
+    }
+
+    @Transactional
+    public void updateMyProfile(Long userId, UpdateMyProfileRequest request) {
+        validateBirthYear(request.birthYear());
+
+        List<RoommatePreferenceFactor> preferences = request.preferences();
+        if (new HashSet<>(preferences).size() != preferences.size()) {
+            throw new DuplicatePreferenceFactorException();
+        }
+
+        User user = userGetService.getById(userId);
+        if (!user.isOnboarded()) {
+            throw new NotOnboardedException();
+        }
+
+        Department department = departmentGetService.getById(request.departmentId());
+
+        user.editProfile(
+                request.birthYear(),
+                request.grade(),
+                request.gender(),
+                request.campus(),
+                department,
+                request.semester(),
+                request.dormitory()
+        );
+
+        Optional<RoommatePreference> existing = roommatePreferenceGetService.findByUser(user);
+        if (existing.isPresent()) {
+            existing.get().update(preferences.get(0), preferences.get(1), preferences.get(2));
+        } else {
+            RoommatePreference preference = RoommatePreference.create(
+                    user,
+                    preferences.get(0),
+                    preferences.get(1),
+                    preferences.get(2)
+            );
+            preferenceCreateService.createPreference(preference);
+            user.completeRoommatePreferenceRegistration();
+        }
     }
 
     public UserBasicTagResponse getUserBasicTag(Long userId) {
