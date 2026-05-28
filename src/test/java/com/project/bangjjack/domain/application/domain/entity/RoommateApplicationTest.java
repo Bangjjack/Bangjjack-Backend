@@ -62,4 +62,14 @@ class RoommateApplicationTest {
 
         assertThat(application.getStatus()).isEqualTo(ApplicationStatus.REJECTED);
     }
+
+    @Test
+    @DisplayName("cancel() 호출 시 status가 CANCELED로 변경된다")
+    void cancel_시_상태_변경() {
+        RoommateApplication application = RoommateApplication.create(openPost(), applicant());
+
+        application.cancel();
+
+        assertThat(application.getStatus()).isEqualTo(ApplicationStatus.CANCELED);
+    }
 }
