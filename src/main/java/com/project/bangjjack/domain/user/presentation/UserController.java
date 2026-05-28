@@ -1,5 +1,6 @@
 package com.project.bangjjack.domain.user.presentation;
 
+import com.project.bangjjack.domain.user.application.dto.request.UpdateMyProfileRequest;
 import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingRequest;
 import com.project.bangjjack.domain.user.application.dto.response.AiRecommendedRoommateResponse;
 import com.project.bangjjack.domain.user.application.dto.response.MyProfileResponse;
@@ -46,6 +47,15 @@ public class UserController {
     @GetMapping("/me/profile")
     public CommonResponse<MyProfileResponse> getMyProfile(@CurrentMemberId Long memberId) {
         return CommonResponse.success(UserResponseCode.MY_PROFILE_FOUND, userUseCase.getMyProfile(memberId));
+    }
+
+    @Operation(summary = "내 프로필 편집", description = "본인의 학적/기본 정보(출생년도/성별/캠퍼스/학년/학과/학기/기숙사)와 룸메이트 선호도를 일괄 수정합니다. 온보딩 완료 사용자만 호출 가능합니다.")
+    @PatchMapping("/me/profile")
+    public CommonResponse<Void> updateMyProfile(
+            @CurrentMemberId Long memberId,
+            @RequestBody @Valid UpdateMyProfileRequest request) {
+        userUseCase.updateMyProfile(memberId, request);
+        return CommonResponse.success(UserResponseCode.MY_PROFILE_UPDATED);
     }
 
     @Operation(summary = "특정 유저 프로필 조회", description = "특정 사용자의 프로필(학적/선호도/체크리스트)과 본인 체크리스트와의 항목별 일치 여부(matched)를 조회합니다.")

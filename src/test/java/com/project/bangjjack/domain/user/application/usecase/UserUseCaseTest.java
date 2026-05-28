@@ -1,6 +1,7 @@
 package com.project.bangjjack.domain.user.application.usecase;
 
 import com.project.bangjjack.domain.checklist.application.dto.request.LifestyleChecklistRequest;
+import com.project.bangjjack.domain.checklist.application.exception.DuplicatePreferenceFactorException;
 import com.project.bangjjack.domain.checklist.domain.entity.Bedtime;
 import com.project.bangjjack.domain.checklist.domain.entity.CallHabit;
 import com.project.bangjjack.domain.checklist.domain.entity.CleaningCycle;
@@ -16,10 +17,14 @@ import com.project.bangjjack.domain.checklist.domain.entity.Smoking;
 import com.project.bangjjack.domain.checklist.domain.entity.WakeUpTime;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistBundle;
 import com.project.bangjjack.domain.checklist.domain.service.ChecklistGetService;
+import com.project.bangjjack.domain.checklist.domain.service.PreferenceCreateService;
 import com.project.bangjjack.domain.checklist.domain.service.RoommatePreferenceGetService;
 import com.project.bangjjack.domain.department.domain.entity.Department;
 import com.project.bangjjack.domain.department.domain.service.DepartmentGetService;
+import com.project.bangjjack.domain.user.application.dto.request.UpdateMyProfileRequest;
 import com.project.bangjjack.domain.user.application.dto.response.UserProfileResponse;
+import com.project.bangjjack.domain.user.application.exception.InvalidBirthYearException;
+import com.project.bangjjack.domain.user.application.exception.NotOnboardedException;
 import com.project.bangjjack.domain.user.application.exception.UserNotFoundException;
 import com.project.bangjjack.domain.user.domain.entity.Campus;
 import com.project.bangjjack.domain.user.domain.entity.Dormitory;
@@ -31,6 +36,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,6 +49,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UserUseCase")
@@ -56,6 +63,8 @@ class UserUseCaseTest {
     private ChecklistGetService checklistGetService;
     @Mock
     private RoommatePreferenceGetService roommatePreferenceGetService;
+    @Mock
+    private PreferenceCreateService preferenceCreateService;
 
     @InjectMocks
     private UserUseCase userUseCase;
@@ -333,6 +342,186 @@ class UserUseCaseTest {
 
             // when & then
             assertThatThrownBy(() -> userUseCase.getUserProfile(viewerId, targetId))
+                    .isInstanceOf(UserNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("updateMyProfile")
+    class UpdateMyProfile {
+
+        private UpdateMyProfileRequest validRequest(Long departmentId, List<RoommatePreferenceFactor> preferences) {
+            return new UpdateMyProfileRequest(
+                    1999,
+                    3,
+                    Gender.MALE,
+                    Campus.MEDICAL_CAMPUS,
+                    departmentId,
+                    Semester.TWENTY_FIVE_WEEKS,
+                    Dormitory.DORM_2,
+                    preferences
+            );
+        }
+
+        @Test
+        @DisplayName("선호도 등록된 사용자가 호출 시 User 7개 필드와 RoommatePreference 3순위가 모두 갱신된다")
+        void 선호도_등록_사용자_정상_수정() throws Exception {
+            // given
+            Long userId = 1L;
+            Long deptId = 200L;
+            Department originalDept = departmentWithId(100L, "소프트웨어학과");
+            User user = onboardedUserWithId(userId, originalDept);
+            Department newDept = departmentWithId(deptId, "디자인학과");
+            RoommatePreference existing = preferenceFor(user);
+
+            UpdateMyProfileRequest request = validRequest(deptId, List.of(
+                    RoommatePreferenceFactor.SMOKING,
+                    RoommatePreferenceFactor.WAKE_UP_TIME,
+                    RoommatePreferenceFactor.ITEM_SHARING
+            ));
+
+            given(userGetService.getById(userId)).willReturn(user);
+            given(departmentGetService.getById(deptId)).willReturn(newDept);
+            given(roommatePreferenceGetService.findByUser(user)).willReturn(Optional.of(existing));
+
+            // when
+            userUseCase.updateMyProfile(userId, request);
+
+            // then
+            assertThat(user.getBirthYear()).isEqualTo(1999);
+            assertThat(user.getGrade()).isEqualTo(3);
+            assertThat(user.getGender()).isEqualTo(Gender.MALE);
+            assertThat(user.getCampus()).isEqualTo(Campus.MEDICAL_CAMPUS);
+            assertThat(user.getDepartment()).isSameAs(newDept);
+            assertThat(user.getSemester()).isEqualTo(Semester.TWENTY_FIVE_WEEKS);
+            assertThat(user.getDormitory()).isEqualTo(Dormitory.DORM_2);
+            assertThat(user.isOnboarded()).isTrue();
+            assertThat(existing.getFirstPriority()).isEqualTo(RoommatePreferenceFactor.SMOKING);
+            assertThat(existing.getSecondPriority()).isEqualTo(RoommatePreferenceFactor.WAKE_UP_TIME);
+            assertThat(existing.getThirdPriority()).isEqualTo(RoommatePreferenceFactor.ITEM_SHARING);
+        }
+
+        @Test
+        @DisplayName("선호도 미등록 사용자가 호출 시 RoommatePreference 신규 생성 및 isRoommatePreferenceRegistered=true 로 동기화된다")
+        void 선호도_미등록_사용자_신규_생성() throws Exception {
+            // given
+            Long userId = 1L;
+            Long deptId = 200L;
+            Department originalDept = departmentWithId(100L, "소프트웨어학과");
+            User user = onboardedUserWithId(userId, originalDept);
+            Department newDept = departmentWithId(deptId, "디자인학과");
+
+            UpdateMyProfileRequest request = validRequest(deptId, List.of(
+                    RoommatePreferenceFactor.BEDTIME,
+                    RoommatePreferenceFactor.CLEANING_HABIT,
+                    RoommatePreferenceFactor.NOISE_SENSITIVITY
+            ));
+
+            given(userGetService.getById(userId)).willReturn(user);
+            given(departmentGetService.getById(deptId)).willReturn(newDept);
+            given(roommatePreferenceGetService.findByUser(user)).willReturn(Optional.empty());
+
+            // when
+            userUseCase.updateMyProfile(userId, request);
+
+            // then
+            ArgumentCaptor<RoommatePreference> captor = ArgumentCaptor.forClass(RoommatePreference.class);
+            then(preferenceCreateService).should().createPreference(captor.capture());
+            RoommatePreference created = captor.getValue();
+            assertThat(created.getUser()).isSameAs(user);
+            assertThat(created.getFirstPriority()).isEqualTo(RoommatePreferenceFactor.BEDTIME);
+            assertThat(created.getSecondPriority()).isEqualTo(RoommatePreferenceFactor.CLEANING_HABIT);
+            assertThat(created.getThirdPriority()).isEqualTo(RoommatePreferenceFactor.NOISE_SENSITIVITY);
+            assertThat(user.isRoommatePreferenceRegistered()).isTrue();
+        }
+
+        @Test
+        @DisplayName("isOnboarded=false 사용자가 호출 시 NotOnboardedException 이 발생한다")
+        void 온보딩_미완료_사용자_차단() throws Exception {
+            // given
+            Long userId = 1L;
+            User user = unonboardedUserWithId(userId);
+            UpdateMyProfileRequest request = validRequest(200L, List.of(
+                    RoommatePreferenceFactor.BEDTIME,
+                    RoommatePreferenceFactor.CLEANING_HABIT,
+                    RoommatePreferenceFactor.NOISE_SENSITIVITY
+            ));
+
+            given(userGetService.getById(userId)).willReturn(user);
+
+            // when & then
+            assertThatThrownBy(() -> userUseCase.updateMyProfile(userId, request))
+                    .isInstanceOf(NotOnboardedException.class);
+        }
+
+        @Test
+        @DisplayName("birthYear 가 1900 미만이면 InvalidBirthYearException 이 발생한다")
+        void birthYear_하한_위반() {
+            // given
+            Long userId = 1L;
+            UpdateMyProfileRequest request = new UpdateMyProfileRequest(
+                    1899, 3, Gender.MALE, Campus.MEDICAL_CAMPUS, 200L,
+                    Semester.TWENTY_FIVE_WEEKS, Dormitory.DORM_2,
+                    List.of(RoommatePreferenceFactor.BEDTIME,
+                            RoommatePreferenceFactor.CLEANING_HABIT,
+                            RoommatePreferenceFactor.NOISE_SENSITIVITY)
+            );
+
+            // when & then
+            assertThatThrownBy(() -> userUseCase.updateMyProfile(userId, request))
+                    .isInstanceOf(InvalidBirthYearException.class);
+        }
+
+        @Test
+        @DisplayName("birthYear 가 현재 연도 초과이면 InvalidBirthYearException 이 발생한다")
+        void birthYear_상한_위반() {
+            // given
+            Long userId = 1L;
+            int futureYear = java.time.LocalDate.now().getYear() + 1;
+            UpdateMyProfileRequest request = new UpdateMyProfileRequest(
+                    futureYear, 3, Gender.MALE, Campus.MEDICAL_CAMPUS, 200L,
+                    Semester.TWENTY_FIVE_WEEKS, Dormitory.DORM_2,
+                    List.of(RoommatePreferenceFactor.BEDTIME,
+                            RoommatePreferenceFactor.CLEANING_HABIT,
+                            RoommatePreferenceFactor.NOISE_SENSITIVITY)
+            );
+
+            // when & then
+            assertThatThrownBy(() -> userUseCase.updateMyProfile(userId, request))
+                    .isInstanceOf(InvalidBirthYearException.class);
+        }
+
+        @Test
+        @DisplayName("preferences 에 중복 항목이 포함되면 DuplicatePreferenceFactorException 이 발생한다")
+        void preferences_중복() {
+            // given
+            Long userId = 1L;
+            UpdateMyProfileRequest request = validRequest(200L, List.of(
+                    RoommatePreferenceFactor.BEDTIME,
+                    RoommatePreferenceFactor.BEDTIME,
+                    RoommatePreferenceFactor.SMOKING
+            ));
+
+            // when & then
+            assertThatThrownBy(() -> userUseCase.updateMyProfile(userId, request))
+                    .isInstanceOf(DuplicatePreferenceFactorException.class);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 userId 호출 시 UserNotFoundException 이 전파된다")
+        void 존재하지_않는_userId() {
+            // given
+            Long userId = 999L;
+            UpdateMyProfileRequest request = validRequest(200L, List.of(
+                    RoommatePreferenceFactor.BEDTIME,
+                    RoommatePreferenceFactor.CLEANING_HABIT,
+                    RoommatePreferenceFactor.NOISE_SENSITIVITY
+            ));
+
+            given(userGetService.getById(userId)).willThrow(new UserNotFoundException());
+
+            // when & then
+            assertThatThrownBy(() -> userUseCase.updateMyProfile(userId, request))
                     .isInstanceOf(UserNotFoundException.class);
         }
     }

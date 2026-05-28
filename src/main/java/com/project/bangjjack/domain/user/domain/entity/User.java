@@ -77,6 +77,18 @@ public class User extends BaseEntity {
         this.isOnboarded = true;
     }
 
+    public void editProfile(Integer birthYear, Integer grade, Gender gender,
+                            Campus campus, Department department,
+                            Semester semester, Dormitory dormitory) {
+        this.birthYear = birthYear;
+        this.grade = grade;
+        this.gender = gender;
+        this.campus = campus;
+        this.department = department;
+        this.semester = semester;
+        this.dormitory = dormitory;
+    }
+
     public void completeChecklistRegistration() {
         this.isChecklistRegistered = true;
     }
