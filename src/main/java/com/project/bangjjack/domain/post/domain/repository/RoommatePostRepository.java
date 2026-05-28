@@ -9,11 +9,15 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface RoommatePostRepository extends JpaRepository<RoommatePost, Long>, RoommatePostQueryRepository {
 
     boolean existsByUserAndStatusAndDeletedFalse(User user, PostStatus status);
+
+    @Query("SELECT p FROM RoommatePost p WHERE p.user.id = :userId AND p.deleted = false ORDER BY p.createdAt DESC")
+    List<RoommatePost> findAllByUserIdAndDeletedFalseOrderByCreatedAtDesc(@Param("userId") Long userId);
 
     @Query("SELECT p FROM RoommatePost p JOIN FETCH p.user WHERE p.id = :postId AND p.deleted = false")
     Optional<RoommatePost> findWithUserByIdAndDeletedFalse(@Param("postId") Long postId);

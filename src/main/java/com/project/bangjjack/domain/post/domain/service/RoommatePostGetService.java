@@ -62,6 +62,10 @@ public class RoommatePostGetService {
         return roommatePostRepository.findPostList(campus, roomSize, pageable);
     }
 
+    public List<RoommatePost> getPostsByUserId(Long userId) {
+        return roommatePostRepository.findAllByUserIdAndDeletedFalseOrderByCreatedAtDesc(userId);
+    }
+
     public List<RoommatePost> getRecommendationCandidates(User requester, RoomSize roomSize) {
         return roommatePostRepository.findRecommendationCandidates(requester, roomSize);
     }
