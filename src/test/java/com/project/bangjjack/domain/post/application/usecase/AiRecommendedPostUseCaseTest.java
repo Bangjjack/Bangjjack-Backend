@@ -20,7 +20,6 @@ import com.project.bangjjack.domain.post.application.loader.RecommendedPostsBund
 import com.project.bangjjack.domain.post.application.loader.RecommendedPostsDataLoader;
 import com.project.bangjjack.domain.post.domain.entity.RoomSize;
 import com.project.bangjjack.domain.post.domain.entity.RoommatePost;
-import com.project.bangjjack.domain.post.domain.port.cache.AiRecommendedPostCachePort;
 import com.project.bangjjack.domain.post.domain.port.match.MatchAnalysisProfile;
 import com.project.bangjjack.domain.post.domain.port.match.MatchBatchAnalysisPort;
 import com.project.bangjjack.domain.post.domain.port.match.MatchBatchCommand;
@@ -41,25 +40,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
-import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AiRecommendedPostUseCase")
 class AiRecommendedPostUseCaseTest {
 
-    @Mock
-    private AiRecommendedPostCachePort aiRecommendedPostCachePort;
     @Mock
     private RecommendedPostsDataLoader recommendedPostsDataLoader;
     @Mock
@@ -127,27 +120,8 @@ class AiRecommendedPostUseCaseTest {
     class GetRecommended {
 
         @Test
-        @DisplayName("캐시 HIT 시 AI 호출/DB 조회 없이 캐시값을 그대로 반환한다")
-        void 캐시_히트_시_바로_반환() {
-            // given
-            Long userId = 1L;
-            RoomSize roomSize = RoomSize.TWO_PERSON;
-            List<AiRecommendedPostResponse> cached = List.of();
-            given(aiRecommendedPostCachePort.find(userId, roomSize)).willReturn(Optional.of(cached));
-
-            // when
-            List<AiRecommendedPostResponse> result = aiRecommendedPostUseCase.getRecommended(userId, roomSize);
-
-            // then
-            assertThat(result).isSameAs(cached);
-            verify(recommendedPostsDataLoader, never()).loadBundle(any(), any());
-            verify(matchBatchAnalysisPort, never()).analyze(any());
-            verify(aiRecommendedPostCachePort, never()).save(any(), any(), any(), any());
-        }
-
-        @Test
-        @DisplayName("캐시 MISS + 후보 3건이면 AI 응답의 rank 순서대로 변환하여 반환하고 캐시에 저장한다")
-        void 캐시_미스_시_AI_호출_후_캐시_저장() throws Exception {
+        @DisplayName("후보 3건이면 AI 응답의 rank 순서대로 변환하여 반환한다")
+        void 후보_조회_후_AI_호출하여_변환() throws Exception {
             // given
             Long userId = 1L;
             RoomSize roomSize = null;
@@ -166,10 +140,8 @@ class AiRecommendedPostUseCaseTest {
                     RankedMatch.of(3, 1, 60)
             ));
 
-            given(aiRecommendedPostCachePort.find(userId, roomSize)).willReturn(Optional.empty());
             given(recommendedPostsDataLoader.loadBundle(userId, roomSize)).willReturn(bundle);
             given(aiMatchApiProperties.recommendedTopK()).willReturn(10);
-            given(aiMatchApiProperties.recommendedCacheTtl()).willReturn(21600L);
             given(matchBatchAnalysisPort.analyze(any(MatchBatchCommand.class))).willReturn(batchResult);
 
             // when
@@ -190,14 +162,11 @@ class AiRecommendedPostUseCaseTest {
             assertThat(result.get(2).postId()).isEqualTo(1001L);
             assertThat(result.get(2).matchRate()).isEqualTo(60);
             assertThat(result.get(2).totalMemberCount()).isEqualTo(2);
-
-            verify(aiRecommendedPostCachePort, times(1))
-                    .save(eq(userId), eq(roomSize), eq(result), eq(Duration.ofSeconds(21600L)));
         }
 
         @Test
-        @DisplayName("eligibility 통과 후보가 0건이면 빈 리스트도 캐시에 저장하고 AI는 호출하지 않는다")
-        void 후보_0건_시_빈_리스트_캐시_저장() throws Exception {
+        @DisplayName("eligibility 통과 후보가 0건이면 빈 리스트를 반환하고 AI는 호출하지 않는다")
+        void 후보_0건_시_빈_리스트_반환() throws Exception {
             // given
             Long userId = 1L;
             User requester = userWithId(userId);
@@ -206,9 +175,7 @@ class AiRecommendedPostUseCaseTest {
             );
             RecommendedPostsBundle bundle = RecommendedPostsBundle.of(requesterProfile, List.of());
 
-            given(aiRecommendedPostCachePort.find(userId, null)).willReturn(Optional.empty());
             given(recommendedPostsDataLoader.loadBundle(userId, null)).willReturn(bundle);
-            given(aiMatchApiProperties.recommendedCacheTtl()).willReturn(21600L);
 
             // when
             List<AiRecommendedPostResponse> result = aiRecommendedPostUseCase.getRecommended(userId, null);
@@ -216,13 +183,11 @@ class AiRecommendedPostUseCaseTest {
             // then
             assertThat(result).isEmpty();
             verify(matchBatchAnalysisPort, never()).analyze(any());
-            verify(aiRecommendedPostCachePort, times(1))
-                    .save(eq(userId), eq(null), eq(List.of()), eq(Duration.ofSeconds(21600L)));
         }
 
         @Test
-        @DisplayName("AI 호출 실패 시 AiServiceUnavailableException이 전파되고 캐시는 저장되지 않는다")
-        void AI_실패_시_캐시_저장_안_함() throws Exception {
+        @DisplayName("AI 호출 실패 시 AiServiceUnavailableException이 전파된다")
+        void AI_실패_시_예외_전파() throws Exception {
             // given
             Long userId = 1L;
             User requester = userWithId(userId);
@@ -232,7 +197,6 @@ class AiRecommendedPostUseCaseTest {
             CandidateEntry c0 = candidate(100L, 1000L, Smoking.NON_SMOKER, 1);
             RecommendedPostsBundle bundle = RecommendedPostsBundle.of(requesterProfile, List.of(c0));
 
-            given(aiRecommendedPostCachePort.find(userId, null)).willReturn(Optional.empty());
             given(recommendedPostsDataLoader.loadBundle(userId, null)).willReturn(bundle);
             given(aiMatchApiProperties.recommendedTopK()).willReturn(10);
             given(matchBatchAnalysisPort.analyze(any(MatchBatchCommand.class)))
@@ -241,7 +205,6 @@ class AiRecommendedPostUseCaseTest {
             // when & then
             assertThatThrownBy(() -> aiRecommendedPostUseCase.getRecommended(userId, null))
                     .isInstanceOf(AiServiceUnavailableException.class);
-            verify(aiRecommendedPostCachePort, never()).save(any(), any(), any(), any());
         }
     }
 }

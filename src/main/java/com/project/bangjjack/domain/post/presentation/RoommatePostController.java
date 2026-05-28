@@ -92,7 +92,7 @@ public class RoommatePostController {
         return CommonResponse.success(PostResponseCode.MATCH_RATE_ANALYZED, matchAnalysisUseCase.analyzeMatchRate(memberId, postId));
     }
 
-    @Operation(summary = "AI 추천 룸메이트 모집글 조회", description = "요청자의 체크리스트·선호도를 기준으로 AI 매칭률이 높은 OPEN 모집글 최대 10건을 매칭률 내림차순으로 반환합니다. 동일 성별·캠퍼스·기숙사 후보로 한정(요청자 User 엔티티에서 자동 도출). 동일 (사용자, roomSize) 조합에 대해 6시간 캐싱됩니다.")
+    @Operation(summary = "AI 추천 룸메이트 모집글 조회", description = "요청자의 체크리스트·선호도를 기준으로 AI 매칭률이 높은 OPEN 모집글 최대 10건을 매칭률 내림차순으로 반환합니다. 동일 성별·캠퍼스·기숙사 후보로 한정(요청자 User 엔티티에서 자동 도출).")
     @GetMapping("/recommended")
     public CommonResponse<List<AiRecommendedPostResponse>> getRecommendedPosts(
             @CurrentMemberId Long memberId,
