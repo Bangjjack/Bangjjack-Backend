@@ -4,6 +4,7 @@ import com.project.bangjjack.domain.user.application.dto.request.UserOnboardingR
 import com.project.bangjjack.domain.user.application.dto.response.AiRecommendedRoommateResponse;
 import com.project.bangjjack.domain.user.application.dto.response.MyProfileResponse;
 import com.project.bangjjack.domain.user.application.dto.response.UserBasicTagResponse;
+import com.project.bangjjack.domain.user.application.dto.response.UserProfileResponse;
 import com.project.bangjjack.domain.user.application.usecase.AiRecommendedRoommatesUseCase;
 import com.project.bangjjack.domain.user.application.usecase.UserUseCase;
 import com.project.bangjjack.domain.user.presentation.response.UserResponseCode;
@@ -45,6 +46,17 @@ public class UserController {
     @GetMapping("/me/profile")
     public CommonResponse<MyProfileResponse> getMyProfile(@CurrentMemberId Long memberId) {
         return CommonResponse.success(UserResponseCode.MY_PROFILE_FOUND, userUseCase.getMyProfile(memberId));
+    }
+
+    @Operation(summary = "특정 유저 프로필 조회", description = "특정 사용자의 프로필(학적/선호도/체크리스트)과 본인 체크리스트와의 항목별 일치 여부(matched)를 조회합니다.")
+    @GetMapping("/{userId}/profile")
+    public CommonResponse<UserProfileResponse> getUserProfile(
+            @CurrentMemberId Long memberId,
+            @PathVariable Long userId) {
+        return CommonResponse.success(
+                UserResponseCode.USER_PROFILE_FOUND,
+                userUseCase.getUserProfile(memberId, userId)
+        );
     }
 
     @Operation(summary = "AI 추천 룸메이트 조회", description = "본인 체크리스트/선호도 기준으로 매칭률이 높은 룸메이트 후보 최대 3명을 조회합니다.")

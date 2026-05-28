@@ -1,0 +1,192 @@
+# Feature Specification: 특정 유저 프로필 조회
+# Status: Draft
+# Last Updated: 2026-05-28
+
+meta:
+  id: FEAT-018
+  title: 특정 유저 프로필 조회
+  type: Feature
+  author: 1winhyun
+
+overview:
+  summary: >
+    인증된 사용자가 특정 사용자(userId)의 프로필을 조회한다. 응답에는 기본 인적사항(id/프로필이미지/이름/
+    학년/출생년도/학과명/학기/기숙사) + 룸메이트 선호도 3개 + 생활습관 체크리스트 9개 항목이 포함되며,
+    각 체크리스트 항목은 { value, matched } 래퍼로 반환되어 요청자(viewer) 본인의 체크리스트와의 일치
+    여부를 함께 노출한다.
+  user_story: >
+    As a 인증된 사용자, I want to 다른 사용자의 프로필과 체크리스트를 조회하고 각 항목이 나와 일치하는지
+    확인하고, so that 채팅/모집글 진입 전에 그 사람과 잘 맞을지 빠르게 판단할 수 있다.
+  goals:
+    - userId 단건으로 대상 사용자의 통합 프로필 조회
+    - 학과명(Department LAZY 조인)·기숙사·학기 등 학적 메타 노출
+    - 룸메이트 선호도 우선순위 3개([priority1, priority2, priority3]) 노출
+    - 생활습관 체크리스트 9개 항목을 { value, matched } 래퍼로 노출
+    - 각 항목별 viewer 본인 체크리스트와의 일치 여부(matched) 제공
+    - 자기 자신 조회도 허용 (모든 matched=true 또는 viewer 미등록 시 null)
+    - 본 화면 진입 사용자는 인증된 사용자라면 누구나 가능 (성별/캠퍼스/기숙사 하드 필터 없음)
+
+# ============================================================
+# API 명세
+# ============================================================
+technical_spec:
+  api:
+    - method: GET
+      path: /api/v1/users/{userId}/profile
+      summary: 특정 유저 프로필 조회 (선호도 + 체크리스트 + viewer 일치 여부)
+      auth: MEMBER (Bearer Token, 필수)
+      request:
+        path_variable:
+          - name: userId
+            type: Long
+            required: true
+            note: "조회 대상 사용자 ID"
+        dto: "(없음)"
+        fields: []
+      response:
+        dto: UserProfileResponse
+        http_status: 200 OK
+        wrapper: CommonResponse<UserProfileResponse>
+        response_code: UserResponseCode.USER_PROFILE_FOUND
+        fields:
+          # --- 기본 인적사항 ---
+          - name: userId
+            type: Long
+            nullable: false
+            description: "대상 사용자 ID (path variable과 동일)"
+          - name: profileImage
+            type: String
+            nullable: true
+            description: "프로필 이미지 URL (User.profileImage). Google picture 기반. 미설정 시 null."
+          - name: username
+            type: String
+            nullable: false
+            description: "사용자 이름 (User.username)"
+          - name: grade
+            type: Integer
+            nullable: true
+            description: "학년 (1 ~ 5). 온보딩 미완료 시 null"
+          - name: birthYear
+            type: Integer
+            nullable: true
+            description: >
+              출생년도. 화면의 '20세' 등 표기는 프론트가 변환(currentYear - birthYear + 1).
+              FEAT-015/FEAT-017과 동일한 컨벤션. 온보딩 미완료 시 null.
+          - name: departmentName
+            type: String
+            nullable: true
+            description: "학과명 (Department.name). User.department LAZY 조인 결과. 온보딩 미완료 시 null"
+          - name: semester
+            type: String (Enum: Semester)
+            nullable: true
+            description: "학기 (SIXTEEN_WEEKS | TWENTY_FIVE_WEEKS). 온보딩 미완료 시 null"
+          - name: dormitory
+            type: String (Enum: Dormitory)
+            nullable: true
+            description: "기숙사 (DORM_1 | DORM_2 | DORM_3). 온보딩 미완료 시 null"
+
+          # --- 룸메이트 선호도 (3개 우선순위) ---
+          - name: roommatePreferences
+            type: List<String (Enum: RoommatePreferenceFactor)>
+            nullable: true
+            description: >
+              대상 사용자 선호도. 미등록 시 null. 등록된 경우 [priority1, priority2, priority3] 3개
+              순서대로 반환. 값은 BEDTIME / WAKE_UP_TIME / SLEEP_HABIT / DORM_STAY_TIME /
+              CLEANING_HABIT / INDOOR_TEMPERATURE / NOISE_SENSITIVITY / ITEM_SHARING / SMOKING / CALL_HABIT.
+
+  data_flow:
+    - step: 1
+      layer: Presentation (UserController)
+      action: "@CurrentMemberId로 JWT viewerId 추출, @PathVariable userId 수신 후 UserUseCase.getUserProfile(viewerId, userId) 호출"
+    - step: 2
+      layer: UseCase (UserUseCase)
+      action: >
+        UserGetService.getById(userId)로 대상 User 조회. 실패(없음/soft-delete) 시 USER_NOT_FOUND.
+        viewerId와 userId 동일성 검사는 별도 하지 않음(자기 조회도 정상 동작).
+      transaction: "@Transactional(readOnly = true) (클래스 기본값 적용)"
+    - step: 3
+      layer: UseCase (UserUseCase)
+      action: "targetUser.getDepartment() (LAZY) 접근으로 Department 로드. department_id가 null이면 null 유지(스킵)."
+    - step: 4
+      layer: UseCase (UserUseCase)
+      action: >
+        ChecklistGetService.getChecklistBundlesByUserIds({viewerId, userId}) 호출.
+        Map<userId, ChecklistBundle> 반환 (내부에서 체크리스트 IN(2) + sleepHabits IN(N) 쿼리).
+        viewerId==userId 인 자기 조회 케이스에서는 Set으로 중복 제거되어 IN(1)로 동작.
+    - step: 5
+      layer: UseCase (UserUseCase)
+      action: >
+        viewerBundle = bundles.get(viewerId), targetBundle = bundles.get(userId) 추출.
+        targetBundle == null → lifestyleChecklist = null.
+        targetBundle != null → LifestyleChecklistResponse.from(targetBundle, viewerBundle) 호출
+        (viewerBundle == null 이면 내부 로직에 의해 모든 ChecklistField.matched = null).
+    - step: 6
+      layer: UseCase (UserUseCase)
+      action: >
+        RoommatePreferenceGetService.findByUser(targetUser).orElse(null)로 대상 사용자 선호도 조회.
+        미등록이면 null 유지(예외 없음).
+    - step: 7
+      layer: UseCase (UserUseCase)
+      action: "UserProfileResponse.of(targetUser, department, preference, lifestyleChecklistResponse) 생성 후 반환"
+    - step: 8
+      layer: Response
+      action: "200 OK, CommonResponse<UserProfileResponse> 반환"
+
+  validation_rules:
+    - "MEMBER 권한 필요 (JWT 미존재/만료 → 401)"
+    - "userId 형식이 유효하지 않으면 (e.g. 음수/문자열) → 400 BAD_REQUEST (글로벌 핸들러)"
+    - "userId 로 User 조회 실패(존재하지 않음 또는 soft-delete) → 404 USER_NOT_FOUND (40203, User 도메인 공용)"
+    - "viewer 본인의 userId 가 JWT 변조 등으로 조회 실패 시 → 404 USER_NOT_FOUND (40203)"
+    - "대상 사용자가 온보딩 미완료(grade/birthYear/department/semester/dormitory null) → 200 OK, 미설정 필드는 null"
+    - "대상 사용자 선호도 미등록 → roommatePreferences = null, 200 OK (404 미발생)"
+    - "대상 사용자 체크리스트 미등록 → lifestyleChecklist = null, 200 OK (404 미발생)"
+    - "viewer 체크리스트 미등록 → 200 OK 정상 반환, 단 lifestyleChecklist 의 모든 ChecklistField.matched = null"
+    - "viewer == target 자기 조회 → 양측 같은 ChecklistBundle 이므로 모든 matched=true (viewer 미등록 시 null). 별도 예외 없음."
+    - "soft-delete 된 sleepHabit 항목은 lifestyleChecklist.sleepHabits.value 에 포함되지 않음 (deleted=false 필터)"
+    - "성별/캠퍼스/기숙사 등 하드 필터 없음. 인증된 사용자라면 누구나 모든 사용자 프로필 조회 가능."
+
+  error_codes:
+    domain_range: "402xx (User 도메인) — 기존 코드 재사용. 신규 ErrorCode 없음."
+    codes:
+      - code: 40203
+        name: USER_NOT_FOUND
+        status: 404 NOT_FOUND
+        message: "사용자를 찾을 수 없습니다."
+        trigger: "path userId 또는 JWT viewerId로 User 조회 실패 시 (없음 / soft-delete / 변조 등)"
+        note: "User 도메인 공용 코드 재사용. 신규 코드 추가 없음 → check_error_codes.py 실행 불필요."
+
+  response_codes:
+    new_code:
+      - code: 200
+        name: USER_PROFILE_FOUND
+        status: 200 OK
+        message: "사용자 프로필 정보를 조회했습니다."
+        note: "UserResponseCode enum 에 추가. 기존 MY_PROFILE_FOUND / USER_BASIC_TAG_FOUND / AI_RECOMMENDED_ROOMMATES_FOUND 와 동일 enum 내 정의."
+
+# ============================================================
+# 테스트 전략
+# ============================================================
+testing_strategy:
+  happy_path:
+    - "온보딩/체크리스트/선호도 모두 등록된 viewer 가 동일 조건 target 조회 → 200 OK, 모든 필드 채워진 응답 반환"
+    - "viewer.bedtime == target.bedtime 인 항목은 ChecklistField.matched=true 로 반환"
+    - "viewer.bedtime != target.bedtime 인 항목은 ChecklistField.matched=false 로 반환"
+    - "viewer.sleepHabits 와 target.sleepHabits 가 순서 무관 동일 집합 → matched=true / 다르면 false"
+    - "roommatePreferences 가 [priority1, priority2, priority3] 순서대로 반환"
+    - "departmentName 이 User.department.name LAZY 조인으로 정확히 반환"
+    - "자기 자신 조회(viewerId == userId) → 모든 ChecklistField.matched=true (viewer 등록 상태 전제)"
+  edge_cases:
+    - "viewer 체크리스트 미등록 + target 체크리스트 등록 → lifestyleChecklist 의 모든 ChecklistField.matched=null, value는 정상 반환"
+    - "viewer 체크리스트 미등록 + target 체크리스트 미등록 → lifestyleChecklist=null"
+    - "viewer 체크리스트 등록 + target 체크리스트 미등록 → lifestyleChecklist=null, 예외 없음"
+    - "target 선호도 미등록 → roommatePreferences=null, 200 OK"
+    - "target 온보딩 미완료 → grade/birthYear/departmentName/semester/dormitory 가 모두 null, 200 OK"
+    - "존재하지 않는 userId → 404 USER_NOT_FOUND (40203)"
+    - "soft-delete (User.deleted=true) 된 userId → 404 USER_NOT_FOUND"
+    - "JWT 변조 viewerId 로 본인 조회 실패 → 404 USER_NOT_FOUND"
+    - "JWT 누락/만료 → 401 UNAUTHORIZED (글로벌 인증 필터)"
+    - "soft-delete 된 sleepHabit 항목 → lifestyleChecklist.sleepHabits.value 에 포함되지 않음 (deleted=false 필터)"
+    - "자기 자신 조회 + viewer 체크리스트 미등록 → lifestyleChecklist=null (target=viewer 동일 bundle)"
+  query_verification:
+    - "대상 User 조회 1회 + Department LAZY 1회(department 존재 시) + 체크리스트 IN({viewer, target}) 1회 + sleepHabits IN 1회 + RoommatePreference 1회 = 최대 5회로 처리 확인 (N+1 미발생)"
+    - "viewerId == userId 인 자기 조회 시 ChecklistGetService 가 IN(1) 로 동작하여 동일 row 중복 fetch 없음"
