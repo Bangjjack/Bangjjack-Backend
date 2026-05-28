@@ -1,6 +1,6 @@
 # Feature Specification: 내 프로필 조회
 # Status: Draft
-# Last Updated: 2026-05-25
+# Last Updated: 2026-05-28
 
 meta:
   id: FEAT-015
@@ -10,13 +10,13 @@ meta:
 
 overview:
   summary: >
-    로그인한 사용자가 본인의 프로필 정보(기본 인적사항 + 학적 + 기숙사 + 생활습관 체크리스트 9개 + 룸메이트 선호도 3개)를
+    로그인한 사용자가 본인의 프로필 정보(기본 인적사항 + 프로필 이미지 + 학적 + 기숙사 + 생활습관 체크리스트 9개 + 룸메이트 선호도 3개)를
     단일 API로 통합 조회한다.
   user_story: >
     As a 로그인한 사용자, I want to 내 프로필 정보를 한 번에 조회하고,
     so that 마이페이지 화면에서 등록한 모든 정보를 확인할 수 있다.
   goals:
-    - 본인의 기본 인적사항(이름/이메일/출생년도/성별) 조회
+    - 본인의 기본 인적사항(이름/이메일/프로필 이미지/출생년도/성별) 조회
     - 본인의 학적 정보(캠퍼스/학과/학년/학기/기숙사) 조회
     - 본인의 생활습관 체크리스트 9개 항목 임베드 조회
     - 본인의 룸메이트 선호도 우선순위 3개 조회
@@ -46,6 +46,10 @@ technical_spec:
             type: String
             nullable: false
             description: "사용자 이메일 (@gachon.ac.kr)"
+          - name: profileImage
+            type: String
+            nullable: true
+            description: "프로필 이미지 URL (Google OAuth picture 기반). 미제공 시 null."
           - name: birthYear
             type: Integer
             nullable: true

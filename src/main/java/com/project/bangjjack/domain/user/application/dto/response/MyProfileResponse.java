@@ -26,6 +26,7 @@ import java.util.List;
 public record MyProfileResponse(
         String username,
         String email,
+        String profileImage,
         Integer birthYear,
         Gender gender,
         Campus campus,
@@ -55,6 +56,7 @@ public record MyProfileResponse(
         return new MyProfileResponse(
                 user.getUsername(),
                 user.getEmail(),
+                user.getProfileImage(),
                 user.getBirthYear(),
                 user.getGender(),
                 user.getCampus(),

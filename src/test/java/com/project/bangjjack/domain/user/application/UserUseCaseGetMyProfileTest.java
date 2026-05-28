@@ -97,6 +97,7 @@ class UserUseCaseGetMyProfileTest {
             // then
             assertThat(response.username()).isEqualTo("테스트유저");
             assertThat(response.email()).isEqualTo("test@gachon.ac.kr");
+            assertThat(response.profileImage()).isEqualTo("image-url");
             assertThat(response.birthYear()).isEqualTo(2000);
             assertThat(response.gender()).isEqualTo(Gender.MALE);
             assertThat(response.campus()).isEqualTo(Campus.GLOBAL_CAMPUS);
@@ -133,6 +134,7 @@ class UserUseCaseGetMyProfileTest {
             // then
             assertThat(response.username()).isEqualTo("신규유저");
             assertThat(response.email()).isEqualTo("new@gachon.ac.kr");
+            assertThat(response.profileImage()).isNull();
             assertThat(response.birthYear()).isNull();
             assertThat(response.gender()).isNull();
             assertThat(response.campus()).isNull();
