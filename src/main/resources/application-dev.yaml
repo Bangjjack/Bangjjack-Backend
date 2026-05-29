@@ -49,6 +49,7 @@ ai:
     recommended-top-k: 10
     recommended-roommates-top-k: 3
     recommended-roommates-cache-ttl: 21600
+    recommended-roommates-chunk-size: 5
 
 management:
   endpoints:

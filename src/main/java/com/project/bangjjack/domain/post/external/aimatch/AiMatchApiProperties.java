@@ -10,6 +10,7 @@ public record AiMatchApiProperties(
         int readTimeoutBatch,
         int recommendedTopK,
         int recommendedRoommatesTopK,
-        long recommendedRoommatesCacheTtl
+        long recommendedRoommatesCacheTtl,
+        int recommendedRoommatesChunkSize
 ) {
 }
