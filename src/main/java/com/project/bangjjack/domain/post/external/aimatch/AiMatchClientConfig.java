@@ -7,14 +7,29 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @Configuration
 @EnableConfigurationProperties(AiMatchApiProperties.class)
 public class AiMatchClientConfig {
+
+    @Bean(name = "aiMatchTaskExecutor", destroyMethod = "shutdown")
+    public Executor aiMatchTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("ai-match-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(10);
+        executor.initialize();
+        return executor;
+    }
 
     @Bean
     public RestClient aiMatchRestClient(AiMatchApiProperties properties) {
