@@ -14,7 +14,8 @@ public enum UserResponseCode implements ResponseCodeInterface {
     MY_PROFILE_FOUND(200, HttpStatus.OK, "내 프로필 정보를 조회했습니다."),
     MY_PROFILE_UPDATED(200, HttpStatus.OK, "내 프로필이 수정되었습니다."),
     USER_PROFILE_FOUND(200, HttpStatus.OK, "사용자 프로필 정보를 조회했습니다."),
-    AI_RECOMMENDED_ROOMMATES_FOUND(200, HttpStatus.OK, "AI 추천 룸메이트 목록을 조회했습니다.");
+    AI_RECOMMENDED_ROOMMATES_FOUND(200, HttpStatus.OK, "AI 추천 룸메이트 목록을 조회했습니다."),
+    MATCH_REPORT_ANALYZED(200, HttpStatus.OK, "AI 매칭 리포트 분석에 성공했습니다.");
 
     private final int code;
     private final HttpStatus status;
