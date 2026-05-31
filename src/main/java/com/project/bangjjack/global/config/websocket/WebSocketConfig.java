@@ -27,7 +27,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 .setAllowedOriginPatterns(
                         "http://localhost:3000",
                         "http://localhost:5173",
-                        "http://localhost:8080"
+                        "http://localhost:8080",
+                        "https://43.202.238.44.nip.io",
+                        "https://bangjjack.vercel.app"
                 );
     }
 }
